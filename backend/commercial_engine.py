@@ -91,12 +91,14 @@ def calculate_commercial_performance(df_all, ca_mens_raw, annee="2024 + 2025", s
     top_ca_df = (df.groupby('article')['total_revenue'].sum()
                  .sort_values(ascending=False).head(20).reset_index())
     top_ca_df['part'] = (top_ca_df['total_revenue'] / max(total_ca, 1.0) * 100).round(1)
+    top_ca_df['cumul'] = top_ca_df['part'].cumsum().round(1)
     top_ca_list = []
     for _, r in top_ca_df.iterrows():
         top_ca_list.append({
             "article": str(r['article']).title(),
             "total_revenue": safe_num(r['total_revenue']),
-            "part": safe_num(r['part'])
+            "part": safe_num(r['part']),
+            "cumul": safe_num(r['cumul'])
         })
 
     top_qte_df = (df.groupby('article')['quantity'].sum()

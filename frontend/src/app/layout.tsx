@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
+import { Navbar } from "@/components/Navbar";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "Le Croisic · Retail Intelligence",
-  description: "Plateforme décisionnelle BI & Retail Intelligence — Boulangerie Le Croisic",
+  title: "Tableau de Bord BI",
+  description: "Plateforme décisionnelle BI & Intelligence Retail",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -17,7 +18,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="flex min-h-screen">
           <Sidebar />
           <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto">
-            {children}
+            <Navbar />
+            <div style={{ paddingTop: "40px", paddingBottom: "40px" }}>
+              {children}
+            </div>
           </div>
         </div>
       </body>

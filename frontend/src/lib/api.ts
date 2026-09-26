@@ -31,6 +31,7 @@ export async function fetchPenetration(params?: {
   search?: string;
   categories?: string[];
   statuts?: string[];
+  year?: string;
 }): Promise<any> {
   const query = new URLSearchParams();
   if (params?.search) query.append("search", params.search);
@@ -40,6 +41,7 @@ export async function fetchPenetration(params?: {
   if (params?.statuts) {
     params.statuts.forEach((s) => query.append("statuts", s));
   }
+  if (params?.year) query.append("year", params.year);
 
   const res = await fetch(`${API_BASE}/products/penetration?${query.toString()}`, { cache: "no-store" });
   if (!res.ok) throw new Error("Erreur API penetration");
@@ -71,8 +73,25 @@ export async function fetchAssociations(sortBy = "Lift ↓", topN = 20): Promise
   return res.json();
 }
 
-export async function fetchForecast(): Promise<any> {
-  const res = await fetch(`${API_BASE}/forecast`, { cache: "no-store" });
+export async function fetchForecast(params?: {
+  horizon?: number;
+  forecast_type?: string;
+  product?: string;
+  category?: string;
+  season?: string;
+  event?: string;
+  history_period?: string;
+}): Promise<any> {
+  const query = new URLSearchParams();
+  if (params?.horizon) query.append("horizon", String(params.horizon));
+  if (params?.forecast_type) query.append("forecast_type", params.forecast_type);
+  if (params?.product) query.append("product", params.product);
+  if (params?.category) query.append("category", params.category);
+  if (params?.season) query.append("season", params.season);
+  if (params?.event) query.append("event", params.event);
+  if (params?.history_period) query.append("history_period", params.history_period);
+
+  const res = await fetch(`${API_BASE}/forecast?${query.toString()}`, { cache: "no-store" });
   if (!res.ok) throw new Error("Erreur API forecast");
   return res.json();
 }

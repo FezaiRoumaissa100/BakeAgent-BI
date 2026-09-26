@@ -118,11 +118,12 @@ def get_performance(
 def get_penetration(
     search: str = "",
     categories: Optional[List[str]] = Query(None),
-    statuts: Optional[List[str]] = Query(None)
+    statuts: Optional[List[str]] = Query(None),
+    year: str = "Toutes"
 ):
     if df_clean is None or df_penetration is None:
         return {"error": "Data not found"}
-    return get_penetration_data(df_clean, df_penetration, search, categories, statuts)
+    return get_penetration_data(df_clean, df_penetration, search, categories, statuts, year)
 
 @app.get("/api/products/velocity")
 def get_velocity():
@@ -154,10 +155,22 @@ def get_associations(
 
 # ── 4. Prévisions ──
 @app.get("/api/forecast")
-def get_forecast():
+def get_forecast(
+    horizon: int = 14,
+    forecast_type: str = "articles",
+    product: Optional[str] = None,
+    category: Optional[str] = None,
+    season: Optional[str] = None,
+    event: Optional[str] = None,
+    history_period: str = "all"
+):
     if daily_data is None or forecast_14j is None:
         return {"error": "Data not found"}
-    return get_forecast_data(daily_data, forecast_14j, forecast_saison, mdape_cv)
+    return get_forecast_data(
+        daily_data, forecast_14j, forecast_saison, mdape_cv,
+        horizon, forecast_type, product, category, season, event, history_period,
+        df_clean  # ← DONNÉES TICKETS STANDARDISÉES (colonnes article, category, season, event garanties)
+    )
 
 
 # ── 5. Alertes Stock ──

@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { IconMapPin, IconCalendar } from "./Icons";
+import { siteConfig, formatTodayDate } from "@/lib/siteConfig";
+
 const ORANGE = "#E8734A";
 
 const NAV = [
@@ -18,6 +22,11 @@ export function TopNav({
   variant?: "hero" | "light";
 }) {
   const onHero = variant === "hero";
+  const [todayLabel, setTodayLabel] = useState<string>("");
+
+  useEffect(() => {
+    setTodayLabel(formatTodayDate("fr-FR"));
+  }, []);
 
   return (
     <header className="relative z-20 flex items-center justify-between gap-4 flex-wrap">
@@ -41,13 +50,13 @@ export function TopNav({
                 }
           }
         >
-          <span
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-sm"
-            style={{ background: ORANGE }}
+          <div
+            className="w-7 h-7 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(232,115,74,0.14)" }}
           >
-            🥐
-          </span>
-          Le Croisic
+            <IconMapPin size={15} color={ORANGE} strokeWidth={2.3} />
+          </div>
+          {siteConfig.bakeryName}
         </div>
 
         <nav
@@ -92,6 +101,18 @@ export function TopNav({
         className="flex items-center gap-3 text-xs font-semibold shrink-0"
         style={{ color: onHero ? "rgba(255,255,255,0.85)" : "#5a4a3a" }}
       >
+        <div className="hidden lg:flex items-center gap-2 px-2.5 py-1.5 rounded-lg"
+          style={
+            onHero
+              ? { background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }
+              : { background: "rgba(232,115,74,0.06)", border: "1px solid rgba(232,115,74,0.15)" }
+          }
+        >
+          <IconCalendar size={14} color={ORANGE} strokeWidth={2.2} />
+          <span style={{ fontWeight: 700, color: onHero ? "white" : "#1C1410" }}>
+            {todayLabel || "Chargement…"}
+          </span>
+        </div>
         <span className="hidden sm:inline">
           {jour} · {date}
         </span>

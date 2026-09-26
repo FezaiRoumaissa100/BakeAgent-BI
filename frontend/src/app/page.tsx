@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { DailyKPIs } from "@/types/kpis";
 import { fetchDailyKPIs } from "@/lib/api";
 import { Hero, AnalyticsSections } from "@/components/Dashboard";
+import { IconAlert } from "@/components/Icons";
 
 export default function Page() {
   const [kpis, setKpis] = useState<DailyKPIs | null>(null);
@@ -37,7 +38,21 @@ export default function Page() {
     return (
       <main className="min-h-screen flex items-center justify-center p-6 text-center" style={{ background: "#f2ede6" }}>
         <div className="bg-white rounded-2xl p-6 shadow-lg max-w-md">
-          <div className="text-2xl mb-2">⚠️</div>
+          <div className="flex justify-center mb-3">
+            <div
+              style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "50%",
+                background: "rgba(220,38,38,0.10)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <IconAlert size={24} color="#DC2626" strokeWidth={2.2} />
+            </div>
+          </div>
           <div className="text-sm font-bold text-red-600 mb-2">{error}</div>
           <p className="text-xs text-gray-500 mb-4">Vérifiez que le serveur FastAPI tourne sur le port 8000.</p>
           <button
@@ -55,15 +70,10 @@ export default function Page() {
 
   return (
     <main className="min-h-screen" style={{ background: "#f2ede6" }}>
-      {/* 
-        Le composant Hero contient exactement la structure Streamlit :
-        .outer (580px) -> .hero (380px) + .cards-row (270px en bas chevauchant)
-      */}
+      {/* Hero simplifié sans image "Le Croisic" */}
       <Hero kpis={kpis} />
 
-      {/* 
-        Sections analytiques : Rythme de la journée, CA Horaire, Top produits, Mix et catégories
-      */}
+      {/* Sections analytiques : Rythme de la journée, CA Horaire, Top produits, Mix et catégories */}
       <AnalyticsSections kpis={kpis} />
     </main>
   );

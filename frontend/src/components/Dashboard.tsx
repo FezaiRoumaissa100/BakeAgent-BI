@@ -1,7 +1,9 @@
-﻿"use client";
+"use client";
 
 import { DailyKPIs, HourlyData } from "@/types/kpis";
 import React from "react";
+import { IconSparkline } from "./Icons";
+import { siteConfig } from "@/lib/siteConfig";
 
 const ORANGE = "#E8734A";
 const PEACH = "#F0A882";
@@ -302,7 +304,7 @@ function PlotlyAreaChart({
 }
 
 /* ──────────────────────────────────────────────────── 
-   HERO + 4 CARTES (Structure identique à app.py)
+   HERO SECTION (KPIs individuels, fond normal)
 ──────────────────────────────────────────────────── */
 export function Hero({ kpis }: { kpis: DailyKPIs }) {
   const v_text = kpis.vitesse >= 20 ? "Forte" : kpis.vitesse <= 5 ? "Faible" : "Normale";
@@ -333,84 +335,156 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
 
   return (
     <div className="outer">
-      {/* ── HERO SECTION ── */}
-      <div className="hero">
-        <div className="hero-ov" />
-
-        {/* NavBar */}
-        <div className="hero-bar">
-          <div className="logo-pill">
-            <div className="logo-sq">🥐</div>
-            Le Croisic
+      {/* ── KPI CARDS (Design moderne, fond normal) ── */}
+      <div style={{ 
+        display: "grid", 
+        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", 
+        gap: "16px", 
+        marginBottom: "8px" 
+      }}>
+        {/* CA Card */}
+        <div style={{
+          background: "white",
+          borderRadius: "16px",
+          padding: "20px",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+          border: "1px solid rgba(200,140,100,0.15)"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+            <div style={{
+              width: "36px", height: "36px",
+              background: "rgba(232,115,74,0.1)",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23" />
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H17" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.7rem", color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Chiffre d'Affaires
+              </div>
+              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: INK, marginTop: "2px" }}>
+                {fmt(kpis.ca_jour)} EUR
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: "0.75rem", color: MUTED, marginTop: "8px" }}>
+            Journée du {kpis.date_str}
           </div>
         </div>
 
-        {/* Titre + Boutons icônes */}
-        <div className="hero-title-wrap">
-          <div className="h-title">Vue du Jour</div>
-          <div className="h-sub">
-            {kpis.jour_str} &nbsp;·&nbsp; {kpis.date_str}
+        {/* Tickets Card */}
+        <div style={{
+          background: "white",
+          borderRadius: "16px",
+          padding: "20px",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+          border: "1px solid rgba(200,140,100,0.15)"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+            <div style={{
+              width: "36px", height: "36px",
+              background: "rgba(232,115,74,0.1)",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 9a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4a2 2 0 0 0 0-4z" />
+                <path d="M13 5v14" strokeDasharray="2 2" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.7rem", color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Tickets
+              </div>
+              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: INK, marginTop: "2px" }}>
+                {kpis.tickets}
+              </div>
+            </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
-            {/* Cloche d'alertes */}
-            <div className="icon-btn">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-              <div className="icon-badge">{kpis.alerts_count}</div>
-            </div>
-            {/* Copilot IA */}
-            <div className="icon-btn">
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-                <path d="M5 3v4" />
-                <path d="M19 17v4" />
-                <path d="M3 5h4" />
-                <path d="M17 19h4" />
-              </svg>
-            </div>
+          <div style={{ fontSize: "0.75rem", color: MUTED, marginTop: "8px" }}>
+            Transactions aujourd'hui
           </div>
         </div>
 
-        {/* Reports Card */}
-        <div className="reports-card">
-          <div className="rc-hdr">
-            <span className="rc-title">Rapports</span>
-            <span className="rc-badge">Journée</span>
-          </div>
-          <div className="rc-kpis">
-            <div>
-              <div className="rc-lbl">Chiffre d'affaires</div>
-              <div className="rc-val">{fmt(kpis.ca_jour)} EUR</div>
+        {/* Panier Moyen Card */}
+        <div style={{
+          background: "white",
+          borderRadius: "16px",
+          padding: "20px",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+          border: "1px solid rgba(200,140,100,0.15)"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+            <div style={{
+              width: "36px", height: "36px",
+              background: "rgba(232,115,74,0.1)",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="8" cy="21" r="1" />
+                <circle cx="19" cy="21" r="1" />
+                <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
+              </svg>
             </div>
             <div>
-              <div className="rc-lbl">Tickets</div>
-              <div className="rc-val">{kpis.tickets}</div>
+              <div style={{ fontSize: "0.7rem", color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Panier Moyen
+              </div>
+              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: INK, marginTop: "2px" }}>
+                {fmt(kpis.panier, 2)} EUR
+              </div>
             </div>
           </div>
-          <div className="rc-sub">
-            Panier moy. {fmt(kpis.panier, 2)} EUR &nbsp;·&nbsp; Pic {String(kpis.peak_h).padStart(2, "0")}h
+          <div style={{ fontSize: "0.75rem", color: MUTED, marginTop: "8px" }}>
+            Par transaction
           </div>
-          <Sparkline data={kpis.hourly_data} height={55} />
+        </div>
+
+        {/* Pic Card */}
+        <div style={{
+          background: "white",
+          borderRadius: "16px",
+          padding: "20px",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+          border: "1px solid rgba(200,140,100,0.15)"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+            <div style={{
+              width: "36px", height: "36px",
+              background: "rgba(232,115,74,0.1)",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.7rem", color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Pic Heure
+              </div>
+              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: INK, marginTop: "2px" }}>
+                {String(kpis.peak_h).padStart(2, "0")}h
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: "0.75rem", color: MUTED, marginTop: "8px" }}>
+            Pic de la journée
+          </div>
         </div>
       </div>
 
@@ -916,7 +990,7 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
       {/* ── Footer ── */}
       <div className="pf">
         <span>
-          Boulangerie Le Croisic &nbsp;·&nbsp; POS &nbsp;·&nbsp; {fmt(kpis.total_lignes)} lignes &nbsp;·&nbsp; {kpis.date_str}
+          {siteConfig.bakeryName} &nbsp;·&nbsp; {siteConfig.dataSourceLabel} &nbsp;·&nbsp; {fmt(kpis.total_lignes)} lignes &nbsp;·&nbsp; {kpis.date_str}
         </span>
         <span>Données historiques — pas le stock réel</span>
       </div>

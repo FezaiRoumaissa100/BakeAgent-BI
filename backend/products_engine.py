@@ -10,9 +10,23 @@ def safe_num(v, default=0.0):
         return default
 
 # ── 1. Pénétration ──────────────────────────────────────────
-def get_penetration_data(df_clean, df_pen_raw, search="", categories=None, statuts=None):
+def get_penetration_data(df_clean, df_pen_raw, search="", categories=None, statuts=None, year=None):
+    df = df_clean.copy()
     df_pen = df_pen_raw.copy()
-    cat_map = df_clean[['article', 'category']].drop_duplicates().query("category != 'A CLASSIFIER'")
+
+    # Filtre temporel
+    if year and year != "Toutes":
+        try:
+            y = int(year)
+            if 'semaine_iso' in df.columns:
+                df = df[df['semaine_iso'].astype(str).str.startswith(str(y))]
+            elif 'date' in df.columns:
+                df = df[df['date'].dt.year == y]
+            df_pen = df_pen.copy()
+        except Exception:
+            pass
+
+    cat_map = df[['article', 'category']].drop_duplicates().query("category != 'A CLASSIFIER'")
     df_pen = df_pen.merge(cat_map, on='article', how='left')
     
     moy_cat = (df_pen.dropna(subset=['category'])
@@ -21,8 +35,8 @@ def get_penetration_data(df_clean, df_pen_raw, search="", categories=None, statu
     df_pen = df_pen.merge(moy_cat, on='category', how='left')
     df_pen['score_normalise'] = (df_pen['penetration_rate_%'] / df_pen['moy_pen_cat'].replace(0, 1) * 100).round(1)
 
-    ca = df_clean.groupby('article')['total_revenue'].sum().reset_index().rename(columns={'total_revenue': 'ca_total'})
-    qty = df_clean.groupby('article')['quantity'].sum().reset_index().rename(columns={'quantity': 'qty_total'})
+    ca = df.groupby('article')['total_revenue'].sum().reset_index().rename(columns={'total_revenue': 'ca_total'})
+    qty = df.groupby('article')['quantity'].sum().reset_index().rename(columns={'quantity': 'qty_total'})
     df_pen = df_pen.merge(ca, on='article', how='left').merge(qty, on='article', how='left')
     df_pen['upt'] = (df_pen['qty_total'] / df_pen['tickets_count'].replace(0, 1)).round(2)
 
@@ -34,29 +48,41 @@ def get_penetration_data(df_clean, df_pen_raw, search="", categories=None, statu
     if statuts is not None and isinstance(statuts, (list, set, tuple)) and len(statuts) > 0:
         df_pen = df_pen[df_pen['statut_strategique'].isin(statuts)]
 
-    # Weekly trend for top products
-    PRODUITS_TOP = ['TRADITIONAL BAGUETTE', 'COUPE', 'BAGUETTE', 'BANETTE', 'CROISSANT', 'PAIN AU CHOCOLAT']
+    # Weekly trend — DYNAMIQUE selon les filtres
+    # Si recherche OU catégories OU statuts sont actifs :
+    #   → afficher les TOP 4 produits du df_penet FILTRÉ (pertinence > TOP fixes)
+    # Sinon : garder les 6 produits "phares" fixes (référence historique)
+    PRODUITS_TOP_FIXES = ['TRADITIONAL BAGUETTE', 'COUPE', 'BAGUETTE', 'BANETTE', 'CROISSANT', 'PAIN AU CHOCOLAT']
+    has_filter = bool(search) or (categories and len(categories) > 0) or (statuts and len(statuts) > 0)
+
+    if has_filter and len(df_pen) > 0:
+        # Prendre les N premiers du df_penet déjà filtré (triés par pénétration)
+        top_n = min(6, len(df_pen))
+        produits_du_graphe = df_pen.sort_values('penetration_rate_%', ascending=False)['article'].head(top_n).tolist()
+    else:
+        produits_du_graphe = list(PRODUITS_TOP_FIXES)
+
     weekly_trend = []
-    if 'semaine_iso' in df_clean.columns:
+    if 'semaine_iso' in df.columns and len(produits_du_graphe) > 0:
         try:
-            tickets_hebdo = (df_clean.groupby('semaine_iso')['ticket_number']
+            tickets_hebdo = (df.groupby('semaine_iso')['ticket_number']
                              .nunique().reset_index()
                              .rename(columns={'ticket_number': 'nb_tickets_semaine'}))
-            df_penet = (df_clean.drop_duplicates(subset=['ticket_number', 'article'])
-                        .query('article in @PRODUITS_TOP')
+            df_penet = (df.drop_duplicates(subset=['ticket_number', 'article'])
+                        [df.drop_duplicates(subset=['ticket_number', 'article'])['article'].isin(produits_du_graphe)]
                         .groupby(['semaine_iso', 'article'])['ticket_number'].nunique().reset_index()
                         .rename(columns={'ticket_number': 'nb_tickets_produit'})
                         .merge(tickets_hebdo, on='semaine_iso', how='left'))
             df_penet['taux'] = (df_penet['nb_tickets_produit'] / df_penet['nb_tickets_semaine'] * 100).round(2)
-            
-            for art in PRODUITS_TOP:
+
+            for art in produits_du_graphe:
                 sub = df_penet[df_penet['article'] == art].sort_values('semaine_iso')
                 series = []
                 for _, r in sub.iterrows():
                     series.append({"week": str(r['semaine_iso']), "rate": safe_num(r['taux'])})
                 weekly_trend.append({"article": art, "series": series})
         except Exception:
-            pass
+            weekly_trend = []
 
     # Category averages
     cat_pen = (df_pen.dropna(subset=['category'])
@@ -66,7 +92,7 @@ def get_penetration_data(df_clean, df_pen_raw, search="", categories=None, statu
                    ca_total=('ca_total', 'sum'),
                    nb_articles=('article', 'count')
                ).reset_index().sort_values('taux_moyen', ascending=False))
-    
+
     cat_pen_list = []
     for _, r in cat_pen.iterrows():
         cat_pen_list.append({
@@ -93,6 +119,16 @@ def get_penetration_data(df_clean, df_pen_raw, search="", categories=None, statu
             "statut": str(r.get('statut_strategique', 'Autre'))
         })
 
+    available_years = []
+    try:
+        if 'date' in df_clean.columns:
+            available_years = sorted([int(y) for y in df_clean['date'].dt.year.dropna().unique()], reverse=True)
+        elif 'semaine_iso' in df_clean.columns:
+            years = sorted(list(set(str(s)[:4] for s in df_clean['semaine_iso'].dropna().astype(str).unique())), reverse=True)
+            available_years = [int(y) for y in years if y.isdigit()]
+    except Exception:
+        available_years = []
+
     return {
         "kpis": {
             "total_articles": len(df_pen),
@@ -104,7 +140,8 @@ def get_penetration_data(df_clean, df_pen_raw, search="", categories=None, statu
         "category_summary": cat_pen_list,
         "weekly_trend": weekly_trend,
         "available_categories": sorted(df_clean[df_clean['category'] != 'A CLASSIFIER']['category'].dropna().unique().tolist()) if 'category' in df_clean.columns else [],
-        "available_statuts": sorted(df_pen_raw['statut_strategique'].dropna().unique().tolist())
+        "available_statuts": sorted(df_pen_raw['statut_strategique'].dropna().unique().tolist()),
+        "available_years": available_years
     }
 
 # ── 2. Vitesse de vente ─────────────────────────────────────
@@ -217,8 +254,20 @@ def get_ticket_contribution_data(df_clean):
 # ── 4. Fréquence d'achat ─────────────────────────────────────
 def get_repurchase_frequency_data(df_clean):
     df = df_clean.copy()
-    df['week_id'] = df['date'].dt.isocalendar().apply(lambda x: f"{x['year']}-W{x['week']:02d}", axis=1)
+
+    # Création de week_id 100% VECTORISÉ (aucun apply ligne-par-ligne)
+    if 'semaine_iso' in df.columns:
+        df['week_id'] = df['semaine_iso'].astype(str)
+    else:
+        iso = df['date'].dt.isocalendar()
+        wk = iso['week'].astype(int).astype(str)
+        # zfill vectorisé par concaténation conditionnelle
+        df['week_id'] = (iso['year'].astype(int).astype(str) + '-W' +
+                         ('0' + wk).str.slice(-2))
+
     total_sem = int(df['week_id'].nunique())
+    if total_sem <= 0:
+        total_sem = 1
 
     sp = (df.groupby('article')['week_id'].nunique().reset_index()
             .rename(columns={'week_id': 'semaines_actives'}))
