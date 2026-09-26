@@ -1,6 +1,6 @@
-# Design d'un Systeme de Gestion Commerciale Intelligent — Agentique & BI
+# Design d'un Systeme de Gestion Commerciale Intelligent — Boulangerie, Agentique & BI
 
-> Plateforme d'intelligence decisionnelle et agent autonome pour le commerce alimentaire de proximite.  
+> Plateforme d'intelligence decisionnelle et agent autonome dedie a une boulangerie.  
 > Architecture Next.js 16 / FastAPI / PostgreSQL 16.  
 > **Source de donnees active: Fichier Pickle `retail_data.pkl`** (validation 1:1 PostgreSQL effectuee, bascule backend en preparation).
 
@@ -8,7 +8,7 @@
 
 ## 1. But et description du projet
 
-Ce systeme transforme un systeme d'information decisionnel classique (BI traditionnel) en une plateforme **agentique** capable d'analyser les ventes, de produire des previsions de demande (Prophet), d'identifier des associations produits (Apriori), et de generer des alertes stock intelligentes pour un point de vente alimentaire artisanal.
+Ce systeme transforme un systeme d'information decisionnel classique (BI traditionnel) en une plateforme **agentique** dediee a la gestion d'une **boulangerie**. Il est concu pour analyser l'activite quotidienne sur des donnees historiques, produire des previsions de demande (Prophet), identifier des associations entre pains, patisseries et autres produits (Apriori) et generer des alertes sur les niveaux de stock intelligentes. Les informations specifiques a un etablissement (nom, localisation, adresse, contact) sont configurees dans un fichier central de branding sans modifier le coeur du systeme.
 
 Cas d'usage couverts:
 - **Vue du Jour** — suivi en temps réel du CA, des tickets et du rythme horaire
@@ -17,7 +17,7 @@ Cas d'usage couverts:
 - **Prévisions Ventes** — modèle Prophet unique (horizons 7/14/30 jours, intervalle de confiance, MAPE par horizon)
 - **Alertes & Stock** — statut RUPTURE / VIGILANCE / NORMAL / SURSTOCK / FERMÉ, recommandations commandes
 
-Identité visuelle: style **boulangerie moderne** — tons chauds orange #E8734A, crème #FDF6EC, design "artisanal propre".
+Identité visuelle: style **boulangerie moderne** — tons chauds orange #E8734A, crème #FDF6EC, design sobre.
 
 ---
 
