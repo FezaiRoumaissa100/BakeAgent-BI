@@ -2022,7 +2022,7 @@ export default function ProduitsPage() {
                   sub="Concentration des ventes selon l'heure"
                   icon={<IconBar size={16} color={ORANGE} />}
                 />
-                <SimpleBar rows={velData.hourly_distribution || []} labelKey="label" valueKey="qte" unit="u." color={PEACH} height={200} />
+                <SimpleBar rows={velData.hourly_distribution || []} labelKey="heure_label" valueKey="global_qte_per_hour" unit="u." color={PEACH} height={200} />
               </div>
               <div className="cc">
                 <CardHeader
@@ -2032,7 +2032,7 @@ export default function ProduitsPage() {
                 />
                 <RankedRows
                   rows={velData.macro_items || []}
-                  valueKey={(velData.macro_items?.[0] && Object.keys(velData.macro_items[0]).find((k) => k !== "article")) || "velocity"}
+                  valueKey="daily_velocity"
                   colorKey={(_, i) => i < 3 ? ORANGE : i < 8 ? PEACH : LIGHT}
                   maxShow={15}
                 />
@@ -2060,7 +2060,7 @@ export default function ProduitsPage() {
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".68rem", color: MUTED }}>
                         <span>Pic de vente</span>
-                        <span style={{ fontWeight: 700, color: i < 2 ? ALERT : ORANGE }}>{velData.hourly_distribution?.[i % (velData.hourly_distribution?.length || 1)]?.label || "—"}</span>
+                        <span style={{ fontWeight: 700, color: i < 2 ? ALERT : ORANGE }}>{p.peak_hour != null ? `${String(p.peak_hour).padStart(2, "0")}h` : velData.hourly_distribution?.[i % (velData.hourly_distribution?.length || 1)]?.heure_label || "—"}</span>
                       </div>
                     </div>
                   ))}
@@ -2186,7 +2186,7 @@ export default function ProduitsPage() {
                   data={ticketData.top20 || []}
                   xKey="nb_tickets_multi"
                   yKey="contribution_med"
-                  sizeKey="ca_total"
+                  sizeKey="ca_total_multi"
                   colorKey={(_r: any, i?: number) => PAL[(i ?? 0) % PAL.length]}
                   quadrants={{
                     xSplit: "p65",
@@ -2318,7 +2318,7 @@ export default function ProduitsPage() {
                   <div style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>Produits Quotidiens</div>
                 </div>
                 <div style={{ fontSize: "1.9rem", fontWeight: 800, color: OK, lineHeight: 1, marginTop: 10 }}>
-                  {fmt((freqData.status_distribution || {})["Produit Quotidien (100%)"] || 0)}
+                  {fmt((freqData.status_distribution || {})["Quotidien"] || 0)}
                 </div>
                 <div className="cs" style={{ marginTop: 4 }}>Présents toutes les semaines</div>
               </div>
@@ -2338,8 +2338,8 @@ export default function ProduitsPage() {
                 />
                 <RankedRows
                   rows={freqData.items || []}
-                  valueKey="repurchase_freq"
-                  colorKey={(r) => statutColor(r.statut)}
+                  valueKey="repurchase_freq_pct"
+                  colorKey={(r) => statutColor(r.statut_frequence)}
                   maxShow={20}
                   unit="%"
                 />
@@ -2370,7 +2370,7 @@ export default function ProduitsPage() {
                   cats={Object.entries(
                     (freqData.items || []).reduce((acc: any, p: any) => {
                       acc[p.category] = acc[p.category] || { total: 0, count: 0 };
-                      acc[p.category].total += Number(p.repurchase_freq) || 0;
+                      acc[p.category].total += Number(p.repurchase_freq_pct) || 0;
                       acc[p.category].count += 1;
                       return acc;
                     }, {})
@@ -2390,7 +2390,7 @@ export default function ProduitsPage() {
                   icon={<IconBar size={16} color={ORANGE} />}
                 />
                 {(() => {
-                  const vals = (freqData.items || []).map((p: any) => Number(p.repurchase_freq) || 0);
+                  const vals = (freqData.items || []).map((p: any) => Number(p.repurchase_freq_pct) || 0);
                   const sortedVals = [...vals].sort((a: number, b: number) => a - b);
                   const med = sortedVals.length > 0 ? sortedVals[Math.floor(sortedVals.length / 2)] || 0 : 0;
                   if (vals.length === 0) return null;
@@ -2417,7 +2417,7 @@ export default function ProduitsPage() {
                         <div>
                           <div className="cs">Quotidiens (100%)</div>
                           <div style={{ fontWeight: 800, color: WARN }}>
-                            {fmt((freqData.status_distribution || {})["Produit Quotidien (100%)"] || 0)}
+                            {fmt((freqData.status_distribution || {})["Quotidien"] || 0)}
                           </div>
                         </div>
                       </div>
@@ -2440,7 +2440,7 @@ export default function ProduitsPage() {
               />
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 14, marginTop: 10 }}>
                 {(freqData.items || []).slice(0, 8).map((p: any, i: number) => {
-                  const freq = Number(p.repurchase_freq) || 0;
+                  const freq = Number(p.repurchase_freq_pct) || 0;
                   return (
                     <div key={i} style={{ padding: 12, borderRadius: 12, background: `${PAL[i % PAL.length]}12`, borderLeft: `4px solid ${PAL[i % PAL.length]}` }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
