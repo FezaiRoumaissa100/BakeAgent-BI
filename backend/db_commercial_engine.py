@@ -11,7 +11,7 @@ def safe_num(v, default=0.0):
         return float(v)
     return float(v)
 
-def calculate_commercial_performance_pg(annee="2024 + 2025", saison="Toutes", mois="Tous", categorie="Toutes", evenement="Tous"):
+def calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="Tous", categorie="Toutes", evenement="Tous"):
     """
     Version PostgreSQL de calculate_commercial_performance
     """
@@ -21,10 +21,15 @@ def calculate_commercial_performance_pg(annee="2024 + 2025", saison="Toutes", mo
     where_clauses = []
     params = []
 
-    if annee == "2024":
-        where_clauses.append("EXTRACT(YEAR FROM d.date_id) = 2024")
-    elif annee == "2025":
-        where_clauses.append("EXTRACT(YEAR FROM d.date_id) = 2025")
+    if annee != "Toutes":
+        # Gérer n'importe quelle année spécifique (ex: 2024, 2025, 2026, etc.)
+        try:
+            year_int = int(annee)
+            where_clauses.append("EXTRACT(YEAR FROM d.date_id) = %s")
+            params.append(year_int)
+        except ValueError:
+            pass  # Si l'année n'est pas valide, ignorer le filtre
+    # Si "Toutes", pas de filtre sur l'année
 
     if saison != "Toutes":
         where_clauses.append("s.season_name = %s")
@@ -297,6 +302,13 @@ def calculate_commercial_performance_pg(annee="2024 + 2025", saison="Toutes", mo
 
     categories_list = ["Toutes"] + sorted([r['category_name'] for r in sql_fetch_all("SELECT DISTINCT category_name FROM dim_categories WHERE category_name IS NOT NULL AND category_name != 'A CLASSIFIER' ORDER BY category_name")])
     events_list = ["Tous"] + sorted([r['event_name'] for r in sql_fetch_all("SELECT DISTINCT event_name FROM dim_events WHERE event_name IS NOT NULL AND event_name != 'Jour Normal' ORDER BY event_name")])
+    
+    # Récupérer dynamiquement les années disponibles
+    years_raw = sql_fetch_all("SELECT DISTINCT EXTRACT(YEAR FROM date_id) as year FROM dim_dates ORDER BY year DESC")
+    available_years = sorted([int(r['year']) for r in years_raw if r['year'] is not None], reverse=True)
+    
+    # Construire la liste des options d'années : "Toutes" + années individuelles
+    annees_options = ["Toutes"] + [str(y) for y in available_years]
 
     return {
         "kpis": {
@@ -327,7 +339,7 @@ def calculate_commercial_performance_pg(annee="2024 + 2025", saison="Toutes", mo
         },
         "categories": categories_summary,
         "available_filters": {
-            "annees": ["2024 + 2025", "2024", "2025"],
+            "annees": annees_options,
             "saisons": ["Toutes", "Printemps", "Ete", "Automne", "Hiver"],
             "mois": ["Tous", "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"],
             "categories": categories_list,

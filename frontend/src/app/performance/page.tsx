@@ -647,7 +647,7 @@ export default function PerformancePage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const [annee, setAnnee] = useState<string>("2024 + 2025");
+  const [annee, setAnnee] = useState<string>("Toutes");
   const [saison, setSaison] = useState<string>("Toutes");
   const [mois, setMois] = useState<string>("Tous");
   const [categorie, setCategorie] = useState<string>("Toutes");

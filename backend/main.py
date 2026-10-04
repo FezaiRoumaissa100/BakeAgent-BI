@@ -51,7 +51,7 @@ def get_daily_kpis():
 
 @app.get("/api/performance")
 def get_performance(
-    annee: str = "2024 + 2025",
+    annee: str = "Toutes",
     saison: str = "Toutes",
     mois: str = "Tous",
     categorie: str = "Toutes",
