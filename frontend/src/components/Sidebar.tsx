@@ -7,13 +7,15 @@ import {
   IconSparkline, IconBarsGrouped, IconGrid, IconTrendUp, IconAlert
 } from "./Icons";
 import { siteConfig } from "@/lib/siteConfig";
+import { tr } from "@/lib/i18n";
 
-const NAV_ITEMS = [
-  { href: "/",          label: "Vue du Jour",     icon: <IconSparkline size={20} color="#fff" strokeWidth={2.1}/> },
-  { href: "/performance",label: "Performance",   icon: <IconBarsGrouped size={20} color="#fff" strokeWidth={2.1}/> },
-  { href: "/produits",  label: "Produits",        icon: <IconGrid size={20} color="#fff" strokeWidth={2.1}/> },
-  { href: "/previsions",label: "Prévisions",      icon: <IconTrendUp size={20} color="#fff" strokeWidth={2.1}/> },
-  { href: "/alertes",   label: "Alertes & Stock", icon: <IconAlert size={20} color="#fff" strokeWidth={2.1}/> },
+// Fonction (et non constante) : les libellés sont traduits au moment du rendu.
+const getNavItems = () => [
+  { href: "/",          label: tr("Vue du Jour", "Daily view"),     icon: <IconSparkline size={20} color="#fff" strokeWidth={2.1}/> },
+  { href: "/performance",label: tr("Performance", "Performance"),   icon: <IconBarsGrouped size={20} color="#fff" strokeWidth={2.1}/> },
+  { href: "/produits",  label: tr("Produits", "Products"),        icon: <IconGrid size={20} color="#fff" strokeWidth={2.1}/> },
+  { href: "/previsions",label: tr("Prévisions", "Forecasts"),      icon: <IconTrendUp size={20} color="#fff" strokeWidth={2.1}/> },
+  { href: "/alertes",   label: tr("Alertes & Stock", "Alerts & Stock"), icon: <IconAlert size={20} color="#fff" strokeWidth={2.1}/> },
 ];
 
 export function Sidebar() {
@@ -52,14 +54,14 @@ export function Sidebar() {
           </div>
           <div>
             <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "white", letterSpacing: "-0.02em" }}>
-              Tableau de Bord
+              {tr("Tableau de Bord", "Dashboard")}
             </div>
           </div>
         </div>
 
         {/* Navigation list */}
         <nav style={{ padding: "24px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
-          {NAV_ITEMS.map((item) => {
+          {getNavItems().map((item) => {
             const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
 
             return (

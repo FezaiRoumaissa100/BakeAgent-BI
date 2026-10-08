@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { colors } from "@/lib/theme";
 import { fetchPerformance } from "@/lib/api";
+import { tr, trData, locale } from "@/lib/i18n";
 import {
   IconTrendUp, IconTrophy, IconCalendar, IconTag, IconFilter,
   IconCash, IconTicket, IconCart, IconCalendarDays, IconBox,
@@ -15,20 +17,27 @@ import {
    ════════════════════════════════════════════════ */
 const ORANGE = stroke;                 // "#E8734A"
 const PEACH = strokeAlt;               // "#F0A882"
-const LIGHT = "#FAD4C4";
+const LIGHT = colors.accentPale;
 const INK = ink;                       // "#1C1410"
 const MUTED = muted;                   // "#9a8070"
-const C1 = "#C4A882";                  // beige foncé
-const C2 = "#C8860A";                  // doré
-const C3 = "#E6A817";                  // ambre
-const PANIER = "#27AE60";
-const TICKETS = "#3498DB";
-const PAPER = "#FDF6EC";               // fond crème carte (opaque)
-const PAPER_2 = "#FBF2E7";
+const C1 = colors.beige;                  // beige foncé
+const C2 = colors.gold;                  // doré
+const C3 = colors.amberLight;                  // ambre
+const PANIER = colors.green;
+const TICKETS = colors.blue;
+const PAPER = colors.paper;               // fond crème carte (opaque)
+const PAPER_2 = colors.paper2;
 const PALETTE: string[] = [C1, C2, C3, "#27AE60", "#3498DB", "#8E44AD", "#E74C3C", "#1ABC9C", "#F39C12", "#2ECC71", "#9B59B6", "#16A085"];
 
+// « 2025-12-01 » → « décembre 2025 »
+function monthLabel(s?: string) {
+  if (!s) return "";
+  const d = new Date(s.length === 7 ? s + "-01" : s);
+  return isNaN(d.getTime()) ? s : d.toLocaleDateString(locale(), { month: "long", year: "numeric" });
+}
+
 function fmt(n: number, dec = 0) {
-  return Number(n || 0).toLocaleString("fr-FR", {
+  return Number(n || 0).toLocaleString(locale(), {
     minimumFractionDigits: dec,
     maximumFractionDigits: dec,
   });
@@ -154,8 +163,9 @@ function EvolutionLineChart({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, paddingRight: 6, paddingLeft: 4 }}>
         <span style={{ fontSize: ".72rem", color: MUTED, fontWeight: 600 }}>
           {isZoomed
-            ? `Zoom : ${series[effStart].label} → ${series[effEnd].label} · Double-cliquez ou cliquez ici pour réinitialiser`
-            : "Glissez une sélection horizontale sur le graphique pour zoomer"}
+            ? tr(`Zoom : ${series[effStart].label} → ${series[effEnd].label} · Double-cliquez ou cliquez ici pour réinitialiser`,
+                 `Zoom: ${series[effStart].label} → ${series[effEnd].label} · Double-click or click here to reset`)
+            : tr("Glissez une sélection horizontale sur le graphique pour zoomer", "Drag a horizontal selection on the chart to zoom in")}
         </span>
         {isZoomed && (
           <button
@@ -172,7 +182,7 @@ function EvolutionLineChart({
               fontWeight: 700,
             }}
           >
-            × Réinitialiser zoom
+            {tr("× Réinitialiser zoom", "× Reset zoom")}
           </button>
         )}
       </div>
@@ -194,12 +204,12 @@ function EvolutionLineChart({
         <line x1={padL} x2={W - padR} y1={getY(moyenne)} y2={getY(moyenne)}
               stroke={ORANGE} strokeWidth="2" strokeDasharray="8 5" opacity="0.95"/>
         <text x={W - padR - 10} y={getY(moyenne) - 8} textAnchor="end"
-              fontSize="13" fill={ORANGE} fontWeight="800">μ Moyenne {fmt(moyenne)} €</text>
+              fontSize="13" fill={ORANGE} fontWeight="800">{tr("Moyenne", "Average")} {fmt(moyenne)} €</text>
         <line x1={padL} x2={W - padR} y1={getY(moyenne + ecartType)} y2={getY(moyenne + ecartType)}
               stroke={C1} strokeWidth="1.2" strokeDasharray="4 4" opacity="0.8"/>
         {yTicks.map((v, i) => (
           <g key={i}>
-            <line x1={padL} x2={W - padR} y1={getY(v)} y2={getY(v)} stroke="#f2e9e1" strokeWidth="1"/>
+            <line x1={padL} x2={W - padR} y1={getY(v)} y2={getY(v)} stroke="var(--dk-line, #f2e9e1)" strokeWidth="1"/>
             <text x={padL - 12} y={getY(v) + 4} textAnchor="end"
                   fontSize="13" fill={MUTED} fontWeight="700">
               {fmt(v / 1000, v > 10000 ? 0 : 1)}k€
@@ -216,7 +226,7 @@ function EvolutionLineChart({
             <g>
               <line x1={pt.x} x2={pt.x} y1={pt.y} y2={pt.y - 56} stroke={ORANGE} strokeWidth="1.4" strokeDasharray="3 3"/>
               <rect x={pt.x - 62} y={pt.y - 88} width="124" height="30" rx="8"
-                    fill="#fff" stroke={ORANGE} strokeWidth="1.3" style={{ filter: "drop-shadow(0 4px 8px rgba(232,115,74,0.18))" }}/>
+                    fill="var(--dk-surface, #fff)" stroke={ORANGE} strokeWidth="1.3" style={{ filter: "drop-shadow(0 4px 8px rgba(232,115,74,0.18))" }}/>
               <text x={pt.x} y={pt.y - 68} textAnchor="middle" fontSize="12" fill={ORANGE} fontWeight="800">
                 MAX · {fmt(s.ca)} €
               </text>
@@ -231,7 +241,7 @@ function EvolutionLineChart({
             <g>
               <line x1={pt.x} x2={pt.x} y1={pt.y} y2={pt.y + 42} stroke={C1} strokeWidth="1.4" strokeDasharray="3 3"/>
               <rect x={pt.x - 62} y={pt.y + 48} width="124" height="30" rx="8"
-                    fill="#fff" stroke={C1} strokeWidth="1.3" style={{ filter: "drop-shadow(0 4px 8px rgba(196,168,130,0.18))" }}/>
+                    fill="var(--dk-surface, #fff)" stroke={C1} strokeWidth="1.3" style={{ filter: "drop-shadow(0 4px 8px var(--dk-line, rgba(196,168,130,0.18)))" }}/>
               <text x={pt.x} y={pt.y + 68} textAnchor="middle" fontSize="12" fill={C1} fontWeight="800">
                 MIN · {fmt(s.ca)} €
               </text>
@@ -240,7 +250,7 @@ function EvolutionLineChart({
         })()}
         {pts.map(({ x, y, s, i }) => (
           <circle key={i} cx={x} cy={y} r={12} fill="transparent" stroke="transparent" style={{ cursor: "pointer" }}>
-            <title>{`${s.label}\nChiffre d'Affaires : ${fmt(s.ca)} €`}</title>
+            <title>{tr(`${s.label}\nChiffre d'Affaires : ${fmt(s.ca)} €`, `${s.label}\nRevenue: ${fmt(s.ca)} €`)}</title>
           </circle>
         ))}
         {isSelecting && selStart !== null && selCurrent !== null && (
@@ -276,7 +286,7 @@ function Comp2425BarChart({ data }: { data: Array<{ mois: string; ca_2024: numbe
         const v = t * max, y = getY(v);
         return (
           <g key={i}>
-            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#f2e9e1"/>
+            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="var(--dk-line, #f2e9e1)"/>
             <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="10" fill={MUTED} fontWeight="600">
               {fmt(v / 1000, v > 10000 ? 0 : 1)}k
             </text>
@@ -293,7 +303,7 @@ function Comp2425BarChart({ data }: { data: Array<{ mois: string; ca_2024: numbe
             <rect x={x24} y={y24} width={barW} height={getY(0) - y24} rx={3} fill={C1} fillOpacity="0.88"/>
             <rect x={x25} y={y25} width={barW} height={getY(0) - y25} rx={3} fill={ORANGE} fillOpacity="0.92"/>
             <text x={gx + groupW / 2} y={H - padB + 18} textAnchor="middle"
-                  fontSize="11" fill={INK} fontWeight="700">{d.mois}</text>
+                  fontSize="11" fill={INK} fontWeight="700">{trData(d.mois)}</text>
           </g>
         );
       })}
@@ -321,7 +331,7 @@ function TopNHBar({ data, n }: { data: Array<{ article: string; total_revenue: n
         const x = padL + t * (W - padL - padR);
         return (
           <g key={i}>
-            <line x1={x} x2={x} y1={padT} y2={H - padB} stroke="#f8f3ee"/>
+            <line x1={x} x2={x} y1={padT} y2={H - padB} stroke="var(--dk-line, #f8f3ee)"/>
             <text x={x} y={H - padB + 14} textAnchor="middle" fontSize="10" fill={MUTED} fontWeight="600">
               {fmt(v / 1000, v > 10000 ? 0 : 1)}k€
             </text>
@@ -341,7 +351,7 @@ function TopNHBar({ data, n }: { data: Array<{ article: string; total_revenue: n
             <rect x={padL} y={y + rowH * 0.14} width={w} height={rowH * 0.72}
                   rx={4} fill={color} fillOpacity="0.9"/>
             <text x={padL + w + 8} y={y + rowH * 0.68}
-                  fontSize="10.5" fill={color} fontWeight="800">{it.part}%</text>
+                  fontSize="10.5" fill={color} fontWeight="800">{fmt(it.part, 1)} %</text>
           </g>
         );
       })}
@@ -373,9 +383,9 @@ function DonutTopN({ data, n, centerLabel }: {
     <div style={{ display: "flex", gap: "24px", alignItems: "center", height: "100%" }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "50%", maxWidth: "380px" }} preserveAspectRatio="xMidYMid meet">
         {arcs.map((a, i) => (
-          <path key={i} d={a.d} fill={a.color} stroke="#fff" strokeWidth="2"/>
+          <path key={i} d={a.d} fill={a.color} stroke="var(--dk-surface, #fff)" strokeWidth="2"/>
         ))}
-        <text x={cx} y={cy - 8} textAnchor="middle" fontSize="15" fill={MUTED} fontWeight="600">CA Top {n}</text>
+        <text x={cx} y={cy - 8} textAnchor="middle" fontSize="15" fill={MUTED} fontWeight="600">{tr(`CA Top ${n}`, `Top ${n} revenue`)}</text>
         <text x={cx} y={cy + 22} textAnchor="middle" fontSize="28" fill={INK} fontWeight="800">{centerLabel}</text>
       </svg>
       <div style={{ flex: 1, display: "grid", gridTemplateColumns: `1fr 1fr`, gap: "4px 16px", fontSize: "0.78rem" }}>
@@ -409,7 +419,7 @@ function DayOfWeekBars({ days, mode }: {
         const v = t * max, y = getY(v);
         return (
           <g key={i}>
-            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#f2e9e1"/>
+            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="var(--dk-line, #f2e9e1)"/>
             <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="10" fill={MUTED} fontWeight="600">
               {fmt(mode === "total" ? v/1000 : v, 0)}{mode === "total" ? "k" : ""}
             </text>
@@ -428,12 +438,14 @@ function DayOfWeekBars({ days, mode }: {
               {mode === "total" ? `${fmt(v / 1000, 1)}k€` : `${fmt(v)} €`}
             </text>
             <text x={gx + bw / 2} y={H - padB + 20} textAnchor="middle"
-                  fontSize="11.5" fill={INK} fontWeight="700">{d.day}</text>
+                  fontSize="11.5" fill={INK} fontWeight="700">{trData(d.day)}</text>
           </g>
         );
       })}
       <text x={padL} y={H - padB + 44} fontSize="10" fill={MUTED} fontWeight="700">
-        {mode === "total" ? "CA cumulé sur la période (€)" : "CA moyen par jour ouvert (€/j)"}
+        {mode === "total"
+          ? tr("CA cumulé sur la période (€)", "Cumulative revenue over the period (€)")
+          : tr("CA moyen par jour ouvert (€/j)", "Average revenue per open day (€/d)")}
       </text>
     </svg>
   );
@@ -465,7 +477,7 @@ function HourlyDual({ data }: { data: Array<{ hour: number; heure_label: string;
         const v = t * maxCA, y = getYca(v);
         return (
           <g key={i}>
-            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#f2e9e1"/>
+            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="var(--dk-line, #f2e9e1)"/>
             <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="10" fill={C2} fontWeight="700">
               {fmt(v / 1000, v > 10000 ? 0 : 1)}k€
             </text>
@@ -493,14 +505,14 @@ function HourlyDual({ data }: { data: Array<{ hour: number; heure_label: string;
       })}
       <path d={lpath} fill="none" stroke={ORANGE} strokeWidth="2.6" strokeLinecap="round"/>
       {pts.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="4.2" fill="#fff" stroke={ORANGE} strokeWidth="2"/>
+        <circle key={i} cx={p.x} cy={p.y} r="4.2" fill="var(--dk-surface, #fff)" stroke={ORANGE} strokeWidth="2"/>
       ))}
       <g transform={`translate(${padL + 10}, ${H - 8})`}>
         <rect x="0" y="-10" width="12" height="12" rx="3" fill={C2}/>
-        <text x="18" y="0" fontSize="10.5" fill={INK} fontWeight="700">CA (€) — axe gauche</text>
+        <text x="18" y="0" fontSize="10.5" fill={INK} fontWeight="700">{tr("CA (€) — axe gauche", "Revenue (€) — left axis")}</text>
         <line x1="220" y1="-4" x2="248" y2="-4" stroke={ORANGE} strokeWidth="2.5"/>
-        <circle cx="250" cy="-4" r="4" fill="#fff" stroke={ORANGE} strokeWidth="2"/>
-        <text x="258" y="0" fontSize="10.5" fill={INK} fontWeight="700">Tickets — axe droit</text>
+        <circle cx="250" cy="-4" r="4" fill="var(--dk-surface, #fff)" stroke={ORANGE} strokeWidth="2"/>
+        <text x="258" y="0" fontSize="10.5" fill={INK} fontWeight="700">{tr("Tickets — axe droit", "Transactions — right axis")}</text>
       </g>
     </svg>
   );
@@ -584,7 +596,7 @@ function TreemapCats({ data }: { data: Array<{ category: string; ca: number; par
                 stroke={b.color} strokeWidth="1.6" strokeOpacity="0.55"/>
           <text x={b.x + b.w / 2} y={b.y + b.h / 2 - 14} textAnchor="middle"
                 fontSize={Math.min(16, b.h * 0.24, b.w * 0.11)} fill={INK} fontWeight="800">
-            {b.d.category}
+            {trData(b.d.category)}
           </text>
           <text x={b.x + b.w / 2} y={b.y + b.h / 2 + 6} textAnchor="middle"
                 fontSize={Math.min(14, b.h * 0.2)} fill={INK} fontWeight="700">
@@ -592,7 +604,7 @@ function TreemapCats({ data }: { data: Array<{ category: string; ca: number; par
           </text>
           <text x={b.x + b.w / 2} y={b.y + b.h / 2 + 26} textAnchor="middle"
                 fontSize={Math.min(12, b.h * 0.18)} fill={MUTED} fontWeight="700">
-            {b.d.part}% · PM {fmt(b.d.panier, 2)}€
+            {b.d.part}% · {tr("PM", "Avg. basket")} {fmt(b.d.panier, 2)}€
           </text>
         </g>
       ))}
@@ -615,7 +627,7 @@ function CatHBar({ data, field, labelFn }: {
       {[0.25, 0.5, 0.75, 1].map((t, i) => {
         const v = t * max;
         const x = padL + t * (W - padL - padR);
-        return <line key={i} x1={x} x2={x} y1={padT} y2={H - padB} stroke="#f8f3ee"/>;
+        return <line key={i} x1={x} x2={x} y1={padT} y2={H - padB} stroke="var(--dk-line, #f8f3ee)"/>;
       })}
       {data.map((it, i) => {
         const color = PALETTE[i % PALETTE.length];
@@ -624,7 +636,7 @@ function CatHBar({ data, field, labelFn }: {
         return (
           <g key={i}>
             <text x={padL - 10} y={y + rowH * 0.62} textAnchor="end"
-                  fontSize="12.5" fill={INK} fontWeight="700">{it.category}</text>
+                  fontSize="12.5" fill={INK} fontWeight="700">{trData(it.category)}</text>
             <rect x={padL} y={y + rowH * 0.18} width={w} height={rowH * 0.64}
                   rx={5} fill={color} fillOpacity="0.88"/>
             <text x={padL + w + 10} y={y + rowH * 0.66}
@@ -720,7 +732,7 @@ export default function PerformancePage() {
   if (loading && !data) {
     return (
       <div style={{ padding: "40px", color: MUTED, fontSize: "0.9rem", fontWeight: 600, display:"flex", alignItems:"center", gap:"10px"}}>
-        <IconSparkline size={20} /> Chargement de l'analyse commerciale...
+        <IconSparkline size={20} /> {tr("Chargement de l'analyse commerciale...", "Loading sales analysis...")}
       </div>
     );
   }
@@ -734,11 +746,12 @@ export default function PerformancePage() {
       <div style={{ marginBottom: "20px", padding: "0 28px" }}>
         <h1 style={{ fontSize:"1.8rem", fontWeight:800, color:INK,
                      letterSpacing:"-0.03em", lineHeight:1.1, margin:0 }}>
-          Performance <span style={{ color: ORANGE }}>Générale</span>
+          {tr("Performance", "Overall")} <span style={{ color: ORANGE }}>{tr("Générale", "Performance")}</span>
         </h1>
         <p style={{ color:MUTED, fontSize:"0.82rem", marginTop:"6px",
                     maxWidth:"640px", lineHeight:1.5 }}>
-          Analyse globale du chiffre d'affaires, performance des produits, saisonnalité et dynamique des catégories.
+          {tr("Analyse globale du chiffre d'affaires, performance des produits, saisonnalité et dynamique des catégories.",
+              "Overall analysis of revenue, product performance, seasonality and category trends.")}
         </p>
       </div>
 
@@ -746,33 +759,33 @@ export default function PerformancePage() {
       <div className="sw" style={{ marginBottom: "8px" }}>
         <div style={{ display:"flex", flexWrap:"wrap", alignItems:"stretch", gap:"14px",
                       padding:"14px 18px", borderRadius:"14px",
-                      background:"#fff",
-                      border:"1px solid rgba(200,140,100,0.18)",
+                      background:"var(--dk-surface, #fff)",
+                      border:"1px solid var(--dk-line, rgba(200,140,100,0.18))",
                       boxShadow:"0 2px 12px rgba(0,0,0,0.06)" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"10px",
                         fontSize:"0.72rem", fontWeight:800,
                         color: ORANGE, textTransform:"uppercase", letterSpacing:"0.06em",
-                        borderRight:`1px solid rgba(196,168,130,.35)`,
+                        borderRight:`1px solid var(--dk-line, rgba(196,168,130,.35))`,
                         paddingRight:"16px", flexShrink:0}}>
             <IconFilter size={16} />
-            Filtres d'Analyse
+            {tr("Filtres d'Analyse", "Analysis Filters")}
           </div>
 
           {[
-            { label: "Année", icon: <IconCalendarDays size={14} />, val: annee, set: setAnnee, opts: filters.annees },
-            { label: "Saison", icon: <IconCalendar size={14} />, val: saison, set: setSaison, opts: filters.saisons },
-            { label: "Mois", icon: <IconTag size={14} />, val: mois, set: setMois, opts: filters.mois },
-            { label: "Catégorie", icon: <IconGrid size={14} />, val: categorie, set: setCategorie, opts: filters.categories },
-            { label: "Événement", icon: <IconPin size={14} />, val: evenement, set: setEvenement, opts: filters.evenements },
+            { label: tr("Année", "Year"), icon: <IconCalendarDays size={14} />, val: annee, set: setAnnee, opts: filters.annees },
+            { label: tr("Saison", "Season"), icon: <IconCalendar size={14} />, val: saison, set: setSaison, opts: filters.saisons },
+            { label: tr("Mois", "Month"), icon: <IconTag size={14} />, val: mois, set: setMois, opts: filters.mois },
+            { label: tr("Catégorie", "Category"), icon: <IconGrid size={14} />, val: categorie, set: setCategorie, opts: filters.categories },
+            { label: tr("Événement", "Event"), icon: <IconPin size={14} />, val: evenement, set: setEvenement, opts: filters.evenements },
           ].map((f) => (
             <div key={f.label} style={{ display:"flex", alignItems:"center", gap:"8px" }}>
               <label style={{ display:"inline-flex", alignItems:"center", gap:"5px",
-                              fontSize:"0.72rem", fontWeight:700, color:"#5C4033" }}>
+                              fontSize:"0.72rem", fontWeight:700, color:"var(--dk-ink2, #5C4033)" }}>
                 {f.icon}
                 {f.label}
               </label>
               <select value={f.val} onChange={(e)=>f.set(e.target.value)} style={opaqueSelect}>
-                {f.opts.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
+                {f.opts.map((opt: string) => <option key={opt} value={opt}>{trData(opt)}</option>)}
               </select>
             </div>
           ))}
@@ -781,23 +794,23 @@ export default function PerformancePage() {
         {(() => {
           const pills: Array<{ icon: React.ReactNode; text: string }> = [];
           if (annee && annee !== "2024 + 2025" && annee !== "Toutes")
-            pills.push({ icon:<IconCalendarDays size={12} />, text:`${annee}` });
+            pills.push({ icon:<IconCalendarDays size={12} />, text:trData(annee) });
           if (saison && saison !== "Toutes")
-            pills.push({ icon:<IconCalendar size={12} />, text:`${saison}` });
+            pills.push({ icon:<IconCalendar size={12} />, text:trData(saison) });
           if (mois && mois !== "Tous")
-            pills.push({ icon:<IconTag size={12} />, text:`${mois}` });
+            pills.push({ icon:<IconTag size={12} />, text:trData(mois) });
           if (categorie && categorie !== "Toutes")
-            pills.push({ icon:<IconGrid size={12} />, text:`${categorie}` });
+            pills.push({ icon:<IconGrid size={12} />, text:trData(categorie) });
           if (evenement && evenement !== "Tous")
-            pills.push({ icon:<IconPin size={12} />, text:`${evenement}` });
+            pills.push({ icon:<IconPin size={12} />, text:trData(evenement) });
           if (!pills.length) return null;
           return (
             <div style={{ marginTop:"10px", display:"flex", flexWrap:"wrap", gap:"6px" }}>
               {pills.map((p, i) => (
                 <span key={i} style={{ display:"inline-flex", alignItems:"center", gap:"6px",
-                  background:"#fff", border:"1px solid rgba(196,168,130,.3)",
+                  background:"var(--dk-surface, #fff)", border:"1px solid var(--dk-line, rgba(196,168,130,.3))",
                   borderRadius:"999px", padding:"3px 10px",
-                  fontSize:"0.72rem", fontWeight:700, color:"#5C4033",
+                  fontSize:"0.72rem", fontWeight:700, color:"var(--dk-ink2, #5C4033)",
                   boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
                   <span style={{ color: ORANGE }}>{p.icon}</span>{p.text}
                 </span>
@@ -811,16 +824,16 @@ export default function PerformancePage() {
           KPIs — Style Vue du Jour (cc, sw, ct, cs)
           ══════════════════════════════════════════════ */}
       <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-        <IconBarsGrouped size={16} /> Indicateurs Clés de Performance
+        <IconBarsGrouped size={16} /> {tr("Indicateurs Clés de Performance", "Key Performance Indicators")}
       </div>
       <div className="sw">
         <div style={{ display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:"12px" }}>
           {[
-            { icon: <IconCash size={16}/>, lbl:"CA Total", sub:"chiffre d'affaires", val:`${fmt(kpis.total_ca/1000,1)} k€`, accent: ORANGE },
-            { icon: <IconTicket size={16}/>, lbl:"Tickets", sub:"transactions clients", val: fmt(kpis.nb_tickets), accent: C2 },
-            { icon: <IconCart size={16}/>, lbl:"Panier Moyen", sub:"par visite", val:`${fmt(kpis.panier,2)} €`, accent: C3 },
-            { icon: <IconCalendarDays size={16}/>, lbl:"Jours Actifs", sub:"jours avec ventes", val: fmt(kpis.nb_jours), accent: PANIER },
-            { icon: <IconBox size={16}/>, lbl:"Références", sub:"produits vendus", val: fmt(kpis.nb_produits), accent: TICKETS },
+            { icon: <IconCash size={16}/>, lbl:tr("CA Total", "Total Revenue"), sub:tr("chiffre d'affaires", "revenue"), val:`${fmt(kpis.total_ca/1000,1)} k€`, accent: ORANGE },
+            { icon: <IconTicket size={16}/>, lbl:tr("Tickets", "Transactions"), sub:tr("transactions clients", "customer transactions"), val: fmt(kpis.nb_tickets), accent: C2 },
+            { icon: <IconCart size={16}/>, lbl:tr("Panier Moyen", "Average Basket"), sub:tr("par visite", "per visit"), val:`${fmt(kpis.panier,2)} €`, accent: C3 },
+            { icon: <IconCalendarDays size={16}/>, lbl:tr("Jours Actifs", "Active Days"), sub:tr("jours avec ventes", "days with sales"), val: fmt(kpis.nb_jours), accent: PANIER },
+            { icon: <IconBox size={16}/>, lbl:tr("Références", "Products"), sub:tr("produits vendus", "products sold"), val: fmt(kpis.nb_produits), accent: TICKETS },
           ].map((k) => (
             <div key={k.lbl} className="cc" style={{
               borderBottom: `3px solid ${k.accent}`,
@@ -829,7 +842,7 @@ export default function PerformancePage() {
             }}>
               <div style={{ display:"flex", alignItems:"center", gap:"7px", marginBottom:"6px"}}>
                 <div style={{ width:"22px", height:"22px", borderRadius:"6px",
-                              background:`${k.accent}18`, display:"flex",
+                              background:`color-mix(in srgb, ${k.accent} 9%, transparent)`, display:"flex",
                               alignItems:"center", justifyContent:"center",
                               color: k.accent }}>{k.icon}</div>
                 <div style={{ fontSize:"0.70rem", color: k.accent, textTransform:"uppercase",
@@ -846,17 +859,17 @@ export default function PerformancePage() {
           4 ONGLETS (icônes SVG + pas emojis)
           ══════════════════════════════════════════════ */}
       <div style={{ padding:"16px 20px 0" }}>
-        <div style={{ display:"flex", gap:"4px", borderBottom:"2px solid rgba(196,168,130,.22)", paddingBottom:0 }}>
+        <div style={{ display:"flex", gap:"4px", borderBottom:"2px solid var(--dk-line, rgba(196,168,130,.22))", paddingBottom:0 }}>
           {([
-            { id:"evolution", iconSvg:<IconTrendUp size={16}/>, label:"Évolution du CA" },
-            { id:"top",       iconSvg:<IconTrophy size={16}/>, label:"Top Produits" },
-            { id:"saison",    iconSvg:<IconCalendar size={16}/>, label:"Saisonnalité" },
-            { id:"categories",iconSvg:<IconTag size={16}/>,    label:"Catégories" },
+            { id:"evolution", iconSvg:<IconTrendUp size={16}/>, label:tr("Évolution du CA", "Revenue Trend") },
+            { id:"top",       iconSvg:<IconTrophy size={16}/>, label:tr("Top Produits", "Top Products") },
+            { id:"saison",    iconSvg:<IconCalendar size={16}/>, label:tr("Saisonnalité", "Seasonality") },
+            { id:"categories",iconSvg:<IconTag size={16}/>,    label:tr("Catégories", "Categories") },
           ] as const).map((t) => (
             <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{
               display:"inline-flex", alignItems:"center", gap:"8px",
               fontSize:"0.9rem", fontWeight: activeTab===t.id ? 800 : 600,
-              color: activeTab===t.id ? "#5C4033" : MUTED,
+              color: activeTab===t.id ? "var(--dk-ink2, #5C4033)" : MUTED,
               background: activeTab===t.id ? "rgba(232,115,74,0.08)" : "transparent",
               border:"none",
               borderBottom: activeTab===t.id ? `2px solid ${ORANGE}` : "2px solid transparent",
@@ -881,20 +894,18 @@ export default function PerformancePage() {
       {activeTab === "evolution" && (
         <div className="sw" style={{ paddingTop:"14px" }}>
           <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-            <IconTrendUp size={16} /> Évolution Mensuelle du Chiffre d'Affaires
+            <IconTrendUp size={16} /> {tr("Évolution Mensuelle du Chiffre d'Affaires", "Monthly Revenue Trend")}
           </div>
           <div className="cc" style={{ padding:"20px 24px" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start",
                           marginBottom:"12px", flexWrap:"wrap", gap:"10px" }}>
               <div>
-                <div className="ct">Courbe, Moyenne & Écart-Type</div>
-                <div className="cs">Moyenne mensuelle μ : {fmt(monthly.moyenne)} € (± {fmt(monthly.ecart_type)} € σ)</div>
+                <div className="ct">{tr("Chiffre d'affaires mois par mois", "Revenue month by month")}</div>
+                <div className="cs">{tr("Moyenne mensuelle :", "Monthly average:")} {fmt(monthly.moyenne)} €</div>
               </div>
               <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
-                <LegendPill color={C1} label="μ − σ"/>
-                <LegendPill color={ORANGE} label="μ Moyenne"/>
-                <LegendPill color={C1} label="μ + σ"/>
-                <LegendPill color={C2} label="CA mensuel"/>
+                <LegendPill color={ORANGE} label={tr("Moyenne", "Average")}/>
+                <LegendPill color={C2} label={tr("CA mensuel", "Monthly revenue")}/>
               </div>
             </div>
             <div style={{ height:"520px", width:"100%", marginTop:"20px" }}>
@@ -904,27 +915,27 @@ export default function PerformancePage() {
             </div>
 
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:"12px",
-                          marginTop:"24px", paddingTop:"20px", borderTop:"1px solid #f2e9e1" }}>
+                          marginTop:"24px", paddingTop:"20px", borderTop:"1px solid var(--dk-line, #f2e9e1)" }}>
               <InsightBox icon={<IconArrowMaxUp size={16} color={ORANGE}/>} color={ORANGE}
-                title="Meilleur mois"
-                strong={`${monthly.ca_max?.date_str} — ${fmt(monthly.ca_max?.val)} €`}/>
+                title={tr("Meilleur mois", "Best month")}
+                strong={`${monthLabel(monthly.ca_max?.date_str)} — ${fmt(monthly.ca_max?.val)} €`}/>
               <InsightBox icon={<IconArrowMinDown size={16} color={C1}/>} color={C1}
-                title="Mois le plus faible"
-                strong={`${monthly.ca_min?.date_str} — ${fmt(monthly.ca_min?.val)} €`}/>
+                title={tr("Mois le plus faible", "Weakest month")}
+                strong={`${monthLabel(monthly.ca_min?.date_str)} — ${fmt(monthly.ca_min?.val)} €`}/>
               <InsightBox icon={<IconScale size={16} color={C3}/>} color={C3}
-                title="Amplitude saisonnière"
+                title={tr("Amplitude saisonnière", "Seasonal range")}
                 strong={`${fmt(monthly.amplitude)} € — ratio ${Number(monthly.ratio_amp||0).toFixed(1)}×`}/>
             </div>
           </div>
 
-          {annee === "2024 + 2025" && monthly.comp_24_25?.length > 0 && (
+          {annee === "Toutes" && monthly.comp_24_25?.length > 0 && (
             <>
               <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-                <IconBarsGrouped size={16} /> Comparaison 2024 vs 2025 — Mois par Mois
+                <IconBarsGrouped size={16} /> {tr("Comparaison 2024 vs 2025 — Mois par Mois", "2024 vs 2025 Comparison — Month by Month")}
               </div>
               <div className="cc" style={{ padding:"20px 24px" }}>
-                <div className="ct">Évolution année N vs N−1</div>
-                <div className="cs">Barres groupées par mois — 12 mois alignés</div>
+                <div className="ct">{tr("Évolution année N vs N−1", "Year N vs year N−1")}</div>
+                <div className="cs">{tr("Barres groupées par mois — 12 mois alignés", "Bars grouped by month — 12 months side by side")}</div>
                 <div style={{ height:"400px", width:"100%", marginTop:"20px" }}>
                   <Comp2425BarChart data={monthly.comp_24_25}/>
                 </div>
@@ -940,49 +951,41 @@ export default function PerformancePage() {
       {activeTab === "top" && (
         <div className="sw" style={{ paddingTop:"14px" }}>
           <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-            <IconTrophy size={16} /> Classement des Produits par Chiffre d'Affaires
+            <IconTrophy size={16} /> {tr("Classement des Produits par Chiffre d'Affaires", "Product Ranking by Revenue")}
           </div>
 
           <div style={{ display:"flex", alignItems:"center", gap:"16px", margin:"0 4px 18px",
                         padding:"12px 20px", borderRadius:"12px",
-                        background: PAPER_2, border:"1px solid #f2e3cd"}}>
+                        background: PAPER_2, border:"1px solid var(--dk-line, #f2e3cd)"}}>
             <IconBar size={18} color={ORANGE} />
-            <span style={{ fontSize:"0.8rem", fontWeight:800, color:"#5C4033", whiteSpace:"nowrap" }}>
-              Nombre de produits à afficher
+            <span style={{ fontSize:"0.8rem", fontWeight:800, color:"var(--dk-ink2, #5C4033)", whiteSpace:"nowrap" }}>
+              {tr("Nombre de produits à afficher", "Number of products to show")}
             </span>
             <input type="range" min={5} max={20} step={1} value={topN}
                    onChange={(e)=>setTopN(parseInt(e.target.value))}
                    style={{ flex:1, accentColor: ORANGE }} />
             <span style={{ fontSize:"1rem", fontWeight:800, color: ORANGE,
-                           background:"#fff", padding:"2px 10px", borderRadius:"8px",
+                           background:"var(--dk-surface, #fff)", padding:"2px 10px", borderRadius:"8px",
                            border:`1.5px solid ${ORANGE}`, minWidth:"36px", textAlign:"center" }}>
               {topN}
             </span>
           </div>
 
-          <div style={{ display:"grid", gridTemplateColumns:"3fr 2fr", gap:"16px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px" }}>
             <div className="cc" style={{ padding:"20px 24px" }}>
-              <div className="ct">Top {topN} CA — classement détaillé</div>
-              <div className="cs">3 niveaux de couleurs : Top 3 · Milieu · Bas de classement</div>
+              <div className="ct">{tr(`Les ${topN} produits qui rapportent le plus`, `The ${topN} top-earning products`)}</div>
+              <div className="cs">{tr("Chiffre d'affaires et part du total", "Revenue and share of total")}</div>
               <div style={{ marginTop:"8px" }}>
                 {topProds.by_ca?.length > 0 && <TopNHBar data={topProds.by_ca} n={topN}/>}
-              </div>
-            </div>
-            <div className="cc" style={{ padding:"20px 24px" }}>
-              <div className="ct">Répartition du CA — Top {topN}</div>
-              <div className="cs">Donut 50% · Légende & pourcentages</div>
-              <div style={{ marginTop:"16px", height:"100%", minHeight:"380px" }}>
-                {topProds.by_ca?.length > 0 && <DonutTopN
-                  data={topProds.by_ca} n={topN}
-                  centerLabel={`${fmt(kpis.total_ca/1000, 0)}k€`}/>}
               </div>
             </div>
           </div>
 
           <InsightBox
             icon={<IconPin size={16} color={C3}/>} color={C3}
-            title={`Règle de Pareto (80/20) : Les ${pareto.top80.length} premiers produits génèrent ${pareto.cumulFirst.toFixed(1)}% du CA sur les Top ${topN} (${pareto.total.toFixed(1)}% du CA total filtré)`}
-            strong={pareto.paretoOk ? "Loi 80/20 validée." : "Concentration modérée."}
+            title={tr(`Les ${topN} premiers produits réalisent ${fmt(pareto.total, 1)} % du chiffre d'affaires`,
+                     `The top ${topN} products generate ${fmt(pareto.total, 1)} % of revenue`)}
+            strong={pareto.paretoOk ? tr("Forte concentration", "High concentration") : tr("Concentration modérée", "Moderate concentration")}
             asRow
           />
         </div>
@@ -994,19 +997,13 @@ export default function PerformancePage() {
       {activeTab === "saison" && (
         <div className="sw" style={{ paddingTop:"14px" }}>
           <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-            <IconCalendar size={16} /> Saisonnalité — CA par Jour de la Semaine
+            <IconCalendar size={16} /> {tr("Saisonnalité — CA par Jour de la Semaine", "Seasonality — Revenue by Day of the Week")}
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px" }}>
             <div className="cc" style={{ padding:"20px 24px" }}>
-              <div className="ct">CA Cumulé par Jour</div>
-              <div className="cs">Somme totale du CA sur la période filtrée</div>
-              <div style={{ height:"320px", width:"100%", marginTop:"10px" }}>
-                {seasonality.days?.length > 0 && <DayOfWeekBars days={seasonality.days} mode="total"/>}
-              </div>
-            </div>
-            <div className="cc" style={{ padding:"20px 24px" }}>
-              <div className="ct">CA Moyen par Jour (normalisé)</div>
-              <div className="cs">CA par jour ouvert · comparaison équitable</div>
+              <div className="ct">{tr("Chiffre d'affaires moyen par jour d'ouverture", "Average revenue per opening day")}</div>
+              <div className="cs">{tr("Le mercredi est fermé hors juillet-août : la moyenne par jour ouvert permet de comparer les jours",
+                                      "Closed on Wednesdays except in July–August: the average per open day makes the days comparable")}</div>
               <div style={{ height:"320px", width:"100%", marginTop:"10px" }}>
                 {seasonality.days?.length > 0 && <DayOfWeekBars days={seasonality.days} mode="moyen"/>}
               </div>
@@ -1016,8 +1013,9 @@ export default function PerformancePage() {
           {saisonInsights && (
             <InsightBox
               icon={<IconCalendarDays size={16} color={C1}/>} color={C1}
-              title={`Meilleur jour : ${saisonInsights.best.day} (${fmt(saisonInsights.best.ca_moyen)} €/j en moyenne) · Jour le plus faible : ${saisonInsights.worst.day} (${fmt(saisonInsights.worst.ca_moyen)} €/j)`}
-              strong={`Ratio de variabilité : ${saisonInsights.ratio.toFixed(1)}×`}
+              title={tr(`Meilleur jour : ${saisonInsights.best.day} (${fmt(saisonInsights.best.ca_moyen)} €/j en moyenne) · Jour le plus faible : ${saisonInsights.worst.day} (${fmt(saisonInsights.worst.ca_moyen)} €/j)`,
+                         `Best day: ${trData(saisonInsights.best.day)} (${fmt(saisonInsights.best.ca_moyen)} €/d on average) · Weakest day: ${trData(saisonInsights.worst.day)} (${fmt(saisonInsights.worst.ca_moyen)} €/d)`)}
+              strong={tr(`Ratio de variabilité : ${saisonInsights.ratio.toFixed(1)}×`, `Variability ratio: ${saisonInsights.ratio.toFixed(1)}×`)}
               asRow
             />
           )}
@@ -1025,11 +1023,11 @@ export default function PerformancePage() {
           {seasonality.hourly?.length > 0 && (
             <>
               <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-                <IconClock size={16} /> Distribution Horaire des Ventes
+                <IconClock size={16} /> {tr("Distribution Horaire des Ventes", "Hourly Sales Distribution")}
               </div>
               <div className="cc" style={{ padding:"20px 24px" }}>
-                <div className="ct">Double axe : CA (barres) & Tickets (ligne)</div>
-                <div className="cs">Corrélation entre pics d'affluence et CA horaire</div>
+                <div className="ct">{tr("Chiffre d'affaires et tickets par heure", "Revenue and transactions by hour")}</div>
+                <div className="cs">{tr("Barres : chiffre d'affaires · ligne : nombre de tickets", "Bars: revenue · line: number of transactions")}</div>
                 <div style={{ height:"320px", width:"100%", marginTop:"12px" }}>
                   <HourlyDual data={seasonality.hourly}/>
                 </div>
@@ -1045,37 +1043,18 @@ export default function PerformancePage() {
       {activeTab === "categories" && (
         <div className="sw" style={{ paddingTop:"14px" }}>
           <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-            <IconTag size={16} /> Performance par Catégorie de Produits
+            <IconTag size={16} /> {tr("Performance par Catégorie de Produits", "Performance by Product Category")}
           </div>
 
+          {/* Treemap des catégories retiré : il répétait le graphique et le tableau ci-dessous. */}
           {categories.length > 0 && (
-            <div className="cc" style={{ padding:"30px 36px", marginBottom:"40px" }}>
-              <div className="ct" style={{ display:"flex", alignItems:"center", gap:"8px"}}>
-                <IconGrid size={16} color={ORANGE}/> Treemap — Poids des Catégories
-              </div>
-              <div className="cs">Surface proportionnelle au CA · Teinte = Part · Centre = Panier Moyen</div>
-              <div style={{ height:"620px", width:"100%", marginTop:"28px" }}>
-                <TreemapCats data={categories}/>
-              </div>
-            </div>
-          )}
-
-          {categories.length > 0 && (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"32px", marginBottom:"40px" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"32px", marginBottom:"40px" }}>
               <div className="cc" style={{ padding:"28px 32px" }}>
-                <div className="ct">CA par Catégorie</div>
-                <div className="cs">Chiffre d'affaires total · Part % en label</div>
+                <div className="ct">{tr("Chiffre d'affaires par catégorie", "Revenue by category")}</div>
+                <div className="cs">{tr("Montant et part du total", "Amount and share of total")}</div>
                 <div style={{ marginTop:"20px" }}>
                   <CatHBar data={categories} field="ca"
-                    labelFn={(_v, r) => `${r.part}%`} />
-                </div>
-              </div>
-              <div className="cc" style={{ padding:"28px 32px" }}>
-                <div className="ct">Panier Moyen par Catégorie</div>
-                <div className="cs">Ticket moyen de la catégorie</div>
-                <div style={{ marginTop:"20px" }}>
-                  <CatHBar data={categories} field="panier"
-                    labelFn={(v) => `${fmt(v,2)} €`} />
+                    labelFn={(_v, r) => `${fmt(r.part, 1)} %`} />
                 </div>
               </div>
             </div>
@@ -1084,21 +1063,20 @@ export default function PerformancePage() {
           {categories.length > 0 && (
             <>
               <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-                <IconBarsGrouped size={16} /> Tableau Récapitulatif des Catégories
+                <IconBarsGrouped size={16} /> {tr("Tableau Récapitulatif des Catégories", "Category Summary Table")}
               </div>
               <div className="cc" style={{ padding:"20px 32px 32px", marginTop:"14px" }}>
                 <div style={{ overflowX:"auto" }}>
                   <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:0, marginTop:"8px" }}>
                     <thead>
-                      <tr style={{ borderBottom:"1px solid #f2e9e1", color:MUTED,
+                      <tr style={{ borderBottom:"1px solid var(--dk-line, #f2e9e1)", color:MUTED,
                                   fontSize:"0.68rem", textTransform:"uppercase",
                                   letterSpacing:"0.05em", textAlign:"right", fontWeight:800 }}>
-                        <th style={{ textAlign:"left", padding:"14px 8px"}}>Catégorie</th>
-                        <th style={{ padding:"14px 8px", minWidth:"200px"}}>CA (€) · bar</th>
-                        <th style={{ padding:"14px 8px", minWidth:"160px"}}>Part (%) · bar</th>
-                        <th style={{ padding:"14px 8px"}}>Panier moy.</th>
-                        <th style={{ padding:"14px 8px"}}>Tickets</th>
-                        <th style={{ padding:"14px 8px"}}>Produits</th>
+                        <th style={{ textAlign:"left", padding:"14px 8px"}}>{tr("Catégorie", "Category")}</th>
+                        <th style={{ padding:"14px 8px", minWidth:"200px"}}>{tr("Chiffre d'affaires", "Revenue")}</th>
+                        <th style={{ padding:"14px 8px", minWidth:"160px"}}>{tr("Part du total", "Share of total")}</th>
+                        <th style={{ padding:"14px 8px"}}>{tr("Tickets", "Transactions")}</th>
+                        <th style={{ padding:"14px 8px"}}>{tr("Produits", "Products")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1108,22 +1086,22 @@ export default function PerformancePage() {
                           const caPct = (c.ca / maxCa) * 100;
                           const partPct = Math.min(c.part, 100);
                           return (
-                            <tr key={i} style={{ borderBottom:"1px solid #fdfcfb" }}>
+                            <tr key={i} style={{ borderBottom:"1px solid var(--dk-surface, #fdfcfb)" }}>
                               <td style={{ padding:"13px 8px", fontSize:"0.82rem", fontWeight:800,
                                            color:INK, textAlign:"left",
                                            display:"flex", alignItems:"center", gap:"10px" }}>
                                 <div style={{ width:"9px", height:"9px", borderRadius:"50%",
                                               background: PALETTE[i % PALETTE.length],
                                               boxShadow:`0 0 0 2px ${PALETTE[i % PALETTE.length]}25` }}/>
-                                {c.category}
+                                {trData(c.category)}
                               </td>
                               <td style={{ padding:"13px 8px" }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:"8px"}}>
                                   <div style={{ flex:1, height:"14px", borderRadius:"4px",
-                                                background:"#fbf5ec", overflow:"hidden" }}>
+                                                background:"var(--dk-soft, #fbf5ec)", overflow:"hidden" }}>
                                     <div style={{
                                       width:`${caPct}%`, height:"100%",
-                                      background:`linear-gradient(90deg, ${ORANGE}55, ${ORANGE}cc)` }}/>
+                                      background:`linear-gradient(90deg, color-mix(in srgb, ${ORANGE} 33%, transparent), color-mix(in srgb, ${ORANGE} 80%, transparent))` }}/>
                                   </div>
                                   <span style={{ fontSize:"0.78rem", fontWeight:800, color:INK,
                                                  whiteSpace:"nowrap", width:"72px", textAlign:"right" }}>
@@ -1134,19 +1112,15 @@ export default function PerformancePage() {
                               <td style={{ padding:"13px 8px" }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:"8px"}}>
                                   <div style={{ flex:1, height:"14px", borderRadius:"4px",
-                                                background:"#fbf5ec", overflow:"hidden" }}>
+                                                background:"var(--dk-soft, #fbf5ec)", overflow:"hidden" }}>
                                     <div style={{ width:`${partPct}%`, height:"100%",
                                                   background:`linear-gradient(90deg, ${C1}55, ${C3}aa)` }}/>
                                   </div>
                                   <span style={{ fontSize:"0.78rem", fontWeight:800, color:MUTED,
                                                  whiteSpace:"nowrap", width:"42px", textAlign:"right" }}>
-                                    {c.part}%
+                                    {fmt(c.part, 1)} %
                                   </span>
                                 </div>
-                              </td>
-                              <td style={{ padding:"13px 8px", textAlign:"right",
-                                           fontSize:"0.78rem", fontWeight:700, color:INK }}>
-                                {fmt(c.panier, 2)} €
                               </td>
                               <td style={{ padding:"13px 8px", textAlign:"right",
                                            fontSize:"0.78rem", fontWeight:600, color:INK }}>
@@ -1180,8 +1154,8 @@ const opaqueSelect: React.CSSProperties = {
   fontSize:"0.78rem",
   fontWeight:700,
   color: INK,                 // texte SOMBRE (opaque, lisible)
-  background: "#fff",         // fond BLANC OPAQUE (pas transparent)
-  border:"1px solid rgba(196,168,130,.35)",
+  background: "var(--dk-surface, #fff)",         // fond BLANC OPAQUE (pas transparent)
+  border:"1px solid var(--dk-line, rgba(196,168,130,.35))",
   borderRadius:"8px",
   padding:"7px 10px",
   outline:"none",
@@ -1194,7 +1168,7 @@ const opaqueSelect: React.CSSProperties = {
 function LegendPill({ color, label }: { color: string; label: string }) {
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:"6px",
-                   background:`${color}15`, border:`1px solid ${color}55`,
+                   background:`color-mix(in srgb, ${color} 8%, transparent)`, border:`1px solid color-mix(in srgb, ${color} 33%, transparent)`,
                    borderRadius:"999px", padding:"3px 10px",
                    fontSize:"0.72rem", fontWeight:700, color }}>
       <span style={{ width:"6px", height:"6px", borderRadius:"50%", background:color }}/>
@@ -1210,19 +1184,19 @@ function InsightBox({ icon, color, title, strong, asRow = false }: {
     marginTop:"16px", padding:"14px 18px", borderRadius:"12px",
     borderTop:`4px solid ${color}`,
     background: PAPER,
-    border:`1px solid rgba(196,168,130,.30)`,
+    border:`1px solid var(--dk-line, rgba(196,168,130,.30))`,
     borderLeft:`4px solid ${color}`,
     display:"flex", alignItems:"center", justifyContent:"space-between",
     gap:"12px", flexWrap:"wrap",
   } : {
     padding:"14px 18px", borderRadius:"12px",
     background: PAPER,
-    border:`1px solid ${color}44`,
+    border:`1px solid color-mix(in srgb, ${color} 27%, transparent)`,
     borderLeft:`4px solid ${color}`,
   };
   return (
     <div style={style}>
-      <div style={{ fontSize:"0.85rem", color:"#5C4033", lineHeight:1.45,
+      <div style={{ fontSize:"0.85rem", color:"var(--dk-ink2, #5C4033)", lineHeight:1.45,
                     display:"flex", alignItems:"flex-start", gap:"8px" }}>
         <span style={{ flexShrink:0, marginTop:"1px"}}>{icon}</span>
         <span>

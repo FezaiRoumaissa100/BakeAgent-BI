@@ -1,31 +1,33 @@
 "use client";
 
 import { DailyKPIs, HourlyData } from "@/types/kpis";
+import { colors } from "@/lib/theme";
 import React from "react";
 import { IconSparkline } from "./Icons";
 import { siteConfig } from "@/lib/siteConfig";
+import { tr, trData, locale } from "@/lib/i18n";
 
-const ORANGE = "#E8734A";
-const PEACH = "#F0A882";
-const LIGHT = "#FAD4C4";
-const INK = "#1C1410";
-const MUTED = "#9a8070";
-const GRID = "rgba(200,140,100,0.13)";
+const ORANGE = colors.accent;
+const PEACH = colors.accentLight;
+const LIGHT = colors.accentPale;
+const INK = colors.ink;
+const MUTED = colors.muted;
+const GRID = colors.grid;
 const PAL = [
   ORANGE,
   PEACH,
   "#e05c35",
   "#f5c4a8",
   LIGHT,
-  "#c45030",
+  "var(--dk-accent-deep, #c45030)",
   "#fad8c0",
-  "#d4724a",
-  "#fbe8d8",
-  "#b84028",
+  "var(--dk-accent-deep, #d4724a)",
+  "var(--dk-soft, #fbe8d8)",
+  "var(--dk-accent-deep, #b84028)",
 ];
 
 function fmt(n: number, dec = 0) {
-  return Number(n || 0).toLocaleString("fr-FR", {
+  return Number(n || 0).toLocaleString(locale(), {
     minimumFractionDigits: dec,
     maximumFractionDigits: dec,
   });
@@ -94,14 +96,14 @@ function VitesseGauge({ vitesse }: { vitesse: number }) {
         <path
           d="M 25 100 A 75 75 0 0 1 175 100"
           fill="none"
-          stroke="#fdf0ea"
+          stroke="var(--dk-line, #fdf0ea)"
           strokeWidth="16"
           strokeLinecap="round"
         />
         <path
           d="M 25 100 A 75 75 0 0 1 175 100"
           fill="none"
-          stroke="#fad8c8"
+          stroke="var(--dk-line, #fad8c8)"
           strokeWidth="16"
           strokeLinecap="round"
           strokeDasharray={`${2.356 * 72} ${2.356 * 100}`}
@@ -121,7 +123,7 @@ function VitesseGauge({ vitesse }: { vitesse: number }) {
           y1="46"
           x2="152"
           y2="38"
-          stroke="#b84020"
+          stroke="var(--dk-accent-deep, #b84020)"
           strokeWidth="2.5"
         />
       </svg>
@@ -154,7 +156,7 @@ function Treemap({
               flexGrow: 1,
               minHeight: "42px",
             }}
-            title={`${p.article}: ${p.quantity} unités`}
+            title={tr(`${p.article}: ${p.quantity} unités`, `${p.article}: ${p.quantity} units`)}
           >
             <span className="truncate">{p.article.slice(0, 14)}</span>
           </div>
@@ -202,7 +204,7 @@ function PlotlyBarChart({
             >
               {/* Tooltip */}
               <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-[#1C1410] text-white text-[9px] font-bold py-0.5 px-1.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-30 shadow">
-                {d.heure} : {fmt(v)} {unit}
+                {d.heure}{tr(" : ", ": ")}{fmt(v)} {unit}
               </div>
               <div
                 className="w-full rounded-t-sm transition-all"
@@ -285,7 +287,7 @@ function PlotlyAreaChart({
               cy={pt.y}
               r="3"
               fill={color}
-              stroke="white"
+              stroke="var(--dk-surface, white)"
               strokeWidth="1.2"
             />
           ))}
@@ -307,7 +309,7 @@ function PlotlyAreaChart({
    HERO SECTION (KPIs individuels, fond normal)
 ──────────────────────────────────────────────────── */
 export function Hero({ kpis }: { kpis: DailyKPIs }) {
-  const v_text = kpis.vitesse >= 20 ? "Forte" : kpis.vitesse <= 5 ? "Faible" : "Normale";
+  const v_text = kpis.vitesse >= 20 ? tr("Forte", "Strong") : kpis.vitesse <= 5 ? tr("Faible", "Low") : tr("Normale", "Normal");
   const v_badge_bg =
     kpis.vitesse >= 20
       ? "rgba(232, 115, 74, 0.08)"
@@ -315,40 +317,41 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
       ? "rgba(154, 128, 112, 0.08)"
       : "rgba(122, 106, 90, 0.08)";
   const v_badge_color =
-    kpis.vitesse >= 20 ? ORANGE : kpis.vitesse <= 5 ? MUTED : "#7a6a5a";
+    kpis.vitesse >= 20 ? ORANGE : kpis.vitesse <= 5 ? MUTED : "var(--dk-ink2, #7a6a5a)";
 
   const paire_texte = kpis.top_pairs[0]
     ? `${kpis.top_pairs[0].pa.slice(0, 12)} + ${kpis.top_pairs[0].pb.slice(0, 12)}`
-    : "Aucune paire";
-  const top_prod_name = kpis.top_qte[0]?.article || "Aucun";
+    : tr("Aucune paire", "No pair");
+  const top_prod_name = kpis.top_qte[0]?.article || tr("Aucun", "None");
 
   const delta = Number(kpis.delta_vs_moy || 0);
   const trend_text =
     delta >= 10
-      ? `CA +${delta.toFixed(1)}% vs moyenne`
+      ? tr(`CA +${delta.toFixed(1)}% vs moyenne`, `Revenue +${delta.toFixed(1)}% vs average`)
       : delta <= -10
-      ? `CA ${delta.toFixed(1)}% vs moyenne`
-      : `CA dans la normale (${delta > 0 ? "+" : ""}${delta.toFixed(1)}%)`;
+      ? tr(`CA ${delta.toFixed(1)}% vs moyenne`, `Revenue ${delta.toFixed(1)}% vs average`)
+      : tr(`CA dans la normale (${delta > 0 ? "+" : ""}${delta.toFixed(1)}%)`, `Revenue within normal range (${delta > 0 ? "+" : ""}${delta.toFixed(1)}%)`);
 
   const top3 = kpis.top_qte.slice(0, 3);
   const mx_cnt = kpis.top_pairs[0]?.cnt || 1;
 
   return (
-    <div className="outer">
+    <div className="outer" style={{ height: "auto", padding: "0 18px", boxSizing: "border-box" }}>
+      {/* Mise en page en flux normal : les cartes ne se superposent plus quand l'écran est plus étroit. */}
       {/* ── KPI CARDS (Design moderne, fond normal) ── */}
       <div style={{ 
         display: "grid", 
-        gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", 
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", 
         gap: "16px", 
-        marginBottom: "8px" 
+        marginBottom: "16px" 
       }}>
         {/* CA Card */}
         <div style={{
-          background: "white",
+          background: "var(--dk-surface, white)",
           borderRadius: "16px",
           padding: "20px",
           boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-          border: "1px solid rgba(200,140,100,0.15)"
+          border: "1px solid var(--dk-line, rgba(200,140,100,0.15))"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
             <div style={{
@@ -366,7 +369,7 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
             </div>
             <div>
               <div style={{ fontSize: "0.7rem", color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Chiffre d'Affaires
+                {tr("Chiffre d'Affaires", "Revenue")}
               </div>
               <div style={{ fontSize: "1.8rem", fontWeight: 800, color: INK, marginTop: "2px" }}>
                 {fmt(kpis.ca_jour)} EUR
@@ -374,17 +377,17 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
             </div>
           </div>
           <div style={{ fontSize: "0.75rem", color: MUTED, marginTop: "8px" }}>
-            Journée du {kpis.date_str}
+            {tr("Journée du ", "Day of ")}{kpis.date_str || siteConfig.dataEndLabel}
           </div>
         </div>
 
         {/* Tickets Card */}
         <div style={{
-          background: "white",
+          background: "var(--dk-surface, white)",
           borderRadius: "16px",
           padding: "20px",
           boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-          border: "1px solid rgba(200,140,100,0.15)"
+          border: "1px solid var(--dk-line, rgba(200,140,100,0.15))"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
             <div style={{
@@ -402,7 +405,7 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
             </div>
             <div>
               <div style={{ fontSize: "0.7rem", color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Tickets
+                {tr("Tickets", "Transactions")}
               </div>
               <div style={{ fontSize: "1.8rem", fontWeight: 800, color: INK, marginTop: "2px" }}>
                 {kpis.tickets}
@@ -410,17 +413,17 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
             </div>
           </div>
           <div style={{ fontSize: "0.75rem", color: MUTED, marginTop: "8px" }}>
-            Transactions aujourd'hui
+            {tr("Transactions aujourd'hui", "Transactions today")}
           </div>
         </div>
 
         {/* Panier Moyen Card */}
         <div style={{
-          background: "white",
+          background: "var(--dk-surface, white)",
           borderRadius: "16px",
           padding: "20px",
           boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-          border: "1px solid rgba(200,140,100,0.15)"
+          border: "1px solid var(--dk-line, rgba(200,140,100,0.15))"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
             <div style={{
@@ -439,7 +442,7 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
             </div>
             <div>
               <div style={{ fontSize: "0.7rem", color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Panier Moyen
+                {tr("Panier Moyen", "Average basket")}
               </div>
               <div style={{ fontSize: "1.8rem", fontWeight: 800, color: INK, marginTop: "2px" }}>
                 {fmt(kpis.panier, 2)} EUR
@@ -447,17 +450,17 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
             </div>
           </div>
           <div style={{ fontSize: "0.75rem", color: MUTED, marginTop: "8px" }}>
-            Par transaction
+            {tr("Par transaction", "Per transaction")}
           </div>
         </div>
 
         {/* Pic Card */}
         <div style={{
-          background: "white",
+          background: "var(--dk-surface, white)",
           borderRadius: "16px",
           padding: "20px",
           boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-          border: "1px solid rgba(200,140,100,0.15)"
+          border: "1px solid var(--dk-line, rgba(200,140,100,0.15))"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
             <div style={{
@@ -475,7 +478,7 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
             </div>
             <div>
               <div style={{ fontSize: "0.7rem", color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Pic Heure
+                {tr("Pic Heure", "Peak hour")}
               </div>
               <div style={{ fontSize: "1.8rem", fontWeight: 800, color: INK, marginTop: "2px" }}>
                 {String(kpis.peak_h).padStart(2, "0")}h
@@ -483,16 +486,16 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
             </div>
           </div>
           <div style={{ fontSize: "0.75rem", color: MUTED, marginTop: "8px" }}>
-            Pic de la journée
+            {tr("Pic de la journée", "Peak of the day")}
           </div>
         </div>
       </div>
 
       {/* ── 4 CARTES DU BAS ── */}
-      <div className="cards-row">
+      <div className="cards-row" style={{ position: "static" }}>
         {/* Carte 1 : État de la journée */}
         <div className="bc">
-          <div className="bc-title">État de la journée</div>
+          <div className="bc-title">{tr("État de la journée", "Today's status")}</div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
             {/* Row 1 */}
             <div
@@ -520,9 +523,9 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
                 </svg>
               </div>
               <div style={{ fontSize: ".70rem", color: INK, lineHeight: 1.2 }}>
-                <strong style={{ color: ORANGE }}>Activité {v_text.toLowerCase()}</strong>
+                <strong style={{ color: ORANGE }}>{tr(`Activité ${v_text.toLowerCase()}`, `${v_text} activity`)}</strong>
                 <br />
-                <span style={{ color: MUTED }}>{Number(kpis.vitesse || 0).toFixed(1)} art/h</span>
+                <span style={{ color: MUTED }}>{Number(kpis.vitesse || 0).toFixed(1)} {tr("art/h", "items/h")}</span>
               </div>
             </div>
 
@@ -553,7 +556,7 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
                 </svg>
               </div>
               <div style={{ fontSize: ".70rem", color: INK, lineHeight: 1.2 }}>
-                <strong style={{ color: ORANGE }}>Paire forte</strong>
+                <strong style={{ color: ORANGE }}>{tr("Paire forte", "Strong pair")}</strong>
                 <br />
                 <span style={{ color: MUTED }}>{paire_texte}</span>
               </div>
@@ -585,63 +588,21 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
                 </svg>
               </div>
               <div style={{ fontSize: ".70rem", color: INK, lineHeight: 1.2 }}>
-                <strong style={{ color: ORANGE }}>Top Produit</strong>
+                <strong style={{ color: ORANGE }}>{tr("Top Produit", "Top product")}</strong>
                 <br />
                 <span style={{ color: MUTED }}>{top_prod_name.slice(0, 18)}</span>
               </div>
             </div>
 
-            {/* Row 4 */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "7px 10px",
-                background: "rgba(232, 115, 74, 0.04)",
-                borderRadius: 8,
-              }}
-            >
-              <div>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={delta >= 0 ? ORANGE : MUTED}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline
-                    points={
-                      delta >= 0
-                        ? "22 7 13.5 15.5 8.5 10.5 2 17"
-                        : "22 17 13.5 8.5 8.5 13.5 2 7"
-                    }
-                  />
-                  <polyline
-                    points={
-                      delta >= 0
-                        ? "16 7 22 7 22 13"
-                        : "16 17 22 17 22 11"
-                    }
-                  />
-                </svg>
-              </div>
-              <div style={{ fontSize: ".70rem", color: INK, lineHeight: 1.2 }}>
-                <strong style={{ color: ORANGE }}>Journée</strong>
-                <br />
-                <span style={{ color: MUTED }}>{trend_text}</span>
-              </div>
-            </div>
+            {/* Ligne « Journée : CA … vs moyenne » masquée : la moyenne de comparaison calculée par le backend
+                est fausse (ex. +1229 %). À réafficher après correction côté backend (db_data_engine). */}
           </div>
         </div>
 
         {/* Carte 2 : Vitesse des Ventes */}
         <div className="bc">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
-            <div className="bc-title">Vitesse des Ventes</div>
+            <div className="bc-title">{tr("Vitesse des Ventes", "Sales velocity")}</div>
             <div
               style={{
                 background: v_badge_bg,
@@ -660,20 +621,14 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
           </div>
           <div style={{ marginBottom: 2 }}>
             <span className="bc-big">{Number(kpis.vitesse || 0).toFixed(1)}</span>
-            <span style={{ fontSize: ".72rem", color: MUTED, marginLeft: 4, fontWeight: 600 }}>art / h</span>
-            <div style={{ fontSize: ".66rem", color: MUTED, marginTop: 2 }}>Cadence de la journée</div>
-          </div>
-          <div style={{ flex: 1, display: "flex", alignItems: "flex-end" }}>
-            <VitesseGauge vitesse={kpis.vitesse} />
+            <span style={{ fontSize: ".72rem", color: MUTED, marginLeft: 4, fontWeight: 600 }}>{tr("art / h", "items / h")}</span>
+            <div style={{ fontSize: ".66rem", color: MUTED, marginTop: 2 }}>{tr("Cadence de la journée", "Today's sales pace")}</div>
           </div>
         </div>
 
         {/* Carte 3 : Top Produits */}
         <div className="bc">
-          <div className="bc-title">Top Produits</div>
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <Treemap products={kpis.top_qte} />
-          </div>
+          <div className="bc-title">{tr("Top 3 produits (quantités)", "Top 3 products (quantities)")}</div>
           <div className="leg-row">
             {top3.map((p, i) => (
               <div
@@ -683,7 +638,7 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
                   alignItems: "center",
                   gap: 5,
                   fontSize: ".68rem",
-                  color: "#5a4a3a",
+                  color: "var(--dk-ink2, #5a4a3a)",
                   fontWeight: 500,
                 }}
               >
@@ -705,7 +660,7 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
 
         {/* Carte 4 : Top Combinaisons */}
         <div className="bc">
-          <div className="bc-title">Top Combinaisons</div>
+          <div className="bc-title">{tr("Top Combinaisons", "Top combinations")}</div>
           <div style={{ flex: 1, overflow: "hidden", marginTop: 6 }}>
             {kpis.top_pairs.slice(0, 5).map((p, i) => {
               const bw = Math.max(4, Math.round((p.cnt / mx_cnt) * 50));
@@ -717,7 +672,7 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
                     justifyContent: "space-between",
                     alignItems: "center",
                     padding: "5px 0",
-                    borderBottom: "1px solid #f5f0ea",
+                    borderBottom: "1px solid var(--dk-line, #f5f0ea)",
                   }}
                 >
                   <span
@@ -748,8 +703,8 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
                       style={{
                         fontSize: ".68rem",
                         fontWeight: 700,
-                        color: "#c05030",
-                        background: "#fdf0ea",
+                        color: "var(--dk-accent-deep, #c05030)",
+                        background: "var(--dk-soft, #fdf0ea)",
                         borderRadius: 4,
                         padding: "1px 5px",
                       }}
@@ -805,80 +760,41 @@ function ProdRows({
 export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
   const catTotal = kpis.categories.reduce((s, c) => s + c.total_revenue, 0) || 1;
   const nb_total = Math.max(kpis.tickets, 1);
-  const s1 = Math.max(15, Math.round((kpis.nb_mono / nb_total) * 55));
-  const s2 = Math.max(8, Math.round((kpis.nb_multi / nb_total) * 30));
-  const s3 = 20;
 
   return (
     <div style={{ paddingBottom: 24 }}>
-      {/* ── Section 1 : Rythme de la journée ── */}
-      <div className="sec-title">Rythme de la journée</div>
-      <div className="sw">
-        <div className="g3">
-          <div className="cc">
-            <div className="ct">Quantités par Heure</div>
-            <div className="cs">Total : {fmt(kpis.qte_jour)} unités</div>
-            <PlotlyBarChart data={kpis.hourly_data} valueKey="qte" unit="unités" />
-          </div>
-          <div className="cc">
-            <div className="ct">Tickets par Heure</div>
-            <div className="cs">Nombre de transactions</div>
-            <PlotlyBarChart data={kpis.hourly_data} valueKey="tkt" unit="tickets" />
-          </div>
-          <div className="cc">
-            <div className="ct">Panier Moyen par Heure</div>
-            <div className="cs">Moy. journée : {fmt(kpis.panier, 2)} EUR</div>
-            <PlotlyAreaChart data={kpis.hourly_data} valueKey="panier_h" color={PEACH} unit="EUR" />
-          </div>
-        </div>
-      </div>
-
+      {/* Graphiques horaires en double retirés (quantités, tickets, panier, CA cumulé) : on garde le CA par heure. */}
       {/* ── Section 2 : CA Horaire ── */}
-      <div className="sec-title">Chiffre d'Affaires Horaire</div>
+      <div className="sec-title">{tr("Rythme de la journée", "Daily rhythm")}</div>
       <div className="sw">
-        <div className="g2">
+        <div>
           <div className="cc">
-            <div className="ct">CA Cumulé</div>
-            <div className="cs">Progression sur la journée</div>
-            <PlotlyAreaChart data={kpis.hourly_data} valueKey="ca_cum" color={ORANGE} unit="EUR" height={180} />
-          </div>
-          <div className="cc">
-            <div className="ct">CA par Heure</div>
-            <div className="cs">Pic d'activité : {String(kpis.peak_h).padStart(2, "0")}h</div>
+            <div className="ct">{tr("Chiffre d'affaires par heure", "Revenue by hour")}</div>
+            <div className="cs">{tr("Pic d'activité : ", "Peak activity: ")}{String(kpis.peak_h).padStart(2, "0")}h</div>
             <PlotlyBarChart data={kpis.hourly_data} valueKey="ca" unit="EUR" height={180} />
           </div>
         </div>
       </div>
 
       {/* ── Section 3 : Top produits du jour ── */}
-      <div className="sec-title">Top produits du jour</div>
+      <div className="sec-title">{tr("Top produits du jour", "Today's top products")}</div>
       <div className="sw">
-        <div className="g3">
+        <div>
           <div className="cc">
-            <div className="ct">Plus vendus en quantité</div>
-            <div className="cs">Unités</div>
-            <ProdRows products={kpis.top_qte} col="quantity" />
-          </div>
-          <div className="cc">
-            <div className="ct">Plus générateurs de CA</div>
-            <div className="cs">EUR</div>
+            <div className="ct">{tr("Produits qui rapportent le plus", "Highest-earning products")}</div>
+            <div className="cs">{tr("Chiffre d'affaires du jour (€)", "Today's revenue (€)")}</div>
             <ProdRows products={kpis.top_ca} col="total_revenue" />
-          </div>
-          <div className="cc">
-            <div className="ct">Présents dans le plus de tickets</div>
-            <div className="cs">Tickets</div>
-            <ProdRows products={kpis.top_tkt} col="nb_tkt" />
           </div>
         </div>
       </div>
 
       {/* ── Section 4 : Mix et catégories ── */}
-      <div className="sec-title">Mix et catégories</div>
+      <div className="sec-title">{tr("Mix et catégories", "Mix & categories")}</div>
       <div className="sw">
         <div className="g2">
           <div className="cc">
-            <div className="ct">Répartition par catégorie</div>
-            <div className="cs">CA par famille de produits</div>
+            <div className="ct">{tr("Répartition par catégorie", "Breakdown by category")}</div>
+            <div className="cs">{tr("CA par famille de produits", "Revenue by product family")}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
               {kpis.categories.map((c, i) => {
                 const pct = (c.total_revenue / catTotal) * 100;
@@ -905,12 +821,12 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
                         textOverflow: "ellipsis",
                       }}
                     >
-                      {c.category}
+                      {trData(c.category)}
                     </span>
-                    <div style={{ width: 100, height: 6, background: "#f0ece6", borderRadius: 99, flexShrink: 0 }}>
+                    <div style={{ width: 100, height: 6, background: "var(--dk-line, #f0ece6)", borderRadius: 99, flexShrink: 0 }}>
                       <div style={{ width: `${pct}%`, height: "100%", background: PAL[i % PAL.length], borderRadius: 99 }} />
                     </div>
-                    <span style={{ fontSize: ".74rem", fontWeight: 700, color: "#5a4a3a", width: 36, textAlign: "right" }}>
+                    <span style={{ fontSize: ".74rem", fontWeight: 700, color: "var(--dk-ink2, #5a4a3a)", width: 36, textAlign: "right" }}>
                       {pct.toFixed(0)}%
                     </span>
                     <span style={{ fontSize: ".74rem", fontWeight: 700, color: MUTED, width: 70, textAlign: "right" }}>
@@ -923,11 +839,11 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
           </div>
 
           <div className="cc">
-            <div className="ct">Statut des Ventes</div>
-            <div className="cs">Tickets du jour</div>
+            <div className="ct">{tr("Composition des paniers", "Basket composition")}</div>
+            <div className="cs">{tr("Tickets à plusieurs articles ou à un seul article", "Multi-item vs single-item transactions")}</div>
             <div
               style={{
-                background: "#fdf5f0",
+                background: "var(--dk-soft, #fdf5f0)",
                 borderRadius: 11,
                 padding: "8px 12px",
                 display: "flex",
@@ -936,8 +852,8 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
                 marginBottom: 10,
               }}
             >
-              <span style={{ fontSize: ".82rem", fontWeight: 600, color: "#5a3820" }}>
-                Tickets : <span style={{ fontSize: "1.05rem", fontWeight: 800, color: ORANGE }}>{kpis.tickets}</span>
+              <span style={{ fontSize: ".82rem", fontWeight: 600, color: "var(--dk-ink2, #5a3820)" }}>
+                {tr("Tickets : ", "Transactions: ")}<span style={{ fontSize: "1.05rem", fontWeight: 800, color: ORANGE }}>{kpis.tickets}</span>
               </span>
               <div
                 style={{
@@ -956,31 +872,20 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
                 ↗
               </div>
             </div>
+            {/* Barre corrigée : elle mélangeait le CA (en €) et des nombres de tickets, avec des tailles fixes.
+                Elle montre maintenant la vraie répartition des tickets à plusieurs articles / à un seul article. */}
             <div style={{ display: "flex", gap: 5, marginBottom: 12 }}>
-              <div style={{ height: 42, borderRadius: 10, background: ORANGE, flex: s1 }} />
-              <div
-                style={{
-                  height: 42,
-                  borderRadius: 10,
-                  background: `linear-gradient(90deg, ${ORANGE}, ${PEACH})`,
-                  opacity: 0.65,
-                  flex: s2,
-                }}
-              />
-              <div style={{ height: 42, borderRadius: 10, background: LIGHT, flex: s3 }} />
+              <div style={{ height: 42, borderRadius: 10, background: ORANGE, flex: kpis.nb_multi || 0 }} />
+              <div style={{ height: 42, borderRadius: 10, background: LIGHT, flex: kpis.nb_mono || 0 }} />
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "#5a4a3a", fontWeight: 500 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "var(--dk-ink2, #5a4a3a)", fontWeight: 500 }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: ORANGE }} />
-                CA : {fmt(kpis.ca_jour)}
+                {tr("Plusieurs articles : ", "Multiple items: ")}{kpis.nb_multi} ({fmt((kpis.nb_multi / nb_total) * 100)}{tr(" %", "%")})
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "#5a4a3a", fontWeight: 500 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: PEACH }} />
-                Multi : {kpis.nb_multi}
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "#5a4a3a", fontWeight: 500 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "var(--dk-ink2, #5a4a3a)", fontWeight: 500 }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: LIGHT, border: `1px solid ${PEACH}` }} />
-                Mono : {kpis.nb_mono}
+                {tr("Un seul article : ", "Single item: ")}{kpis.nb_mono} ({fmt((kpis.nb_mono / nb_total) * 100)}{tr(" %", "%")})
               </div>
             </div>
           </div>
@@ -990,9 +895,9 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
       {/* ── Footer ── */}
       <div className="pf">
         <span>
-          {siteConfig.bakeryName} &nbsp;·&nbsp; {siteConfig.dataSourceLabel} &nbsp;·&nbsp; {fmt(kpis.total_lignes)} lignes &nbsp;·&nbsp; {kpis.date_str}
+          {siteConfig.bakeryName} &nbsp;·&nbsp; {tr(siteConfig.dataSourceLabel, "POS · Checkout system")} &nbsp;·&nbsp; {fmt(kpis.total_lignes)} {tr("lignes", "rows")} &nbsp;·&nbsp; {kpis.date_str || siteConfig.dataEndLabel}
         </span>
-        <span>Données historiques — pas le stock réel</span>
+        <span>{tr("Données historiques — pas le stock réel", "Historical data — not actual stock")}</span>
       </div>
     </div>
   );

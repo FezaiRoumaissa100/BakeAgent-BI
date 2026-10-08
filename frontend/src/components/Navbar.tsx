@@ -8,30 +8,14 @@ import {
   IconMapPin,
   IconCalendar,
 } from "./Icons";
-import { fetchDailyKPIs } from "@/lib/api";
-import { siteConfig, formatTodayDate } from "@/lib/siteConfig";
+import { siteConfig } from "@/lib/siteConfig";
+import { t } from "@/lib/texts";
+import { ThemeToggle } from "./ThemeToggle";
+import { LangToggle } from "./LangToggle";
 
 export function Navbar() {
-  const pathname = usePathname();
-  const [alertsCount, setAlertsCount] = useState(0);
-  const [todayLabel, setTodayLabel] = useState<string>("");
-
-  useEffect(() => {
-    setTodayLabel(formatTodayDate("fr-FR"));
-  }, []);
-
-  // Fetch alerts count for Vue du Jour page
-  useEffect(() => {
-    if (pathname === "/") {
-      fetchDailyKPIs()
-        .then((data) => {
-          setAlertsCount(data.alerts_count || 0);
-        })
-        .catch(() => {
-          setAlertsCount(0);
-        });
-    }
-  }, [pathname]);
+  // Compteur d'alertes masqué : le backend renvoie aujourd'hui une valeur fixe (5).
+  // À réactiver quand le backend calculera le nombre réel d'alertes.
 
   return (
     <nav
@@ -151,7 +135,7 @@ export function Navbar() {
                 marginBottom: "3px",
               }}
             >
-              Aujourd'hui
+              {t.header.dataLabel}
             </div>
             <div
               style={{
@@ -162,7 +146,7 @@ export function Navbar() {
                 lineHeight: 1,
               }}
             >
-              {todayLabel || "Chargement…"}
+              {t.header.from} {siteConfig.dataStartLabel} {t.header.to} {siteConfig.dataEndLabel}
             </div>
           </div>
         </div>
@@ -170,6 +154,12 @@ export function Navbar() {
 
       {/* Right: Action Icons */}
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        {/* Langue : FR | EN */}
+        <LangToggle />
+
+        {/* Bouton soleil / lune : mode clair ou sombre */}
+        <ThemeToggle />
+
         {/* Alert Icon with badge */}
         <div style={{ position: "relative" }}>
           <button
@@ -197,26 +187,6 @@ export function Navbar() {
               <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
             </svg>
           </button>
-          {alertsCount > 0 && (
-            <div style={{
-              position: "absolute",
-              top: "-2px",
-              right: "-2px",
-              width: "18px",
-              height: "18px",
-              background: "#E8734A",
-              borderRadius: "50%",
-              color: "white",
-              fontSize: "10px",
-              fontWeight: 700,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: "2px solid #1C1410"
-            }}>
-              {alertsCount}
-            </div>
-          )}
         </div>
         
         {/* Chat/Copilot Icon */}

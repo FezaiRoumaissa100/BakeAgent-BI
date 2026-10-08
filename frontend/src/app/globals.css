@@ -5,9 +5,43 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   font-family: 'Inter', sans-serif !important;
-  background: #f2ede6 !important;
-  color: #1C1410;
+  background: var(--dk-page, #f2ede6) !important;
+  color: var(--dk-ink, #1C1410);
 }
+
+/* ─── Mode sombre (thème « Fournil ») ───────────────────────────────
+   Le choix (clair, sombre ou « comme l'ordinateur ») est fait avec le bouton de l'en-tête
+   et appliqué en posant data-theme="dark" sur la balise <html>.
+   En mode clair, aucune de ces variables n'existe : chaque couleur reprend sa valeur claire
+   écrite après la virgule, par exemple var(--dk-surface, #fff).
+   Pour ajuster une couleur du mode sombre, il suffit de changer sa valeur ici. */
+html[data-theme="dark"] {
+  color-scheme: dark;              /* listes déroulantes et barres de défilement sombres */
+  --dk-page: #1A1411;              /* fond de page */
+  --dk-surface: #241B16;           /* fond des cartes */
+  --dk-soft: #2C221C;              /* fonds légèrement teintés (encadrés, badges) */
+  --dk-line: #3A2E26;              /* bordures et séparateurs */
+  --dk-grid: #33281F;              /* lignes de grille des graphiques */
+  --dk-ink: #F5EDE3;               /* texte principal */
+  --dk-ink2: #C9B9A8;              /* texte secondaire foncé en mode clair */
+  --dk-muted: #9E8E7E;             /* texte discret */
+  --dk-sec: #E8A66A;               /* titres de section */
+  --dk-accent-deep: #F08A5D;       /* orange foncé, éclairci pour rester lisible */
+  --dk-brown: #E0A070;
+  --dk-ok: #5DBB7E;
+  --dk-warn: #E0A040;
+  --dk-alert: #F07A70;
+  --dk-red: #F07A70;
+  --dk-green-dark: #5DBB7E;
+  --dk-accent-pale: #7A4632;       /* barres pâles des graphiques */
+  --dk-pill: #E8734A;              /* bouton de mois sélectionné (page Alertes) */
+  --dk-shadow: rgba(0,0,0,0.35);
+}
+/* Classes Tailwind écrites avec une couleur fixe dans les pages */
+html[data-theme="dark"] .bg-white { background-color: var(--dk-surface); }
+html[data-theme="dark"] .border-\[\#e2d5c8\],
+html[data-theme="dark"] .border-\[\#f0ece6\],
+html[data-theme="dark"] .border-stone-100\/80 { border-color: var(--dk-line); }
 
 /* ─── Hero CSS ─── */
 .outer {
@@ -161,26 +195,26 @@ html, body {
   z-index: 20;
 }
 .bc {
-  background: white;
+  background: var(--dk-surface, white);
   border-radius: 18px;
   padding: 16px 16px 10px;
-  box-shadow: 0 8px 32px rgba(80,40,10,.13), 0 2px 8px rgba(80,40,10,.06);
-  border: 1px solid rgba(255,255,255,.95);
+  box-shadow: 0 8px 32px var(--dk-shadow, rgba(80,40,10,.13)), 0 2px 8px rgba(80,40,10,.06);
+  border: 1px solid var(--dk-line, rgba(255,255,255,.95));
   overflow: hidden;
   height: 250px;
   display: flex;
   flex-direction: column;
 }
-.bc-title { font-size: .88rem; font-weight: 700; color: #1C1410; margin-bottom: 2px; }
-.bc-sub { font-size: .68rem; color: #9a8070; margin-bottom: 8px; }
-.bc-big { font-size: 1.65rem; font-weight: 800; color: #1C1410; letter-spacing: -.03em; line-height: 1; }
+.bc-title { font-size: .88rem; font-weight: 700; color: var(--dk-ink, #1C1410); margin-bottom: 2px; }
+.bc-sub { font-size: .68rem; color: var(--dk-muted, #9a8070); margin-bottom: 8px; }
+.bc-big { font-size: 1.65rem; font-weight: 800; color: var(--dk-ink, #1C1410); letter-spacing: -.03em; line-height: 1; }
 .leg-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
 
 /* ─── Sections analytiques CSS ─── */
 .sec-title {
   font-size: .74rem;
   font-weight: 700;
-  color: #8a5a30;
+  color: var(--dk-sec, #8a5a30);
   text-transform: uppercase;
   letter-spacing: .09em;
   display: flex;
@@ -200,15 +234,15 @@ html, body {
 .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
 .g2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px; }
 .cc {
-  background: white;
+  background: var(--dk-surface, white);
   border-radius: 18px;
   padding: 16px 16px 10px;
-  box-shadow: 0 4px 20px rgba(80,40,10,0.08);
-  border: 1px solid rgba(255,255,255,.92);
+  box-shadow: 0 4px 20px var(--dk-shadow, rgba(80,40,10,0.08));
+  border: 1px solid var(--dk-line, rgba(255,255,255,.92));
   overflow: hidden;
 }
-.ct { font-size: .84rem; font-weight: 700; color: #1C1410; margin-bottom: 1px; }
-.cs { font-size: .68rem; color: #9a8070; margin-bottom: 8px; }
+.ct { font-size: .84rem; font-weight: 700; color: var(--dk-ink, #1C1410); margin-bottom: 1px; }
+.cs { font-size: .68rem; color: var(--dk-muted, #9a8070); margin-bottom: 8px; }
 
 .prod-list { display: flex; flex-direction: column; }
 .prod-row {
@@ -216,7 +250,7 @@ html, body {
   justify-content: space-between;
   align-items: center;
   padding: 5px 0;
-  border-bottom: 1px solid #f5f0ea;
+  border-bottom: 1px solid var(--dk-line, #f5f0ea);
 }
 .prod-row:last-child { border-bottom: none; }
 .prod-nm {
@@ -224,21 +258,21 @@ html, body {
   align-items: center;
   gap: 7px;
   font-size: .76rem;
-  color: #1C1410;
+  color: var(--dk-ink, #1C1410);
   font-weight: 500;
   min-width: 0;
   flex: 1;
 }
 .prod-nm span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.pbar-w { width: 56px; height: 5px; background: #f0ece6; border-radius: 99px; margin: 0 8px; flex-shrink: 0; }
+.pbar-w { width: 56px; height: 5px; background: var(--dk-line, #f0ece6); border-radius: 99px; margin: 0 8px; flex-shrink: 0; }
 .pbar { height: 5px; border-radius: 99px; }
-.pval { font-size: .76rem; font-weight: 700; color: #5a4a3a; white-space: nowrap; }
+.pval { font-size: .76rem; font-weight: 700; color: var(--dk-ink2, #5a4a3a); white-space: nowrap; }
 
 .pf {
   padding: 8px 28px 24px;
   display: flex;
   justify-content: space-between;
   font-size: .68rem;
-  color: #9a8070;
+  color: var(--dk-muted, #9a8070);
 }
