@@ -8,36 +8,22 @@ import {
   IconMapPin,
   IconCalendar,
 } from "./Icons";
-import { fetchDailyKPIs } from "@/lib/api";
-import { siteConfig, formatTodayDate } from "@/lib/siteConfig";
+import { siteConfig } from "@/lib/siteConfig";
+import { t } from "@/lib/texts";
+import { tr } from "@/lib/i18n";
+import { ThemeToggle } from "./ThemeToggle";
+import { LangToggle } from "./LangToggle";
+import { toggleSidebar } from "./Sidebar";
 
 export function Navbar() {
-  const pathname = usePathname();
-  const [alertsCount, setAlertsCount] = useState(0);
-  const [todayLabel, setTodayLabel] = useState<string>("");
-
-  useEffect(() => {
-    setTodayLabel(formatTodayDate("fr-FR"));
-  }, []);
-
-  // Fetch alerts count for Vue du Jour page
-  useEffect(() => {
-    if (pathname === "/") {
-      fetchDailyKPIs()
-        .then((data) => {
-          setAlertsCount(data.alerts_count || 0);
-        })
-        .catch(() => {
-          setAlertsCount(0);
-        });
-    }
-  }, [pathname]);
+  // Compteur d'alertes masqué : le backend renvoie aujourd'hui une valeur fixe (5).
+  // À réactiver quand le backend calculera le nombre réel d'alertes.
 
   return (
     <nav
       style={{
         height: "101px",
-        background: "#1C1410",
+        background: "var(--dk-chrome-bg, #FFFFFF)", // blanc en mode clair, brun en mode sombre
         borderBottom: "1px solid rgba(232,115,74,0.15)",
         display: "flex",
         alignItems: "center",
@@ -59,6 +45,11 @@ export function Navbar() {
           flexShrink: 0,
         }}
       >
+        {/* Logo visible seulement en mode « menu caché » : ouvre le menu */}
+        <button className="nav-float-logo" onClick={toggleSidebar} aria-label={tr("Ouvrir le menu", "Open menu")} title={tr("Ouvrir le menu", "Open menu")}>
+          <IconSparkline size={22} color="#fff" strokeWidth={2.4} />
+        </button>
+
         {/* Location + Bakery name */}
         <div
           style={{
@@ -67,8 +58,8 @@ export function Navbar() {
             gap: "10px",
             padding: "10px 14px",
             borderRadius: "14px",
-            background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.12)",
+            background: "var(--dk-chrome-chip, #FBF6F0)",
+            border: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
           }}
         >
           <div
@@ -76,8 +67,8 @@ export function Navbar() {
               width: "34px",
               height: "34px",
               borderRadius: "50%",
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.10)",
+              background: "var(--dk-chrome-chip, #FBF6F0)",
+              border: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -91,7 +82,7 @@ export function Navbar() {
               style={{
                 fontSize: "0.9rem",
                 fontWeight: 800,
-                color: "white",
+                color: "var(--dk-chrome-ink, #1C1410)",
                 letterSpacing: "-0.02em",
                 whiteSpace: "nowrap",
               }}
@@ -101,7 +92,7 @@ export function Navbar() {
             <div
               style={{
                 fontSize: "0.68rem",
-                color: "rgba(242,237,230,0.55)",
+                color: "var(--dk-chrome-muted, #9a8070)",
                 fontWeight: 500,
                 marginTop: "1px",
               }}
@@ -119,8 +110,8 @@ export function Navbar() {
             gap: "9px",
             padding: "10px 14px",
             borderRadius: "14px",
-            background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.12)",
+            background: "var(--dk-chrome-chip, #FBF6F0)",
+            border: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
           }}
           className="hidden md:flex"
         >
@@ -129,8 +120,8 @@ export function Navbar() {
               width: "32px",
               height: "32px",
               borderRadius: "50%",
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.10)",
+              background: "var(--dk-chrome-chip, #FBF6F0)",
+              border: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -144,25 +135,25 @@ export function Navbar() {
               style={{
                 fontSize: "0.72rem",
                 fontWeight: 700,
-                color: "rgba(242,237,230,0.65)",
+                color: "var(--dk-chrome-muted, #9a8070)",
                 textTransform: "uppercase",
                 letterSpacing: "0.06em",
                 lineHeight: 1,
                 marginBottom: "3px",
               }}
             >
-              Aujourd'hui
+              {t.header.dataLabel}
             </div>
             <div
               style={{
                 fontSize: "0.85rem",
                 fontWeight: 800,
-                color: "white",
+                color: "var(--dk-chrome-ink, #1C1410)",
                 whiteSpace: "nowrap",
                 lineHeight: 1,
               }}
             >
-              {todayLabel || "Chargement…"}
+              {t.header.from} {siteConfig.dataStartLabel} {t.header.to} {siteConfig.dataEndLabel}
             </div>
           </div>
         </div>
@@ -170,6 +161,12 @@ export function Navbar() {
 
       {/* Right: Action Icons */}
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        {/* Langue : FR | EN */}
+        <LangToggle />
+
+        {/* Bouton soleil / lune : mode clair ou sombre */}
+        <ThemeToggle />
+
         {/* Alert Icon with badge */}
         <div style={{ position: "relative" }}>
           <button
@@ -177,46 +174,27 @@ export function Navbar() {
               width: "40px",
               height: "40px",
               borderRadius: "50%",
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.12)",
+              background: "var(--dk-chrome-chip, #FBF6F0)",
+              border: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
+              color: "var(--dk-chrome-ink, #1C1410)",
               transition: "all 0.2s ease"
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(255,255,255,0.15)";
+              e.currentTarget.style.background = "var(--dk-chrome-hover, #F3E9DE)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+              e.currentTarget.style.background = "var(--dk-chrome-chip, #FBF6F0)";
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
               <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
             </svg>
           </button>
-          {alertsCount > 0 && (
-            <div style={{
-              position: "absolute",
-              top: "-2px",
-              right: "-2px",
-              width: "18px",
-              height: "18px",
-              background: "#E8734A",
-              borderRadius: "50%",
-              color: "white",
-              fontSize: "10px",
-              fontWeight: 700,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: "2px solid #1C1410"
-            }}>
-              {alertsCount}
-            </div>
-          )}
         </div>
         
         {/* Chat/Copilot Icon */}
@@ -225,19 +203,20 @@ export function Navbar() {
             width: "40px",
             height: "40px",
             borderRadius: "50%",
-            background: "rgba(255,255,255,0.08)",
-            border: "1px solid rgba(255,255,255,0.12)",
+            background: "var(--dk-chrome-chip, #FBF6F0)",
+            border: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
+            color: "var(--dk-chrome-ink, #1C1410)",
             transition: "all 0.2s ease"
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(255,255,255,0.15)";
+            e.currentTarget.style.background = "var(--dk-chrome-hover, #F3E9DE)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+            e.currentTarget.style.background = "var(--dk-chrome-chip, #FBF6F0)";
           }}
         >
           <svg
@@ -245,7 +224,7 @@ export function Navbar() {
             height="20"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#fff"
+            stroke="currentColor"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"

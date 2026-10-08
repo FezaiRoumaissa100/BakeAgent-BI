@@ -5,6 +5,7 @@ import { DailyKPIs } from "@/types/kpis";
 import { fetchDailyKPIs } from "@/lib/api";
 import { Hero, AnalyticsSections } from "@/components/Dashboard";
 import { IconAlert } from "@/components/Icons";
+import { tr } from "@/lib/i18n";
 
 export default function Page() {
   const [kpis, setKpis] = useState<DailyKPIs | null>(null);
@@ -18,17 +19,17 @@ export default function Page() {
         setLoading(false);
       })
       .catch(() => {
-        setError("Impossible de contacter le backend Python (http://127.0.0.1:8000).");
+        setError(tr("Impossible de contacter le backend Python (http://127.0.0.1:8000).", "Cannot reach the Python backend (http://127.0.0.1:8000)."));
         setLoading(false);
       });
   }, []);
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center" style={{ background: "#f2ede6" }}>
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--dk-page, #f2ede6)" }}>
         <div className="flex items-center gap-3 text-base font-bold" style={{ color: "#E8734A" }}>
           <div className="w-5 h-5 rounded-full border-2 border-[#E8734A] border-t-transparent animate-spin" />
-          Chargement du tableau de bord…
+          {tr("Chargement du tableau de bord…", "Loading dashboard…")}
         </div>
       </main>
     );
@@ -36,7 +37,7 @@ export default function Page() {
 
   if (error || !kpis) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-6 text-center" style={{ background: "#f2ede6" }}>
+      <main className="min-h-screen flex items-center justify-center p-6 text-center" style={{ background: "var(--dk-page, #f2ede6)" }}>
         <div className="bg-white rounded-2xl p-6 shadow-lg max-w-md">
           <div className="flex justify-center mb-3">
             <div
@@ -50,18 +51,18 @@ export default function Page() {
                 justifyContent: "center",
               }}
             >
-              <IconAlert size={24} color="#DC2626" strokeWidth={2.2} />
+              <IconAlert size={24} color="var(--dk-red, #DC2626)" strokeWidth={2.2} />
             </div>
           </div>
           <div className="text-sm font-bold text-red-600 mb-2">{error}</div>
-          <p className="text-xs text-gray-500 mb-4">Vérifiez que le serveur FastAPI tourne sur le port 8000.</p>
+          <p className="text-xs text-gray-500 mb-4">{tr("Vérifiez que le serveur FastAPI tourne sur le port 8000.", "Check that the FastAPI server is running on port 8000.")}</p>
           <button
             type="button"
             onClick={() => window.location.reload()}
             className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow"
             style={{ background: "#E8734A" }}
           >
-            Réessayer
+            {tr("Réessayer", "Retry")}
           </button>
         </div>
       </main>
@@ -69,7 +70,7 @@ export default function Page() {
   }
 
   return (
-    <main className="min-h-screen" style={{ background: "#f2ede6" }}>
+    <main className="min-h-screen" style={{ background: "var(--dk-page, #f2ede6)" }}>
       {/* Hero simplifié sans image "Le Croisic" */}
       <Hero kpis={kpis} />
 

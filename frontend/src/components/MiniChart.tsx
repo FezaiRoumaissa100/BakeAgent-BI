@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 const ORANGE = "#E8734A";
 const PEACH  = "#F0A882";
 const LIGHT  = "#FAD4C4";
-const MUTED  = "#9a8070";
+const MUTED  = "var(--dk-muted, #9a8070)";
 
 function sparkline(canvas: HTMLCanvasElement, data: number[], color: string) {
   const ctx = canvas.getContext("2d");

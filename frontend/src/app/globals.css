@@ -5,9 +5,56 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   font-family: 'Inter', sans-serif !important;
-  background: #f2ede6 !important;
-  color: #1C1410;
+  background: var(--dk-page, #f2ede6) !important;
+  color: var(--dk-ink, #1C1410);
 }
+
+/* ─── Mode sombre (thème « Fournil ») ───────────────────────────────
+   Le choix (clair, sombre ou « comme l'ordinateur ») est fait avec le bouton de l'en-tête
+   et appliqué en posant data-theme="dark" sur la balise <html>.
+   En mode clair, aucune de ces variables n'existe : chaque couleur reprend sa valeur claire
+   écrite après la virgule, par exemple var(--dk-surface, #fff).
+   Pour ajuster une couleur du mode sombre, il suffit de changer sa valeur ici. */
+html[data-theme="dark"] {
+  color-scheme: dark;              /* listes déroulantes et barres de défilement sombres */
+  --dk-page: #1A1411;              /* fond de page */
+  --dk-surface: #241B16;           /* fond des cartes */
+  --dk-soft: #2C221C;              /* fonds légèrement teintés (encadrés, badges) */
+  --dk-line: #3A2E26;              /* bordures et séparateurs */
+  --dk-grid: #33281F;              /* lignes de grille des graphiques */
+  --dk-ink: #F5EDE3;               /* texte principal */
+  --dk-ink2: #C9B9A8;              /* texte secondaire foncé en mode clair */
+  --dk-muted: #9E8E7E;             /* texte discret */
+  --dk-sec: #E8A66A;               /* titres de section */
+  --dk-accent-deep: #F08A5D;       /* orange foncé, éclairci pour rester lisible */
+  --dk-brown: #E0A070;
+  --dk-ok: #5DBB7E;
+  --dk-warn: #E0A040;
+  --dk-alert: #F07A70;
+  --dk-red: #F07A70;
+  --dk-green-dark: #5DBB7E;
+  --dk-accent-pale: #7A4632;       /* barres pâles des graphiques */
+  --dk-pill: #E8734A;              /* bouton de mois sélectionné (page Alertes) */
+  --dk-shadow: rgba(0,0,0,0.35);
+  /* Menu de gauche et en-tête : blancs en mode clair, brun foncé en mode sombre */
+  --dk-chrome-bg: #1C1410;
+  --dk-chrome-ink: #FFFFFF;
+  --dk-chrome-text: rgba(242,237,230,0.7);
+  --dk-chrome-muted: rgba(242,237,230,0.6);
+  --dk-chrome-chip: rgba(255,255,255,0.08);
+  --dk-chrome-chip-line: rgba(255,255,255,0.12);
+  --dk-chrome-hover: rgba(255,255,255,0.15);
+  --dk-chrome-icon-bg: rgba(255,255,255,0.04);
+  --dk-chrome-icon-line: rgba(255,255,255,0.05);
+  --dk-chrome-divider: rgba(255,255,255,0.06);
+  --dk-chrome-icon: #FFFFFF;
+  --dk-tip-bg: #3A2E26;             /* étiquettes au survol du menu */
+}
+/* Classes Tailwind écrites avec une couleur fixe dans les pages */
+html[data-theme="dark"] .bg-white { background-color: var(--dk-surface); }
+html[data-theme="dark"] .border-\[\#e2d5c8\],
+html[data-theme="dark"] .border-\[\#f0ece6\],
+html[data-theme="dark"] .border-stone-100\/80 { border-color: var(--dk-line); }
 
 /* ─── Hero CSS ─── */
 .outer {
@@ -161,26 +208,26 @@ html, body {
   z-index: 20;
 }
 .bc {
-  background: white;
+  background: var(--dk-surface, white);
   border-radius: 18px;
   padding: 16px 16px 10px;
-  box-shadow: 0 8px 32px rgba(80,40,10,.13), 0 2px 8px rgba(80,40,10,.06);
-  border: 1px solid rgba(255,255,255,.95);
+  box-shadow: 0 8px 32px var(--dk-shadow, rgba(80,40,10,.13)), 0 2px 8px rgba(80,40,10,.06);
+  border: 1px solid var(--dk-line, rgba(255,255,255,.95));
   overflow: hidden;
   height: 250px;
   display: flex;
   flex-direction: column;
 }
-.bc-title { font-size: .88rem; font-weight: 700; color: #1C1410; margin-bottom: 2px; }
-.bc-sub { font-size: .68rem; color: #9a8070; margin-bottom: 8px; }
-.bc-big { font-size: 1.65rem; font-weight: 800; color: #1C1410; letter-spacing: -.03em; line-height: 1; }
+.bc-title { font-size: .88rem; font-weight: 700; color: var(--dk-ink, #1C1410); margin-bottom: 2px; }
+.bc-sub { font-size: .68rem; color: var(--dk-muted, #9a8070); margin-bottom: 8px; }
+.bc-big { font-size: 1.65rem; font-weight: 800; color: var(--dk-ink, #1C1410); letter-spacing: -.03em; line-height: 1; }
 .leg-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
 
 /* ─── Sections analytiques CSS ─── */
 .sec-title {
   font-size: .74rem;
   font-weight: 700;
-  color: #8a5a30;
+  color: var(--dk-sec, #8a5a30);
   text-transform: uppercase;
   letter-spacing: .09em;
   display: flex;
@@ -200,15 +247,15 @@ html, body {
 .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
 .g2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px; }
 .cc {
-  background: white;
+  background: var(--dk-surface, white);
   border-radius: 18px;
   padding: 16px 16px 10px;
-  box-shadow: 0 4px 20px rgba(80,40,10,0.08);
-  border: 1px solid rgba(255,255,255,.92);
+  box-shadow: 0 4px 20px var(--dk-shadow, rgba(80,40,10,0.08));
+  border: 1px solid var(--dk-line, rgba(255,255,255,.92));
   overflow: hidden;
 }
-.ct { font-size: .84rem; font-weight: 700; color: #1C1410; margin-bottom: 1px; }
-.cs { font-size: .68rem; color: #9a8070; margin-bottom: 8px; }
+.ct { font-size: .84rem; font-weight: 700; color: var(--dk-ink, #1C1410); margin-bottom: 1px; }
+.cs { font-size: .68rem; color: var(--dk-muted, #9a8070); margin-bottom: 8px; }
 
 .prod-list { display: flex; flex-direction: column; }
 .prod-row {
@@ -216,7 +263,7 @@ html, body {
   justify-content: space-between;
   align-items: center;
   padding: 5px 0;
-  border-bottom: 1px solid #f5f0ea;
+  border-bottom: 1px solid var(--dk-line, #f5f0ea);
 }
 .prod-row:last-child { border-bottom: none; }
 .prod-nm {
@@ -224,21 +271,212 @@ html, body {
   align-items: center;
   gap: 7px;
   font-size: .76rem;
-  color: #1C1410;
+  color: var(--dk-ink, #1C1410);
   font-weight: 500;
   min-width: 0;
   flex: 1;
 }
 .prod-nm span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pdot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.pbar-w { width: 56px; height: 5px; background: #f0ece6; border-radius: 99px; margin: 0 8px; flex-shrink: 0; }
+.pbar-w { width: 56px; height: 5px; background: var(--dk-line, #f0ece6); border-radius: 99px; margin: 0 8px; flex-shrink: 0; }
 .pbar { height: 5px; border-radius: 99px; }
-.pval { font-size: .76rem; font-weight: 700; color: #5a4a3a; white-space: nowrap; }
+.pval { font-size: .76rem; font-weight: 700; color: var(--dk-ink2, #5a4a3a); white-space: nowrap; }
 
 .pf {
   padding: 8px 28px 24px;
   display: flex;
   justify-content: space-between;
   font-size: .68rem;
-  color: #9a8070;
+  color: var(--dk-muted, #9a8070);
+}
+
+/* ─── Menu de gauche ─────────────────────────────────────────────────
+   Deux affichages au choix (sélecteur discret en bas de l'écran) :
+   - « Barre d'icônes » : barre fine ; le logo ouvre le menu complet, qui pousse la page.
+   - « Menu caché » : le menu glisse par-dessus la page quand on clique sur le logo de l'en-tête.
+   L'état est lu sur <html data-nav="rail|hidden" data-nav-open="0|1"> (voir lib/navMode.ts). */
+.side {
+  --side-closed: 76px;
+  --side-open: 260px;
+  --side-ease: cubic-bezier(.2,.7,.2,1);
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+  width: var(--side-closed);
+  height: 100vh;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--dk-chrome-bg, #FFFFFF);
+  border-right: 1px solid var(--dk-chrome-chip-line, #EADFD3);
+  color: var(--dk-chrome-ink, #1C1410);
+  transition: width .25s var(--side-ease), transform .25s var(--side-ease), box-shadow .25s ease;
+}
+html[data-nav-open="1"] .side { width: var(--side-open); }
+
+.side-brand {
+  height: 101px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--dk-chrome-divider, #F0E6DB);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.side-logo, .nav-float-logo {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border: none;
+  border-radius: 50%;
+  background: #E8734A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(232,115,74,0.3);
+  transition: transform .2s var(--side-ease, ease), box-shadow .2s ease;
+}
+.side-logo:hover, .nav-float-logo:hover { transform: scale(1.07); box-shadow: 0 6px 16px rgba(232,115,74,0.4); }
+.side-title { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.02em; }
+.side-chevron { margin-left: auto; color: var(--dk-chrome-muted, #9a8070); opacity: 0; transition: opacity .2s ease; }
+
+.side-nav { padding: 20px 14px; display: flex; flex-direction: column; gap: 8px; }
+.side-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 52px;
+  padding: 0 6px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: background .2s ease, border-color .2s ease;
+}
+.side-ic {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dk-chrome-icon, #5a4a3a);
+  background: var(--dk-chrome-icon-bg, #F6EFE7);
+  border: 1px solid var(--dk-chrome-icon-line, #EFE5DA);
+  transition: color .2s ease, background .2s ease, transform .2s var(--side-ease);
+}
+.side-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--dk-chrome-text, #5a4a3a);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+.side-title.side-label { color: var(--dk-chrome-ink, #1C1410); font-size: 1.1rem; font-weight: 800; }
+.side-item:hover { background: var(--dk-chrome-chip, #FBF6F0); }
+.side-item:hover .side-ic { color: #E8734A; transform: translateX(2px); }
+.side-item.active { background: rgba(232,115,74,0.12); border-color: rgba(232,115,74,0.25); }
+.side-item.active .side-ic { color: #E8734A; background: rgba(232,115,74,0.22); border-color: rgba(232,115,74,0.35); }
+.side-item.active .side-label { color: var(--dk-chrome-ink, #1C1410); font-weight: 800; }
+
+/* Menu ouvert (ou mode « menu caché ») : on montre les noms */
+html[data-nav-open="1"] .side-label,
+html[data-nav="hidden"] .side-label { opacity: 1; pointer-events: auto; }
+html[data-nav-open="1"] .side-chevron,
+html[data-nav="hidden"] .side-chevron { opacity: 1; }
+
+/* Nom de la page au survol quand le menu est réduit aux icônes */
+.side-tip {
+  position: absolute;
+  left: 60px;
+  top: 50%;
+  transform: translate(-4px, -50%);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--dk-tip-bg, #1C1410);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .15s ease, transform .15s ease;
+  z-index: 70;
+}
+.side-tip::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  transform: translateY(-50%) rotate(45deg);
+}
+html:not([data-nav-open="1"]):not([data-nav="hidden"]) .side-item:hover .side-tip { opacity: 1; transform: translate(0, -50%); }
+
+/* Mode « menu caché » : le menu sort de l'écran et glisse par-dessus la page */
+html[data-nav="hidden"] .side {
+  position: fixed;
+  left: 0;
+  width: var(--side-open);
+  transform: translateX(-100%);
+}
+html[data-nav="hidden"][data-nav-open="1"] .side { transform: none; box-shadow: 12px 0 40px rgba(60,30,10,0.18); }
+.side-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(28,20,16,0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s ease;
+}
+html[data-nav="hidden"][data-nav-open="1"] .side-veil { opacity: 1; pointer-events: auto; }
+.nav-float-logo { display: none; }
+html[data-nav="hidden"] .nav-float-logo { display: flex; }
+
+/* Sélecteur discret « Barre d'icônes / Menu caché » */
+.nav-mode-switch {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%) scale(0.92);
+  z-index: 80;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--dk-chrome-bg, #FFFFFF);
+  border: 1px solid var(--dk-chrome-chip-line, #EADFD3);
+  box-shadow: 0 4px 16px rgba(60,30,10,0.10);
+  opacity: 0.45;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.nav-mode-switch:hover, .nav-mode-switch:focus-within { opacity: 1; transform: translateX(-50%) scale(1); }
+.nav-mode-switch button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--dk-chrome-text, #5a4a3a);
+  transition: background .2s ease, color .2s ease;
+}
+.nav-mode-switch button.on { background: #E8734A; color: #fff; }
+
+/* Fondu léger au changement de page */
+.page-fade { animation: pageFade .3s cubic-bezier(.2,.7,.2,1); }
+@keyframes pageFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Moins d'animations si l'ordinateur le demande */
+@media (prefers-reduced-motion: reduce) {
+  .side, .side *, .side-veil, .nav-mode-switch, .nav-mode-switch * { transition: none !important; }
+  .page-fade { animation: none; }
 }

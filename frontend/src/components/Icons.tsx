@@ -2,8 +2,8 @@ import React from "react";
 
 const stroke = "#E8734A";
 const strokeAlt = "#F0A882";
-const ink = "#1C1410";
-const muted = "#9a8070";
+const ink = "var(--dk-ink, #1C1410)"; // s'adapte au mode sombre (voir lib/theme.ts)
+const muted = "var(--dk-muted, #9a8070)";
 
 type IconProps = {
   size?: number;

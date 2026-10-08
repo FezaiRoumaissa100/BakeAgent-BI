@@ -1,7 +1,10 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import { t as txt } from "@/lib/texts";
+import { colors } from "@/lib/theme";
 import { fetchForecast } from "@/lib/api";
+import { tr, trData, locale } from "@/lib/i18n";
 import {
   IconSparkline as IconChartLine,
   IconBolt as IconZap,
@@ -24,19 +27,19 @@ import {
 } from "@/components/Icons";
 
 /* ──────────── Palette & helpers ──────────── */
-const ORANGE = "#C2410C";
-const PEACH = "#EA580C";
-const LIGHT = "#D97706";
-const CREAM = "#92400E";
-const INK = "#1C1410";
-const MUTED = "#57534E";
-const GRID = "rgba(200,140,100,0.13)";
-const OK = "#15803D";
-const WARN = "#B45309";
-const ALERT = "#991B1B";
+const ORANGE = colors.accentDeep;
+const PEACH = colors.accentDeep2;
+const LIGHT = colors.amber;
+const CREAM = colors.brown;
+const INK = colors.ink;
+const MUTED = colors.mutedDark;
+const GRID = colors.grid;
+const OK = colors.ok;
+const WARN = colors.warn;
+const ALERT = colors.alert;
 
 function fmt(n: number, dec = 0) {
-  return Number(n || 0).toLocaleString("fr-FR", {
+  return Number(n || 0).toLocaleString(locale(), {
     minimumFractionDigits: dec,
     maximumFractionDigits: dec,
   });
@@ -96,7 +99,7 @@ export default function PrevisionsPage() {
   if (loading && !data) {
     return (
       <div style={{ padding: "40px", color: MUTED, fontSize: "0.9rem", fontWeight: 600 }}>
-        Chargement des prévisions...
+        {tr("Chargement des prévisions...", "Loading forecasts...")}
       </div>
     );
   }
@@ -127,8 +130,8 @@ export default function PrevisionsPage() {
   const availableFilters = data?.available_filters || { products: [], categories: [], seasons: [], events: [] };
 
   const pageTitle = forecastType === "ca" 
-    ? `Prévision du chiffre d'affaires à ${horizon} jours`
-    : `Prévision des quantités vendues à ${horizon} jours`;
+    ? tr(`Prévision du chiffre d'affaires à ${horizon} jours`, `${horizon}-day revenue forecast`)
+    : tr(`Prévision des quantités vendues à ${horizon} jours`, `${horizon}-day forecast of units sold`);
 
   return (
     <div style={{ paddingBottom: "40px" }}>
@@ -136,11 +139,11 @@ export default function PrevisionsPage() {
       <div style={{ marginBottom: "16px", padding: "0 28px" }}>
         <h1 style={{ fontSize:"1.8rem", fontWeight:800, color:INK,
                      letterSpacing:"-0.03em", lineHeight:1.1, margin:0 }}>
-          Prévisions <span style={{ color: ORANGE }}>Ventes</span>
+          {tr("Prévisions", "Sales")} <span style={{ color: ORANGE }}>{tr("Ventes", "forecasts")}</span>
         </h1>
         <p style={{ color:MUTED, fontSize:"0.82rem", marginTop:"6px",
                     maxWidth:"640px", lineHeight:1.5 }}>
-          Prévisions de demande à court terme via le modèle Prophet.
+          {tr("Combien d'articles la boutique devrait vendre dans les 14 prochains jours, et l'été prochain.", "How many items the shop should sell over the next 14 days, and next summer.")}
         </p>
       </div>
 
@@ -152,248 +155,48 @@ export default function PrevisionsPage() {
           padding: "16px 20px", 
           borderRadius: "0 12px 12px 0", 
           fontSize: "0.75rem", 
-          color: "#5a3010", 
+          color: "var(--dk-ink2, #5a3010)", 
           marginBottom: "8px" 
         }}>
           <strong style={{ display: "block", marginBottom: "4px" }}>
-            <IconAlert size={14} color="#C8860A" style={{ marginRight: "6px", verticalAlign: "middle" }} />
-            Note de prudence réglementaire :
+            <IconAlert size={14} color="#C8860A" />
+            {tr("À savoir :", "Good to know:")}
           </strong>
-          Les prévisions représentent les valeurs estimées par le modèle à partir des données historiques. Elles ne constituent pas une mesure du stock réel ou des invendus physiques.
+          {tr("Les prévisions représentent les valeurs estimées par le modèle à partir des données historiques. Elles ne constituent pas une mesure du stock réel ou des invendus physiques.", "Forecasts are values estimated by the model from historical data. They do not measure actual stock or physical unsold items.")}
         </div>
       </div>
 
-      {/* ── FILTERS SECTION ── */}
-      <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <IconFilter size={18} color={ORANGE} />
-        Filtres de Prévision
-      </div>
-      <div className="sw">
-        <div className="cc" style={{ 
-          padding:"16px 20px", borderRadius:"14px",
-          background: "#FDF6EC",
-          border:"1px solid rgba(196,168,130,.25)",
-          boxShadow:"0 4px 16px rgba(0,0,0,0.15)"
-        }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
-            {/* Horizon */}
-            <div>
-              <div className="ct">Horizon</div>
-              <div className="cs">Jours de prévision</div>
-              <select 
-                value={horizon} 
-                onChange={(e) => setHorizon(Number(e.target.value))}
-                style={{ 
-                  width: "100%", 
-                  padding: "8px 12px", 
-                  borderRadius: "8px", 
-                  border: "1px solid #e2d5c8", 
-                  fontSize: "0.85rem",
-                  marginTop: "8px"
-                }}
-              >
-                <option value={7}>7 jours</option>
-                <option value={14}>14 jours</option>
-                <option value={30}>30 jours</option>
-              </select>
-            </div>
-
-            {/* Forecast Type */}
-            <div>
-              <div className="ct">Type de Prévision</div>
-              <div className="cs">Variable prédite</div>
-              <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-                <button
-                  onClick={() => setForecastType("articles")}
-                  style={{
-                    flex: 1,
-                    padding: "8px 12px",
-                    borderRadius: "8px",
-                    border: forecastType === "articles" ? "2px solid #C2410C" : "1px solid #e2d5c8",
-                    background: forecastType === "articles" ? "rgba(194,65,12,0.1)" : "white",
-                    fontSize: "0.85rem",
-                    fontWeight: forecastType === "articles" ? 700 : 500,
-                    color: forecastType === "articles" ? "#C2410C" : INK,
-                    cursor: "pointer"
-                  }}
-                >
-                  Articles
-                </button>
-                <button
-                  onClick={() => setForecastType("ca")}
-                  style={{
-                    flex: 1,
-                    padding: "8px 12px",
-                    borderRadius: "8px",
-                    border: forecastType === "ca" ? "2px solid #C2410C" : "1px solid #e2d5c8",
-                    background: forecastType === "ca" ? "rgba(194,65,12,0.1)" : "white",
-                    fontSize: "0.85rem",
-                    fontWeight: forecastType === "ca" ? 700 : 500,
-                    color: forecastType === "ca" ? "#C2410C" : INK,
-                    cursor: "pointer"
-                  }}
-                >
-                  Chiffre d'Affaires
-                </button>
-              </div>
-            </div>
-
-            {/* History Period */}
-            <div>
-              <div className="ct">Période Historique</div>
-              <div className="cs">Plage temporelle affichée</div>
-              <select 
-                value={historyPeriod} 
-                onChange={(e) => setHistoryPeriod(e.target.value)}
-                style={{ 
-                  width: "100%", 
-                  padding: "8px 12px", 
-                  borderRadius: "8px", 
-                  border: "1px solid #e2d5c8", 
-                  fontSize: "0.85rem",
-                  marginTop: "8px"
-                }}
-              >
-                <option value="all">Tout l'historique</option>
-                <option value="last_year">Dernière Année</option>
-                <option value="last_month">Dernier Mois</option>
-              </select>
-            </div>
-
-            {/* Product Filter - SEARCH INPUT */}
-            <div>
-              <div className="ct">Produit</div>
-              <div className="cs">Recherche par nom</div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "7px 12px",
-                  background: "#fcfaf8",
-                  borderRadius: 8,
-                  border: "1px solid #e2d5c8",
-                  marginTop: "8px",
-                }}
-              >
-                <IconSearch size={15} color={MUTED} />
-                <input
-                  type="text"
-                  placeholder="Ex : Baguette, Croissant..."
-                  value={productSearchDebounce}
-                  onChange={(e) => setProductSearchDebounce(e.target.value)}
-                  style={{ flex: 1, border: "none", outline: "none", background: "transparent", fontSize: ".8rem", fontWeight: 600, color: INK }}
-                />
-                {productSearchDebounce && (
-                  <button
-                    onClick={() => setProductSearchDebounce("")}
-                    style={{ background: "transparent", border: "none", cursor: "pointer", color: MUTED, fontSize: ".9rem", fontWeight: 700 }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Category Filter */}
-            <div>
-              <div className="ct">Catégorie</div>
-              <div className="cs">Filtrer par catégorie</div>
-              <select 
-                value={category} 
-                onChange={(e) => setCategory(e.target.value)}
-                style={{ 
-                  width: "100%", 
-                  padding: "8px 12px", 
-                  borderRadius: "8px", 
-                  border: "1px solid #e2d5c8", 
-                  fontSize: "0.85rem",
-                  marginTop: "8px"
-                }}
-              >
-                <option value="">Toutes les catégories</option>
-                {availableFilters.categories?.length > 0 ? availableFilters.categories.map((c: string) => (
-                  <option key={c} value={c}>{c}</option>
-                )) : <option disabled>Non disponible</option>}
-              </select>
-            </div>
-
-            {/* Season Filter */}
-            <div>
-              <div className="ct">Saison</div>
-              <div className="cs">Filtrer par saison</div>
-              <select 
-                value={season} 
-                onChange={(e) => setSeason(e.target.value)}
-                style={{ 
-                  width: "100%", 
-                  padding: "8px 12px", 
-                  borderRadius: "8px", 
-                  border: "1px solid #e2d5c8", 
-                  fontSize: "0.85rem",
-                  marginTop: "8px"
-                }}
-              >
-                <option value="">Toutes les saisons</option>
-                {availableFilters.seasons?.length > 0 ? availableFilters.seasons.map((s: string) => (
-                  <option key={s} value={s}>{s}</option>
-                )) : <option disabled>Non disponible</option>}
-              </select>
-            </div>
-
-            {/* Event Filter */}
-            <div>
-              <div className="ct">Événement</div>
-              <div className="cs">Filtrer par événement</div>
-              <select 
-                value={event} 
-                onChange={(e) => setEvent(e.target.value)}
-                style={{ 
-                  width: "100%", 
-                  padding: "8px 12px", 
-                  borderRadius: "8px", 
-                  border: "1px solid #e2d5c8", 
-                  fontSize: "0.85rem",
-                  marginTop: "8px"
-                }}
-              >
-                <option value="">Tous les événements</option>
-                {availableFilters.events?.length > 0 ? availableFilters.events.map((e: string) => (
-                  <option key={e} value={e}>{e}</option>
-                )) : <option disabled>Non disponible</option>}
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Filtres retirés : produit, catégorie, saison, événement, historique, type et horizon
+          ne changeaient pas la prévision (seul le modèle global à 14 jours existe en base).
+          À réafficher quand le backend les prendra en compte. */}
 
       {/* ── VISUALIZATION TOGGLES ── */}
       <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <IconSettings size={18} color={ORANGE} />
-        Options de Visualisation
+        {tr("Options de Visualisation", "Display options")}
       </div>
       <div className="sw">
         <div className="cc" style={{ 
           padding:"16px 20px", borderRadius:"14px",
-          background: "#FDF6EC",
-          border:"1px solid rgba(196,168,130,.25)",
+          background: "var(--dk-soft, #FDF6EC)",
+          border:"1px solid var(--dk-line, rgba(196,168,130,.25))",
           boxShadow:"0 4px 16px rgba(0,0,0,0.15)"
         }}>
           <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
             <Toggle 
-              label="Valeurs Observées" 
+              label={tr("Valeurs Observées", "Observed values")} 
               checked={showObserved} 
               onChange={setShowObserved}
               icon={<IconEye size={16} />}
             />
             <Toggle 
-              label="Valeurs Prédites" 
+              label={tr("Valeurs Prédites", "Predicted values")} 
               checked={showPredicted} 
               onChange={setShowPredicted}
               icon={<IconZap size={16} />}
             />
             <Toggle 
-              label="Intervalle de Confiance" 
+              label={tr("Intervalle de Confiance", "Confidence interval")} 
               checked={showConfidence} 
               onChange={setShowConfidence}
               icon={<IconActivity size={16} />}
@@ -405,87 +208,50 @@ export default function PrevisionsPage() {
       {/* ── KEY METRICS ── */}
       <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <IconTarget size={18} color={ORANGE} />
-        Indicateurs Clés
+        {tr("Indicateurs Clés", "Key indicators")}
       </div>
       <div className="sw">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
           <MetricCard 
             icon={<IconCalendarDays size={24} color={ORANGE} />}
-            title="Horizon"
-            subtitle="Fenêtre de prévision"
-            value={`${horizon} Jours`}
+            title={tr("Horizon", "Horizon")}
+            subtitle={tr("Fenêtre de prévision", "Forecast window")}
+            value={tr(`${horizon} Jours`, `${horizon} Days`)}
             color={INK}
           />
           <MetricCard 
             icon={<IconChartLine size={24} color={ORANGE} />}
-            title={`Total Prévu (${horizon}j)`}
-            subtitle={`${forecastInfo.label} cumulés`}
+            title={tr(`Total Prévu (${horizon}j)`, `Forecast total (${horizon}d)`)}
+            subtitle={tr(`${forecastInfo.label} cumulés`, `Cumulative ${trData(forecastInfo.label).toLowerCase()}`)}
             value={fmt(metrics.total_prevision || metrics.total_prevision_14j)}
-            unit={forecastInfo.unit}
+            unit={trData(forecastInfo.unit)}
             color={ORANGE}
           />
           <MetricCard 
             icon={<IconBar size={24} color={ORANGE} />}
-            title="Moyenne Historique"
-            subtitle={`${forecastInfo.label} par jour`}
+            title={tr("Moyenne Historique", "Historical average")}
+            subtitle={tr(`${forecastInfo.label} par jour`, `${trData(forecastInfo.label)} per day`)}
             value={fmt(metrics.moy_jour_historique)}
-            unit={forecastInfo.unit}
+            unit={trData(forecastInfo.unit)}
             color={INK}
           />
           <MetricCard 
             icon={<IconPercent size={24} color={OK} />}
-            title="Précision (MDAPE)"
-            subtitle="Validation croisée"
-            value={`${prophetMetrics.mdape_cv}%`}
+            title={txt.forecast.reliability}
+            subtitle={txt.forecast.reliabilitySub}
+            value={`± ${Math.round(Number(prophetMetrics.mdape_cv) || 0)} %`}
             color={OK}
           />
         </div>
       </div>
 
-      {/* ── PROPHET METRICS ── */}
-      <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <IconZap size={18} color={ORANGE} />
-        Métriques Prophet
-      </div>
-      <div className="sw">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px" }}>
-          {/* Train vs Validation */}
-          <div className="cc">
-            <div className="ct">Train vs Validation</div>
-            <div className="cs">Comparaison des erreurs</div>
-            <div style={{ marginTop: "16px", display: "flex", gap: "16px", alignItems: "center" }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "0.7rem", color: MUTED, marginBottom: "4px" }}>Train Error</div>
-                <div style={{ fontSize: "1.4rem", fontWeight: 800, color: OK }}>{fmt(prophetMetrics.train_error)}%</div>
-              </div>
-              <IconGitBranch size={32} color={MUTED} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: "0.7rem", color: MUTED, marginBottom: "4px" }}>Validation Error</div>
-                <div style={{ fontSize: "1.4rem", fontWeight: 800, color: WARN }}>{fmt(prophetMetrics.validation_error)}%</div>
-              </div>
-            </div>
-          </div>
-
-          {/* MAPE by Horizon */}
-          <div className="cc">
-            <div className="ct">MAPE par Horizon</div>
-            <div className="cs">Erreur selon l'horizon de prévision</div>
-            <div style={{ marginTop: "16px" }}>
-              {prophetMetrics.mape_by_horizon?.map((item: any) => (
-                <div key={item.horizon} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f2e9e1" }}>
-                  <span style={{ fontSize: "0.85rem", color: INK, fontWeight: 600 }}>{item.horizon}</span>
-                  <span style={{ fontSize: "0.85rem", color: ORANGE, fontWeight: 700 }}>{fmt(item.mape)}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* Bloc « Métriques Prophet » retiré : erreur d'entraînement et erreurs par horizon
+          étaient déduites de l'erreur médiane par multiplication, pas mesurées. */}
 
       {/* ── FORECAST CALENDAR ── */}
       <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <IconCalendarDays size={18} color={ORANGE} />
-        Calendrier des Prévisions
+        {tr("Calendrier des Prévisions", "Forecast calendar")}
       </div>
       <div className="sw">
         <div className="cc">
@@ -496,22 +262,22 @@ export default function PrevisionsPage() {
                 <div key={i} style={{ 
                   padding: "12px", 
                   borderRadius: "12px", 
-                  border: isFerme ? "1px dashed #e2d5c8" : "1px solid rgba(232,115,74,0.3)", 
-                  background: isFerme ? "#fcfaf8" : "#fffcfb", 
+                  border: isFerme ? "1px dashed var(--dk-line, #e2d5c8)" : "1px solid rgba(232,115,74,0.3)", 
+                  background: isFerme ? "var(--dk-surface, #fcfaf8)" : "var(--dk-surface, #fffcfb)", 
                   textAlign: "center", 
                   display: "flex", 
                   flexDirection: "column", 
                   gap: "8px" 
                 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.6rem", fontWeight: 700, color: MUTED, textTransform: "uppercase" }}>
-                    <span>{day.horizon}</span>
-                    <span>{day.jour_semaine?.slice(0, 3)}</span>
+                    <span>{tr(day.horizon, String(day.horizon ?? "").replace(/^J\+/, "D+"))}</span>
+                    <span>{trData(day.jour_semaine)?.slice(0, 3)}</span>
                   </div>
                   <div style={{ fontSize: "0.75rem", fontWeight: 800, color: INK }}>{day.date_fr}</div>
                   {isFerme ? (
                     <div style={{ margin: "12px 0", fontSize: "0.8rem", fontWeight: 700, color: MUTED }}>
                       <IconAlert size={20} color={MUTED} />
-                      <div style={{ marginTop: "4px" }}>FERMÉ</div>
+                      <div style={{ marginTop: "4px" }}>{tr("FERMÉ", "CLOSED")}</div>
                     </div>
                   ) : (
                     <div style={{ margin: "8px 0" }}>
@@ -524,7 +290,7 @@ export default function PrevisionsPage() {
                     </div>
                   )}
                   <div style={{ fontSize: "0.6rem", fontWeight: 700, color: MUTED }}>
-                    {isFerme ? "Repos" : forecastInfo.unit}
+                    {isFerme ? tr("Repos", "Day off") : trData(forecastInfo.unit)}
                   </div>
                 </div>
               );
@@ -536,18 +302,18 @@ export default function PrevisionsPage() {
       {/* ── HISTORY + FORECAST CHART ── */}
       <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <IconChartLine size={18} color={ORANGE} />
-        Historique + Prévision
+        {tr("Historique + Prévision", "History + forecast")}
       </div>
       <div className="sw">
         <div className="cc" style={{ minHeight: "900px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
             <div>
-              <div className="ct">Historique Récent et Prévision</div>
-              <div className="cs">Continuité entre observations et prévisions</div>
+              <div className="ct">{tr("Historique Récent et Prévision", "Recent history and forecast")}</div>
+              <div className="cs">{tr("Continuité entre observations et prévisions", "Continuity between observations and forecasts")}</div>
             </div>
             <div style={{ display: "flex", gap: "16px", fontSize: "0.7rem", fontWeight: 700 }}>
-              {showObserved && <span style={{ display: "flex", alignItems: "center", gap: "6px", color: INK }}><div style={{ width: "8px", height: "8px", borderRadius: "50%", background: INK }} />Historique</span>}
-              {showPredicted && <span style={{ display: "flex", alignItems: "center", gap: "6px", color: ORANGE }}><div style={{ width: "8px", height: "8px", borderRadius: "50%", background: ORANGE }} />Prévision Prophet</span>}
+              {showObserved && <span style={{ display: "flex", alignItems: "center", gap: "6px", color: INK }}><div style={{ width: "8px", height: "8px", borderRadius: "50%", background: INK }} />{tr("Historique", "History")}</span>}
+              {showPredicted && <span style={{ display: "flex", alignItems: "center", gap: "6px", color: ORANGE }}><div style={{ width: "8px", height: "8px", borderRadius: "50%", background: ORANGE }} />{tr("Prévision", "Forecast")}</span>}
             </div>
           </div>
           
@@ -570,7 +336,7 @@ export default function PrevisionsPage() {
                 fontSize: "0.9rem",
                 fontWeight: 600 
               }}>
-                {loading ? "Chargement du graphique..." : "Données insuffisantes pour afficher le graphique"}
+                {loading ? tr("Chargement du graphique...", "Loading chart...") : tr("Données insuffisantes pour afficher le graphique", "Not enough data to display the chart")}
               </div>
             )}
           </div>
@@ -582,12 +348,12 @@ export default function PrevisionsPage() {
         <>
           <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <IconTrendUp size={18} color={ORANGE} />
-            Prévision Estivale
+            {tr("Prévision Estivale", "Summer forecast")}
           </div>
           <div className="sw">
             <div className="cc">
-              <div className="ct">Prévision des ventes pour la saison estivale</div>
-              <div className="cs">Projection Juin - Septembre</div>
+              <div className="ct">{tr("Prévision des ventes pour la saison estivale", "Sales forecast for the summer season")}</div>
+              <div className="cs">{tr("Projection Juin - Septembre", "June - September projection")}</div>
               <div style={{ height: "350px", width: "100%", marginTop: "16px" }}>
                 <SeasonalChart data={forecastSeason} />
               </div>
@@ -601,18 +367,18 @@ export default function PrevisionsPage() {
         <>
           <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <IconLayers size={18} color={ORANGE} />
-            Décomposition Prophet
+            {tr("Ce qui explique la prévision", "What drives the forecast")}
           </div>
           <div className="sw">
             <div className="cc">
-              <div className="ct">Décomposition des prévisions</div>
-              <div className="cs">Tendance, saisonnalité et événements</div>
+              <div className="ct">{tr("Décomposition des prévisions", "Forecast breakdown")}</div>
+              <div className="cs">{tr("Tendance, saisonnalité et événements", "Trend, seasonality and events")}</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px", marginTop: "16px" }}>
                 {decomposition.trend && (
                   <div>
                     <div style={{ fontSize: "0.8rem", fontWeight: 700, color: INK, marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
                       <IconTrendUp size={16} color={ORANGE} />
-                      Tendance
+                      {tr("Tendance", "Trend")}
                     </div>
                     <div style={{ height: "150px" }}>
                       <MiniChart data={decomposition.trend} color={ORANGE} />
@@ -623,7 +389,7 @@ export default function PrevisionsPage() {
                   <div>
                     <div style={{ fontSize: "0.8rem", fontWeight: 700, color: INK, marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
                       <IconSparkline size={16} color={OK} />
-                      Saisonnalité
+                      {tr("Saisonnalité", "Seasonality")}
                     </div>
                     <div style={{ height: "150px" }}>
                       <MiniChart data={decomposition.seasonal} color={OK} />
@@ -634,7 +400,7 @@ export default function PrevisionsPage() {
                   <div>
                     <div style={{ fontSize: "0.8rem", fontWeight: 700, color: INK, marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
                       <IconAlert size={16} color={WARN} />
-                      Événements
+                      {tr("Événements", "Events")}
                     </div>
                     <div style={{ height: "150px" }}>
                       <MiniChart data={decomposition.holidays} color={WARN} />
@@ -647,58 +413,7 @@ export default function PrevisionsPage() {
         </>
       )}
 
-      {/* ── DETAILED TABLE ── */}
-      <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <IconActivity size={18} color={ORANGE} />
-        Détail Numérique
-      </div>
-      <div className="sw">
-        <div className="cc">
-          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "8px" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid #f2e9e1", color: MUTED, fontSize: "0.7rem", textTransform: "uppercase", textAlign: "right" }}>
-                <th style={{ textAlign: "left", paddingBottom: "8px" }}>Horizon / Date</th>
-                <th style={{ textAlign: "left", paddingBottom: "8px" }}>Jour</th>
-                <th style={{ paddingBottom: "8px" }}>Demande ({forecastInfo.unit})</th>
-                {showConfidence && <th style={{ paddingBottom: "8px" }}>Borne Basse</th>}
-                {showConfidence && <th style={{ paddingBottom: "8px" }}>Borne Haute</th>}
-                <th style={{ paddingBottom: "8px" }}>Statut</th>
-              </tr>
-            </thead>
-            <tbody>
-              {forecast.map((r: any, i: number) => (
-                <tr key={i} style={{ borderBottom: "1px solid #fdfcfb" }}>
-                  <td style={{ padding: "10px 0", fontSize: "0.8rem", fontWeight: 700, color: INK }}>
-                    {r.horizon} <span style={{ color: MUTED, fontWeight: 500, marginLeft: "8px" }}>{r.date_fr}</span>
-                  </td>
-                  <td style={{ padding: "10px 0", fontSize: "0.75rem", color: MUTED }}>{r.jour_semaine}</td>
-                  <td style={{ padding: "10px 0", textAlign: "right", fontSize: "0.85rem", fontWeight: 800, color: r.is_ferme ? MUTED : ORANGE }}>
-                    {r.is_ferme ? 0 : fmt(r.yhat)}
-                  </td>
-                  {showConfidence && (
-                    <td style={{ padding: "10px 0", textAlign: "right", fontSize: "0.75rem", color: MUTED }}>{fmt(r.yhat_lower)}</td>
-                  )}
-                  {showConfidence && (
-                    <td style={{ padding: "10px 0", textAlign: "right", fontSize: "0.75rem", color: MUTED }}>{fmt(r.yhat_upper)}</td>
-                  )}
-                  <td style={{ padding: "10px 0", textAlign: "right" }}>
-                    <span style={{ 
-                      fontSize: "0.65rem", 
-                      fontWeight: 700, 
-                      background: r.is_ferme ? "#f2ede6" : "rgba(99,153,34,0.1)", 
-                      color: r.is_ferme ? MUTED : "#639922", 
-                      padding: "3px 8px", 
-                      borderRadius: "12px" 
-                    }}>
-                      {r.is_ferme ? "Fermé" : "Ouvert"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Tableau « Détail numérique » retiré : il répétait le calendrier des prévisions. */}
     </div>
   );
 }
@@ -732,15 +447,15 @@ function Toggle({ label, checked, onChange, icon }: any) {
         gap: "8px",
         padding: "8px 16px",
         borderRadius: "8px",
-        border: checked ? "2px solid #C2410C" : "1px solid #e2d5c8",
-        background: checked ? "rgba(194,65,12,0.1)" : "white",
+        border: checked ? "2px solid var(--dk-accent-deep, #C2410C)" : "1px solid var(--dk-line, #e2d5c8)",
+        background: checked ? "rgba(194,65,12,0.1)" : "var(--dk-surface, white)",
         fontSize: "0.85rem",
         fontWeight: checked ? 700 : 500,
-        color: checked ? "#C2410C" : INK,
+        color: checked ? "var(--dk-accent-deep, #C2410C)" : INK,
         cursor: "pointer"
       }}
     >
-      {checked ? <IconEye size={16} color="#C2410C" /> : <IconEyeOff size={16} color={MUTED} />}
+      {checked ? <IconEye size={16} color="var(--dk-accent-deep, #C2410C)" /> : <IconEyeOff size={16} color={MUTED} />}
       {label}
     </button>
   );
@@ -847,7 +562,7 @@ function ForecastChart({ history, forecast, showObserved, showPredicted, showCon
     const upperPts = forecast.map((f: any, i: number) => ({ x: toX(history.length + i), y: toY(f.yhat_upper) }));
     const lowerPts = [...forecast.map((f: any, i: number) => ({ x: toX(history.length + i), y: toY(f.yhat_lower) }))].reverse();
     confidencePath = `M ${histPts[history.length - 1].x} ${histPts[history.length - 1].y}`;
-    upperPts.forEach((pt) => confidencePath += ` L ${pt.x} ${pt.y}`);
+    upperPts.forEach((pt: { x: number; y: number }) => confidencePath += ` L ${pt.x} ${pt.y}`);
     lowerPts.forEach((pt) => confidencePath += ` L ${pt.x} ${pt.y}`);
     confidencePath += ` Z`;
   }
@@ -874,18 +589,18 @@ function ForecastChart({ history, forecast, showObserved, showPredicted, showCon
   }
 
   // Colors for different elements - using varied colors as requested
-  const histColor = "#1C1410";      // Dark for history
-  const fcColor = "#C2410C";       // Orange for forecast
+  const histColor = "var(--dk-ink, #1C1410)";      // Dark for history
+  const fcColor = "var(--dk-accent-deep, #C2410C)";       // Orange for forecast
   const confColor = "rgba(194,65,12,0.15)"; // Light orange for confidence
-  const gridColor = "rgba(200,140,100,0.2)";
+  const gridColor = "var(--dk-grid, rgba(200,140,100,0.2))";
 
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, paddingRight: 4 }}>
         <span style={{ fontSize: "0.75rem", color: MUTED, fontWeight: 600 }}>
           {isZoomed
-            ? `Zoom : ${allData[effStart]?.label || ''} → ${allData[effEnd]?.label || ''} · Double-cliquez pour réinitialiser`
-            : "Glissez une sélection horizontale sur le graphique pour zoomer"}
+            ? tr(`Zoom : ${allData[effStart]?.label || ''} → ${allData[effEnd]?.label || ''} · Double-cliquez pour réinitialiser`, `Zoom: ${allData[effStart]?.label || ''} → ${allData[effEnd]?.label || ''} · Double-click to reset`)
+            : tr("Glissez une sélection horizontale sur le graphique pour zoomer", "Drag a horizontal selection on the chart to zoom in")}
         </span>
         {isZoomed && (
           <button
@@ -902,7 +617,7 @@ function ForecastChart({ history, forecast, showObserved, showPredicted, showCon
               fontWeight: 700
             }}
           >
-            × Réinitialiser
+            {tr("× Réinitialiser", "× Reset")}
           </button>
         )}
       </div>
@@ -939,8 +654,8 @@ function ForecastChart({ history, forecast, showObserved, showPredicted, showCon
 
         {/* Split line between history and forecast */}
         <line x1={splitX} y1={pad.t} x2={splitX} y2={H - pad.b} stroke="#C8860A" strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
-        <text x={splitX - 8} y={pad.t + 12} textAnchor="end" fontSize="11" fill="#9a8070" fontWeight="700">Historique</text>
-        <text x={splitX + 8} y={pad.t + 12} textAnchor="start" fontSize="11" fill="#C2410C" fontWeight="700">Prophet J+{forecast.length}</text>
+        <text x={splitX - 8} y={pad.t + 12} textAnchor="end" fontSize="11" fill="var(--dk-muted, #9a8070)" fontWeight="700">{tr("Historique", "History")}</text>
+        <text x={splitX + 8} y={pad.t + 12} textAnchor="start" fontSize="11" fill="var(--dk-accent-deep, #C2410C)" fontWeight="700">{tr(`Prévision J+${forecast.length}`, `Forecast D+${forecast.length}`)}</text>
 
         {/* Confidence interval */}
         {showConfidence && confidencePath && (
@@ -959,7 +674,7 @@ function ForecastChart({ history, forecast, showObserved, showPredicted, showCon
 
         {/* Forecast points */}
         {showPredicted && fcPts.slice(1).map((pt: any, i: number) => (
-          <circle key={i} cx={pt.x} cy={pt.y} r="4" fill="white" stroke={fcColor} strokeWidth="2" />
+          <circle key={i} cx={pt.x} cy={pt.y} r="4" fill="var(--dk-surface, white)" stroke={fcColor} strokeWidth="2" />
         ))}
 
         {/* Selection rectangle */}
@@ -986,19 +701,19 @@ function ForecastChart({ history, forecast, showObserved, showPredicted, showCon
         {showObserved && (
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: histColor }} />
-            <span style={{ fontSize: "0.75rem", color: INK, fontWeight: 600 }}>Historique</span>
+            <span style={{ fontSize: "0.75rem", color: INK, fontWeight: 600 }}>{tr("Historique", "History")}</span>
           </div>
         )}
         {showPredicted && (
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: fcColor }} />
-            <span style={{ fontSize: "0.75rem", color: INK, fontWeight: 600 }}>Prévision Prophet</span>
+            <span style={{ fontSize: "0.75rem", color: INK, fontWeight: 600 }}>{tr("Prévision", "Forecast")}</span>
           </div>
         )}
         {showConfidence && (
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <div style={{ width: "12px", height: "12px", borderRadius: "2px", background: confColor, border: "1px solid #C2410C" }} />
-            <span style={{ fontSize: "0.75rem", color: INK, fontWeight: 600 }}>Intervalle de confiance</span>
+            <div style={{ width: "12px", height: "12px", borderRadius: "2px", background: confColor, border: "1px solid var(--dk-accent-deep, #C2410C)" }} />
+            <span style={{ fontSize: "0.75rem", color: INK, fontWeight: 600 }}>{tr("Intervalle de confiance", "Confidence interval")}</span>
           </div>
         )}
       </div>
@@ -1039,7 +754,7 @@ function SeasonalChart({ data }: any) {
   }
 
   const lineColor = "#EA580C";
-  const gridColor = "rgba(200,140,100,0.2)";
+  const gridColor = "var(--dk-grid, rgba(200,140,100,0.2))";
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="none">
@@ -1067,7 +782,7 @@ function SeasonalChart({ data }: any) {
 
       {/* Points */}
       {pts.map((pt: any, i: number) => (
-        <circle key={i} cx={pt.x} cy={pt.y} r="3" fill="white" stroke={lineColor} strokeWidth="2" />
+        <circle key={i} cx={pt.x} cy={pt.y} r="3" fill="var(--dk-surface, white)" stroke={lineColor} strokeWidth="2" />
       ))}
 
       {/* Axes */}
@@ -1094,7 +809,7 @@ function MiniChart({ data, color }: any) {
   for (let i = 0; i < pts.length - 1; i++) { path += ` L ${pts[i + 1].x} ${pts[i + 1].y}`; }
 
   // Minimal grid
-  const gridColor = "rgba(200,140,100,0.15)";
+  const gridColor = "var(--dk-grid, rgba(200,140,100,0.15))";
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="none">
@@ -1106,7 +821,7 @@ function MiniChart({ data, color }: any) {
       
       {/* Points */}
       {pts.map((pt: any, i: number) => (
-        <circle key={i} cx={pt.x} cy={pt.y} r="2.5" fill="white" stroke={color} strokeWidth="1.5" />
+        <circle key={i} cx={pt.x} cy={pt.y} r="2.5" fill="var(--dk-surface, white)" stroke={color} strokeWidth="1.5" />
       ))}
 
       {/* Axes */}
