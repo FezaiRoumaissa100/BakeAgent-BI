@@ -48,20 +48,20 @@ export function ThemeToggle() {
         width: "40px",
         height: "40px",
         borderRadius: "50%",
-        background: "rgba(255,255,255,0.08)",
-        border: "1px solid rgba(255,255,255,0.12)",
+        background: "var(--dk-chrome-chip, #FBF6F0)",
+        border: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         cursor: "pointer",
-        color: "#fff",
+        color: "var(--dk-chrome-ink, #1C1410)",
         transition: "all 0.2s ease",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "rgba(255,255,255,0.15)";
+        e.currentTarget.style.background = "var(--dk-chrome-hover, #F3E9DE)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+        e.currentTarget.style.background = "var(--dk-chrome-chip, #FBF6F0)";
       }}
     >
       {dark ? (

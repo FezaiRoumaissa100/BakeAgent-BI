@@ -2,107 +2,94 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   IconSparkline, IconBarsGrouped, IconGrid, IconTrendUp, IconAlert
 } from "./Icons";
-import { siteConfig } from "@/lib/siteConfig";
 import { tr } from "@/lib/i18n";
+import { getNavMode, isNavOpen, setNavOpen } from "@/lib/navMode";
 
 // Fonction (et non constante) : les libellés sont traduits au moment du rendu.
+// Les icônes prennent la couleur du texte (currentColor) pour changer de couleur au survol.
 const getNavItems = () => [
-  { href: "/",          label: tr("Vue du Jour", "Daily view"),     icon: <IconSparkline size={20} color="#fff" strokeWidth={2.1}/> },
-  { href: "/performance",label: tr("Performance", "Performance"),   icon: <IconBarsGrouped size={20} color="#fff" strokeWidth={2.1}/> },
-  { href: "/produits",  label: tr("Produits", "Products"),        icon: <IconGrid size={20} color="#fff" strokeWidth={2.1}/> },
-  { href: "/previsions",label: tr("Prévisions", "Forecasts"),      icon: <IconTrendUp size={20} color="#fff" strokeWidth={2.1}/> },
-  { href: "/alertes",   label: tr("Alertes & Stock", "Alerts & Stock"), icon: <IconAlert size={20} color="#fff" strokeWidth={2.1}/> },
+  { href: "/",           label: tr("Vue du Jour", "Daily view"),          icon: <IconSparkline size={20} color="currentColor" strokeWidth={2.1}/> },
+  { href: "/performance", label: tr("Performance", "Performance"),        icon: <IconBarsGrouped size={20} color="currentColor" strokeWidth={2.1}/> },
+  { href: "/produits",   label: tr("Produits", "Products"),               icon: <IconGrid size={20} color="currentColor" strokeWidth={2.1}/> },
+  { href: "/previsions", label: tr("Prévisions", "Forecasts"),            icon: <IconTrendUp size={20} color="currentColor" strokeWidth={2.1}/> },
+  { href: "/alertes",    label: tr("Alertes & Stock", "Alerts & Stock"),  icon: <IconAlert size={20} color="currentColor" strokeWidth={2.1}/> },
 ];
+
+// Ouvre / ferme le menu. Utilisé par le logo du menu et par le logo de l'en-tête (mode « menu caché »).
+export function toggleSidebar() {
+  setNavOpen(!isNavOpen());
+  window.dispatchEvent(new Event("nav-change"));
+}
 
 export function Sidebar() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  // Suit l'état posé sur <html> (mémorisé, ou changé par le logo de l'en-tête / le sélecteur).
+  useEffect(() => {
+    const sync = () => setOpen(isNavOpen());
+    sync();
+    window.addEventListener("nav-change", sync);
+    // Touche Échap : referme le menu caché.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && getNavMode() === "hidden" && isNavOpen()) toggleSidebar();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("nav-change", sync);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  // En mode « menu caché », choisir une page referme le menu.
+  const onPick = () => {
+    if (getNavMode() === "hidden" && isNavOpen()) toggleSidebar();
+  };
+
+  const toggleLabel = open ? tr("Fermer le menu", "Close menu") : tr("Ouvrir le menu", "Open menu");
 
   return (
-    <aside
-      className="shrink-0 flex flex-col justify-between"
-      style={{
-        width: "290px",
-        height: "100vh",
-        position: "sticky",
-        top: 0,
-        background: "#1C1410", // INK
-        borderRight: "1px solid rgba(232,115,74,0.15)",
-        color: "#f2ede6",
-      }}
-    >
-      <div>
-        {/* Brand */}
-        <div style={{ padding: "32px 28px 24px", display: "flex", alignItems: "center", gap: "14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          <div
-            style={{
-              width: "44px",
-              height: "44px",
-              background: "#E8734A",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "1.3rem",
-              boxShadow: "0 4px 12px rgba(232,115,74,0.3)"
-            }}
-          >
+    <>
+      {/* Voile gris derrière le menu caché quand il est ouvert : un clic le referme */}
+      <div className="side-veil" onClick={toggleSidebar} aria-hidden="true" />
+
+      <aside className="side">
+        {/* Logo : ouvre / ferme le menu */}
+        <div className="side-brand">
+          <button className="side-logo" onClick={toggleSidebar} aria-expanded={open} aria-label={toggleLabel} title={toggleLabel}>
             <IconSparkline size={22} color="#fff" strokeWidth={2.4} />
-          </div>
-          <div>
-            <div style={{ fontSize: "1.1rem", fontWeight: 800, color: "white", letterSpacing: "-0.02em" }}>
-              {tr("Tableau de Bord", "Dashboard")}
-            </div>
-          </div>
+          </button>
+          <span className="side-label side-title">{tr("Tableau de Bord", "Dashboard")}</span>
+          <svg className="side-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
         </div>
 
-        {/* Navigation list */}
-        <nav style={{ padding: "24px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+        {/* Pages */}
+        <nav className="side-nav">
           {getNavItems().map((item) => {
             const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "16px",
-                  padding: "14px 16px",
-                  borderRadius: "14px",
-                  background: isActive ? "rgba(232,115,74,0.12)" : "transparent",
-                  border: isActive ? "1px solid rgba(232,115,74,0.25)" : "1px solid transparent",
-                  transition: "all 0.2s ease"
-                }}
+                onClick={onPick}
+                className={`side-item${isActive ? " active" : ""}`}
+                aria-current={isActive ? "page" : undefined}
               >
-                <div style={{
-                  display: "flex", alignItems:"center", justifyContent:"center",
-                  width:"36px", height:"36px",
-                  borderRadius:"50%",
-                  background: isActive ? "rgba(232,115,74,0.22)" : "rgba(255,255,255,0.04)",
-                  border: isActive ? "1px solid rgba(232,115,74,0.35)" : "1px solid rgba(255,255,255,0.05)",
-                  opacity: isActive ? 1 : 0.72,
-                  flexShrink:0
-                }}>
-                  {item.icon}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "0.85rem", fontWeight: isActive ? 800 : 600, color: isActive ? "white" : "rgba(242,237,230,0.7)", transition: "color 0.2s" }}>
-                    {item.label}
-                  </div>
-                </div>
-                {isActive && (
-                  <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#E8734A" }} />
-                )}
+                <span className="side-ic">{item.icon}</span>
+                <span className="side-label">{item.label}</span>
+                {/* Nom de la page au survol, quand le menu est réduit aux icônes */}
+                <span className="side-tip" aria-hidden="true">{item.label}</span>
               </Link>
             );
           })}
         </nav>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }

@@ -159,7 +159,7 @@ export default function PrevisionsPage() {
           marginBottom: "8px" 
         }}>
           <strong style={{ display: "block", marginBottom: "4px" }}>
-            <IconAlert size={14} color="#C8860A" style={{ marginRight: "6px", verticalAlign: "middle" }} />
+            <IconAlert size={14} color="#C8860A" />
             {tr("À savoir :", "Good to know:")}
           </strong>
           {tr("Les prévisions représentent les valeurs estimées par le modèle à partir des données historiques. Elles ne constituent pas une mesure du stock réel ou des invendus physiques.", "Forecasts are values estimated by the model from historical data. They do not measure actual stock or physical unsold items.")}
@@ -562,7 +562,7 @@ function ForecastChart({ history, forecast, showObserved, showPredicted, showCon
     const upperPts = forecast.map((f: any, i: number) => ({ x: toX(history.length + i), y: toY(f.yhat_upper) }));
     const lowerPts = [...forecast.map((f: any, i: number) => ({ x: toX(history.length + i), y: toY(f.yhat_lower) }))].reverse();
     confidencePath = `M ${histPts[history.length - 1].x} ${histPts[history.length - 1].y}`;
-    upperPts.forEach((pt) => confidencePath += ` L ${pt.x} ${pt.y}`);
+    upperPts.forEach((pt: { x: number; y: number }) => confidencePath += ` L ${pt.x} ${pt.y}`);
     lowerPts.forEach((pt) => confidencePath += ` L ${pt.x} ${pt.y}`);
     confidencePath += ` Z`;
   }

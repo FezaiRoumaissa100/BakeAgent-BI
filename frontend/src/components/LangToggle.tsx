@@ -23,7 +23,7 @@ export function LangToggle() {
           border: "none",
           cursor: active ? "default" : "pointer",
           background: active ? "#E8734A" : "transparent",
-          color: active ? "#fff" : "rgba(255,255,255,0.7)",
+          color: active ? "#fff" : "var(--dk-chrome-text, #5a4a3a)",
           fontSize: "0.75rem",
           fontWeight: 800,
           letterSpacing: "0.04em",
@@ -44,8 +44,8 @@ export function LangToggle() {
         gap: "2px",
         padding: "3px",
         borderRadius: "999px",
-        background: "rgba(255,255,255,0.08)",
-        border: "1px solid rgba(255,255,255,0.12)",
+        background: "var(--dk-chrome-chip, #FBF6F0)",
+        border: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
       }}
     >
       {btn("fr", "FR", "Afficher en français")}
