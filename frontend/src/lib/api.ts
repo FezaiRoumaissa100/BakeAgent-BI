@@ -102,3 +102,36 @@ export async function fetchAlerts(mois = "Tout"): Promise<any> {
   if (!res.ok) throw new Error("Erreur API alerts");
   return res.json();
 }
+
+export async function fetchMatrix(year = "Toutes"): Promise<any> {
+  const query = new URLSearchParams({ year });
+  const res = await fetch(`${API_BASE}/products/matrix?${query.toString()}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Erreur API matrix");
+  return res.json();
+}
+
+// Période couverte par les ventes (dates min / max et années présentes)
+export async function fetchDataPeriod(): Promise<{ date_debut_fr: string | null; date_fin_fr: string | null; annees: number[] }> {
+  const res = await fetch(`${API_BASE}/data-period`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Erreur API data-period");
+  return res.json();
+}
+
+// ── Prévision par produit (résultats de forecasting/pipeline.py) ──
+export async function fetchProductForecasts(): Promise<any> {
+  const res = await fetch(`${API_BASE}/forecast/products`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Erreur API forecast/products");
+  return res.json();
+}
+
+export async function fetchProductForecast(productId: number): Promise<any> {
+  const res = await fetch(`${API_BASE}/forecast/products/${productId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Erreur API forecast/products/id");
+  return res.json();
+}
+
+export async function fetchProductAlerts(days = 14): Promise<any> {
+  const res = await fetch(`${API_BASE}/alerts/products?days=${days}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Erreur API alerts/products");
+  return res.json();
+}

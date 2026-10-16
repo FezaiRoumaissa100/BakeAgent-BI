@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { ExpertNote } from "@/components/Expert";
 import { colors } from "@/lib/theme";
 import { fetchPerformance } from "@/lib/api";
 import { tr, trData, locale } from "@/lib/i18n";
@@ -15,11 +16,11 @@ import {
 /* ════════════════════════════════════════════════
    PALETTE (identique Vue du Jour + tons chauds)
    ════════════════════════════════════════════════ */
-const ORANGE = stroke;                 // "#E8734A"
-const PEACH = strokeAlt;               // "#F0A882"
+const ORANGE = stroke;                 // "#2E7D4F"
+const PEACH = strokeAlt;               // "#8DC05A"
 const LIGHT = colors.accentPale;
-const INK = ink;                       // "#1C1410"
-const MUTED = muted;                   // "#9a8070"
+const INK = ink;                       // "#1E2420"
+const MUTED = muted;                   // "#6E756F"
 const C1 = colors.beige;                  // beige foncé
 const C2 = colors.gold;                  // doré
 const C3 = colors.amberLight;                  // ambre
@@ -27,7 +28,7 @@ const PANIER = colors.green;
 const TICKETS = colors.blue;
 const PAPER = colors.paper;               // fond crème carte (opaque)
 const PAPER_2 = colors.paper2;
-const PALETTE: string[] = [C1, C2, C3, "#27AE60", "#3498DB", "#8E44AD", "#E74C3C", "#1ABC9C", "#F39C12", "#2ECC71", "#9B59B6", "#16A085"];
+const PALETTE: string[] = ["#2E7D4F", "#8DC05A", "#A0694A", "#D4A52A", "#B5527A", "#4A78A8", "#7A5AA0", "#E0A85C", "#6F9A64", "#3F7F8C", "#C0392B", "#9AA59C"];
 
 // « 2025-12-01 » → « décembre 2025 »
 function monthLabel(s?: string) {
@@ -209,7 +210,7 @@ function EvolutionLineChart({
               stroke={C1} strokeWidth="1.2" strokeDasharray="4 4" opacity="0.8"/>
         {yTicks.map((v, i) => (
           <g key={i}>
-            <line x1={padL} x2={W - padR} y1={getY(v)} y2={getY(v)} stroke="var(--dk-line, #f2e9e1)" strokeWidth="1"/>
+            <line x1={padL} x2={W - padR} y1={getY(v)} y2={getY(v)} stroke="var(--dk-line, #ECEDE7)" strokeWidth="1"/>
             <text x={padL - 12} y={getY(v) + 4} textAnchor="end"
                   fontSize="13" fill={MUTED} fontWeight="700">
               {fmt(v / 1000, v > 10000 ? 0 : 1)}k€
@@ -226,7 +227,7 @@ function EvolutionLineChart({
             <g>
               <line x1={pt.x} x2={pt.x} y1={pt.y} y2={pt.y - 56} stroke={ORANGE} strokeWidth="1.4" strokeDasharray="3 3"/>
               <rect x={pt.x - 62} y={pt.y - 88} width="124" height="30" rx="8"
-                    fill="var(--dk-surface, #fff)" stroke={ORANGE} strokeWidth="1.3" style={{ filter: "drop-shadow(0 4px 8px rgba(232,115,74,0.18))" }}/>
+                    fill="var(--dk-surface, #fff)" stroke={ORANGE} strokeWidth="1.3" style={{ filter: "drop-shadow(0 4px 8px rgba(46,125,79,0.18))" }}/>
               <text x={pt.x} y={pt.y - 68} textAnchor="middle" fontSize="12" fill={ORANGE} fontWeight="800">
                 MAX · {fmt(s.ca)} €
               </text>
@@ -241,7 +242,7 @@ function EvolutionLineChart({
             <g>
               <line x1={pt.x} x2={pt.x} y1={pt.y} y2={pt.y + 42} stroke={C1} strokeWidth="1.4" strokeDasharray="3 3"/>
               <rect x={pt.x - 62} y={pt.y + 48} width="124" height="30" rx="8"
-                    fill="var(--dk-surface, #fff)" stroke={C1} strokeWidth="1.3" style={{ filter: "drop-shadow(0 4px 8px var(--dk-line, rgba(196,168,130,0.18)))" }}/>
+                    fill="var(--dk-surface, #fff)" stroke={C1} strokeWidth="1.3" style={{ filter: "drop-shadow(0 4px 8px var(--dk-line, rgba(140,160,140,0.18)))" }}/>
               <text x={pt.x} y={pt.y + 68} textAnchor="middle" fontSize="12" fill={C1} fontWeight="800">
                 MIN · {fmt(s.ca)} €
               </text>
@@ -272,9 +273,9 @@ function EvolutionLineChart({
   );
 }
 
-function Comp2425BarChart({ data }: { data: Array<{ mois: string; ca_2024: number; ca_2025: number }> }) {
+function Comp2425BarChart({ data, yPrec, yDer }: { data: Array<{ mois: string; ca_prec: number; ca_der: number }>; yPrec: number; yDer: number }) {
   const W = 1100, H = 400, padL = 60, padR = 40, padT = 30, padB = 64;
-  const max = Math.max(...data.flatMap(d => [d.ca_2024, d.ca_2025]), 1) * 1.1;
+  const max = Math.max(...data.flatMap(d => [d.ca_prec, d.ca_der]), 1) * 1.1;
   const n = data.length;
   const groupW = (W - padL - padR) / n;
   const barW = (groupW * 0.38);
@@ -286,7 +287,7 @@ function Comp2425BarChart({ data }: { data: Array<{ mois: string; ca_2024: numbe
         const v = t * max, y = getY(v);
         return (
           <g key={i}>
-            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="var(--dk-line, #f2e9e1)"/>
+            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="var(--dk-line, #ECEDE7)"/>
             <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="10" fill={MUTED} fontWeight="600">
               {fmt(v / 1000, v > 10000 ? 0 : 1)}k
             </text>
@@ -297,7 +298,7 @@ function Comp2425BarChart({ data }: { data: Array<{ mois: string; ca_2024: numbe
         const gx = padL + i * groupW;
         const x24 = gx + groupW * 0.12;
         const x25 = x24 + barW + groupW * 0.06;
-        const y24 = getY(d.ca_2024), y25 = getY(d.ca_2025);
+        const y24 = getY(d.ca_prec), y25 = getY(d.ca_der);
         return (
           <g key={i}>
             <rect x={x24} y={y24} width={barW} height={getY(0) - y24} rx={3} fill={C1} fillOpacity="0.88"/>
@@ -309,9 +310,9 @@ function Comp2425BarChart({ data }: { data: Array<{ mois: string; ca_2024: numbe
       })}
       <g transform={`translate(${W - padR - 180}, 6)`}>
         <rect x="0" y="0" width="12" height="12" rx="3" fill={C1}/>
-        <text x="18" y="10" fontSize="11" fill={INK} fontWeight="700">2024</text>
+        <text x="18" y="10" fontSize="11" fill={INK} fontWeight="700">{yPrec}</text>
         <rect x="80" y="0" width="12" height="12" rx="3" fill={ORANGE}/>
-        <text x="98" y="10" fontSize="11" fill={INK} fontWeight="700">2025</text>
+        <text x="98" y="10" fontSize="11" fill={INK} fontWeight="700">{yDer}</text>
       </g>
     </svg>
   );
@@ -319,43 +320,52 @@ function Comp2425BarChart({ data }: { data: Array<{ mois: string; ca_2024: numbe
 
 function TopNHBar({ data, n }: { data: Array<{ article: string; total_revenue: number; part: number }>; n: number }) {
   const items = data.slice(0, n);
-  const max = Math.max(...items.map(i => i.total_revenue), 1);
-  const H = Math.max(320, items.length * 34 + 40);
-  const W = 760, padL = 220, padR = 90, padT = 10, padB = 10;
-  const rowH = (H - padT - padB) / items.length;
+  const vmax = Math.max(...items.map(i => i.total_revenue), 1);
+  // Graduations « rondes » (ex. 0 · 50 K€ · 100 K€ · 150 K€) et échelle qui commence à 0
+  const raw = vmax / 4;
+  const p10 = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * p10).find(s => s >= raw) || raw;
+  const top = Math.ceil(vmax / step) * step;
+  const ticks: number[] = [];
+  for (let v = 0; v <= top + 1e-9; v += step) ticks.push(v);
+  const eur = (v: number) => (v >= 1000 ? `${fmt(v / 1000, v % 1000 ? 1 : 0)} K€` : `${fmt(v, 0)} €`);
+  const NAME_W = 210, VAL_W = 150;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, maxHeight: "70vh" }} preserveAspectRatio="xMidYMid meet">
-      {[0.25, 0.5, 0.75, 1].map((t, i) => {
-        const v = t * max;
-        const x = padL + t * (W - padL - padR);
-        return (
-          <g key={i}>
-            <line x1={x} x2={x} y1={padT} y2={H - padB} stroke="var(--dk-line, #f8f3ee)"/>
-            <text x={x} y={H - padB + 14} textAnchor="middle" fontSize="10" fill={MUTED} fontWeight="600">
-              {fmt(v / 1000, v > 10000 ? 0 : 1)}k€
-            </text>
-          </g>
-        );
-      })}
-      {items.map((it, i) => {
-        const color = i < 3 ? ORANGE : (i < Math.floor(n * 0.6) ? C2 : C3);
-        const y = padT + i * rowH;
-        const w = (it.total_revenue / max) * (W - padL - padR);
-        return (
-          <g key={i}>
-            <text x={padL - 10} y={y + rowH * 0.64} textAnchor="end"
-                  fontSize="11.5" fill={INK} fontWeight="700">
-              {it.article.length > 26 ? it.article.slice(0, 26) + "…" : it.article}
-            </text>
-            <rect x={padL} y={y + rowH * 0.14} width={w} height={rowH * 0.72}
-                  rx={4} fill={color} fillOpacity="0.9"/>
-            <text x={padL + w + 8} y={y + rowH * 0.68}
-                  fontSize="10.5" fill={color} fontWeight="800">{fmt(it.part, 1)} %</text>
-          </g>
-        );
-      })}
-    </svg>
+    <div style={{ width: "100%" }}>
+      {/* axe en haut */}
+      <div style={{ display: "flex", alignItems: "flex-end", marginBottom: 6 }}>
+        <div style={{ width: NAME_W, flexShrink: 0 }} />
+        <div style={{ position: "relative", flex: 1, height: 18 }}>
+          {ticks.map((v, i) => (
+            <span key={i} style={{ position: "absolute", left: `${(v / top) * 100}%`, bottom: 0,
+                                   transform: i === 0 ? "none" : i === ticks.length - 1 ? "translateX(-100%)" : "translateX(-50%)",
+                                   fontSize: ".68rem", fontWeight: 600, color: MUTED, whiteSpace: "nowrap" }}>{eur(v)}</span>
+          ))}
+        </div>
+        <div style={{ width: VAL_W, flexShrink: 0 }} />
+      </div>
+      {items.map((it, i) => (
+        <div key={i} title={`${it.article} : ${fmt(it.total_revenue, 0)} € (${fmt(it.part, 1)} % du chiffre d'affaires)`}
+             style={{ display: "flex", alignItems: "center", height: 34 }}>
+          <div style={{ width: NAME_W, flexShrink: 0, paddingRight: 12, textAlign: "right", fontSize: ".76rem", fontWeight: 700, color: INK,
+                        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {it.article}
+          </div>
+          <div style={{ position: "relative", flex: 1, height: "100%" }}>
+            {ticks.map((v, k) => (
+              <div key={k} style={{ position: "absolute", left: `${(v / top) * 100}%`, top: 0, bottom: 0, width: 1,
+                                    background: k === 0 ? "rgba(80,100,85,0.35)" : "var(--dk-line, #ECEDE7)" }} />
+            ))}
+            <div style={{ position: "absolute", left: 0, top: "18%", height: "64%", width: `${(it.total_revenue / top) * 100}%`,
+                          background: ORANGE, opacity: i < 3 ? 0.95 : 0.6, borderRadius: "0 4px 4px 0" }} />
+          </div>
+          <div style={{ width: VAL_W, flexShrink: 0, paddingLeft: 12, fontSize: ".76rem", color: INK, whiteSpace: "nowrap" }}>
+            <b>{eur(it.total_revenue)}</b> <span style={{ color: MUTED }}>· {fmt(it.part, 1)} %</span>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -419,7 +429,7 @@ function DayOfWeekBars({ days, mode }: {
         const v = t * max, y = getY(v);
         return (
           <g key={i}>
-            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="var(--dk-line, #f2e9e1)"/>
+            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="var(--dk-line, #ECEDE7)"/>
             <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="10" fill={MUTED} fontWeight="600">
               {fmt(mode === "total" ? v/1000 : v, 0)}{mode === "total" ? "k" : ""}
             </text>
@@ -452,24 +462,15 @@ function DayOfWeekBars({ days, mode }: {
 }
 
 function HourlyDual({ data }: { data: Array<{ hour: number; heure_label: string; ca: number; tickets: number }> }) {
-  const W = 780, H = 320, padL = 44, padR = 50, padT = 20, padB = 50;
-  const maxCA = Math.max(...data.map(d => d.ca), 1) * 1.1;
-  const maxTk = Math.max(...data.map(d => d.tickets), 1) * 1.15;
-  const n = data.length;
-  const bw = (W - padL - padR) / n * 0.62;
-  const getYca = (v: number) => padT + (H - padT - padB) * (1 - v / maxCA);
-  const getYtk = (v: number) => padT + (H - padT - padB) * (1 - v / maxTk);
+  // Une seule échelle (chiffre d'affaires) ; le nombre de tickets est écrit au-dessus de chaque barre
+  // au lieu d'un second axe, plus difficile à lire.
+  const W = 780, H = 320, padL = 44, padR = 16, padT = 26, padB = 50;
+  const maxCA = Math.max(...data.map(d => d.ca), 1) * 1.12;
+  const n = Math.max(data.length, 1);
   const groupW = (W - padL - padR) / n;
-
-  const pts = data.map((d, i) => {
-    const gx = padL + i * groupW + groupW / 2;
-    return { x: gx, y: getYtk(d.tickets), t: d.tickets };
-  });
-  let lpath = `M ${pts[0].x} ${pts[0].y}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const mx = (pts[i].x + pts[i + 1].x) / 2;
-    lpath += ` C ${mx} ${pts[i].y}, ${mx} ${pts[i + 1].y}, ${pts[i + 1].x} ${pts[i + 1].y}`;
-  }
+  const bw = groupW * 0.62;
+  const getYca = (v: number) => padT + (H - padT - padB) * (1 - v / maxCA);
+  const peak = data.reduce((m, d) => (d.ca > m.ca ? d : m), data[0] || { ca: 0, hour: -1 } as any);
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="xMidYMid meet">
@@ -477,42 +478,35 @@ function HourlyDual({ data }: { data: Array<{ hour: number; heure_label: string;
         const v = t * maxCA, y = getYca(v);
         return (
           <g key={i}>
-            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="var(--dk-line, #f2e9e1)"/>
-            <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="10" fill={C2} fontWeight="700">
+            <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="var(--dk-line, #ECEDE7)"/>
+            <text x={padL - 6} y={y + 3} textAnchor="end" fontSize="10" fill={MUTED} fontWeight="700">
               {fmt(v / 1000, v > 10000 ? 0 : 1)}k€
             </text>
           </g>
         );
       })}
-      {[0, 0.5, 1].map((t, i) => {
-        const v = t * maxTk;
-        return (
-          <text key={i} x={W - padR + 6} y={getYtk(v) + 3} textAnchor="start" fontSize="10" fill={C1} fontWeight="700">
-            {fmt(v)}
-          </text>
-        );
-      })}
       {data.map((d, i) => {
         const gx = padL + i * groupW + (groupW - bw) / 2;
+        const isPeak = d.hour === peak?.hour;
         return (
           <g key={i}>
+            <title>{tr(`${d.heure_label} : ${fmt(d.ca)} € · ${fmt(d.tickets)} tickets`, `${d.heure_label}: ${fmt(d.ca)} € · ${fmt(d.tickets)} transactions`)}</title>
             <rect x={gx} y={getYca(d.ca)} width={bw} height={getYca(0) - getYca(d.ca)}
-                  rx={3} fill={C2} fillOpacity="0.8"/>
+                  rx={3} fill={isPeak ? ORANGE : C2} fillOpacity={isPeak ? 0.95 : 0.6}/>
+            <text x={gx + bw / 2} y={getYca(d.ca) - 6} textAnchor="middle" fontSize="9.5" fill={MUTED} fontWeight="700">
+              {fmt(d.tickets)}
+            </text>
             <text x={gx + bw / 2} y={H - padB + 20} textAnchor="middle"
                   fontSize="10.5" fill={INK} fontWeight="700">{d.heure_label}</text>
           </g>
         );
       })}
-      <path d={lpath} fill="none" stroke={ORANGE} strokeWidth="2.6" strokeLinecap="round"/>
-      {pts.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="4.2" fill="var(--dk-surface, #fff)" stroke={ORANGE} strokeWidth="2"/>
-      ))}
       <g transform={`translate(${padL + 10}, ${H - 8})`}>
-        <rect x="0" y="-10" width="12" height="12" rx="3" fill={C2}/>
-        <text x="18" y="0" fontSize="10.5" fill={INK} fontWeight="700">{tr("CA (€) — axe gauche", "Revenue (€) — left axis")}</text>
-        <line x1="220" y1="-4" x2="248" y2="-4" stroke={ORANGE} strokeWidth="2.5"/>
-        <circle cx="250" cy="-4" r="4" fill="var(--dk-surface, #fff)" stroke={ORANGE} strokeWidth="2"/>
-        <text x="258" y="0" fontSize="10.5" fill={INK} fontWeight="700">{tr("Tickets — axe droit", "Transactions — right axis")}</text>
+        <rect x="0" y="-10" width="12" height="12" rx="3" fill={C2} fillOpacity="0.6"/>
+        <text x="18" y="0" fontSize="10.5" fill={INK} fontWeight="700">{tr("Chiffre d'affaires (€)", "Revenue (€)")}</text>
+        <rect x="190" y="-10" width="12" height="12" rx="3" fill={ORANGE}/>
+        <text x="208" y="0" fontSize="10.5" fill={INK} fontWeight="700">{tr("Heure de pointe", "Peak hour")}</text>
+        <text x="330" y="0" fontSize="10.5" fill={MUTED} fontWeight="700">{tr("Chiffre au-dessus : nombre de tickets", "Number above: transactions")}</text>
       </g>
     </svg>
   );
@@ -627,7 +621,7 @@ function CatHBar({ data, field, labelFn }: {
       {[0.25, 0.5, 0.75, 1].map((t, i) => {
         const v = t * max;
         const x = padL + t * (W - padL - padR);
-        return <line key={i} x1={x} x2={x} y1={padT} y2={H - padB} stroke="var(--dk-line, #f8f3ee)"/>;
+        return <line key={i} x1={x} x2={x} y1={padT} y2={H - padB} stroke="var(--dk-line, #ECEDE7)"/>;
       })}
       {data.map((it, i) => {
         const color = PALETTE[i % PALETTE.length];
@@ -692,6 +686,25 @@ export default function PerformancePage() {
       nb_produits: r.nb_produits ?? r.references ?? 0,
     };
   }, [data]);
+
+  // Comparaison avec l'année précédente (mêmes filtres), quand une année est choisie
+  const n1 = data?.kpis_n1 || null;
+  // Sans année choisie : comparaison des deux dernières années présentes (mêmes filtres)
+  const pa = data?.kpis_par_annee || {};
+  const paYears = Object.keys(pa).sort();
+  const yDerK = paYears[paYears.length - 1], yPrecK = paYears[paYears.length - 2];
+  const y25 = yDerK ? pa[yDerK] : undefined, y24 = yPrecK ? pa[yPrecK] : undefined;
+  const vsN1 = (cur: number, prev?: number, key?: "total_ca" | "nb_tickets" | "panier") => {
+    if (n1 && prev) {
+      const d = ((cur - prev) / prev) * 100;
+      return tr(`${d >= 0 ? "▲ +" : "▼ "}${fmt(d, 1)} % vs ${n1.annee}`, `${d >= 0 ? "▲ +" : "▼ "}${fmt(d, 1)}% vs ${n1.annee}`);
+    }
+    if (annee === "Toutes" && key && y25 && y24 && y24[key]) {
+      const d = ((y25[key] - y24[key]) / y24[key]) * 100;
+      return tr(`${yDerK} vs ${yPrecK} : ${d >= 0 ? "▲ +" : "▼ "}${fmt(d, 1)} %`, `${yDerK} vs ${yPrecK}: ${d >= 0 ? "▲ +" : "▼ "}${fmt(d, 1)}%`);
+    }
+    return null;
+  };
 
   const filters = useMemo(() => {
     const f = data?.available_filters || {};
@@ -760,12 +773,12 @@ export default function PerformancePage() {
         <div style={{ display:"flex", flexWrap:"wrap", alignItems:"stretch", gap:"14px",
                       padding:"14px 18px", borderRadius:"14px",
                       background:"var(--dk-surface, #fff)",
-                      border:"1px solid var(--dk-line, rgba(200,140,100,0.18))",
+                      border:"1px solid var(--dk-line, rgba(120,140,120,0.18))",
                       boxShadow:"0 2px 12px rgba(0,0,0,0.06)" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"10px",
                         fontSize:"0.72rem", fontWeight:800,
                         color: ORANGE, textTransform:"uppercase", letterSpacing:"0.06em",
-                        borderRight:`1px solid var(--dk-line, rgba(196,168,130,.35))`,
+                        borderRight:`1px solid var(--dk-line, rgba(140,160,140,.35))`,
                         paddingRight:"16px", flexShrink:0}}>
             <IconFilter size={16} />
             {tr("Filtres d'Analyse", "Analysis Filters")}
@@ -780,7 +793,7 @@ export default function PerformancePage() {
           ].map((f) => (
             <div key={f.label} style={{ display:"flex", alignItems:"center", gap:"8px" }}>
               <label style={{ display:"inline-flex", alignItems:"center", gap:"5px",
-                              fontSize:"0.72rem", fontWeight:700, color:"var(--dk-ink2, #5C4033)" }}>
+                              fontSize:"0.72rem", fontWeight:700, color:"var(--dk-ink2, #3F4A42)" }}>
                 {f.icon}
                 {f.label}
               </label>
@@ -808,9 +821,9 @@ export default function PerformancePage() {
             <div style={{ marginTop:"10px", display:"flex", flexWrap:"wrap", gap:"6px" }}>
               {pills.map((p, i) => (
                 <span key={i} style={{ display:"inline-flex", alignItems:"center", gap:"6px",
-                  background:"var(--dk-surface, #fff)", border:"1px solid var(--dk-line, rgba(196,168,130,.3))",
+                  background:"var(--dk-surface, #fff)", border:"1px solid var(--dk-line, rgba(140,160,140,.3))",
                   borderRadius:"999px", padding:"3px 10px",
-                  fontSize:"0.72rem", fontWeight:700, color:"var(--dk-ink2, #5C4033)",
+                  fontSize:"0.72rem", fontWeight:700, color:"var(--dk-ink2, #3F4A42)",
                   boxShadow:"0 1px 4px rgba(0,0,0,0.05)"}}>
                   <span style={{ color: ORANGE }}>{p.icon}</span>{p.text}
                 </span>
@@ -824,14 +837,14 @@ export default function PerformancePage() {
           KPIs — Style Vue du Jour (cc, sw, ct, cs)
           ══════════════════════════════════════════════ */}
       <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-        <IconBarsGrouped size={16} /> {tr("Indicateurs Clés de Performance", "Key Performance Indicators")}
+        <IconBarsGrouped size={16} /> {tr("Chiffres clés", "Key figures")}
       </div>
       <div className="sw">
         <div style={{ display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:"12px" }}>
           {[
-            { icon: <IconCash size={16}/>, lbl:tr("CA Total", "Total Revenue"), sub:tr("chiffre d'affaires", "revenue"), val:`${fmt(kpis.total_ca/1000,1)} k€`, accent: ORANGE },
-            { icon: <IconTicket size={16}/>, lbl:tr("Tickets", "Transactions"), sub:tr("transactions clients", "customer transactions"), val: fmt(kpis.nb_tickets), accent: C2 },
-            { icon: <IconCart size={16}/>, lbl:tr("Panier Moyen", "Average Basket"), sub:tr("par visite", "per visit"), val:`${fmt(kpis.panier,2)} €`, accent: C3 },
+            { icon: <IconCash size={16}/>, lbl:tr("CA Total", "Total Revenue"), sub: vsN1(kpis.total_ca, n1?.total_ca, "total_ca") || tr("chiffre d'affaires", "revenue"), val:`${fmt(kpis.total_ca/1000,1)} k€`, accent: ORANGE },
+            { icon: <IconTicket size={16}/>, lbl:tr("Tickets", "Transactions"), sub: vsN1(kpis.nb_tickets, n1?.nb_tickets, "nb_tickets") || tr("transactions clients", "customer transactions"), val: fmt(kpis.nb_tickets), accent: C2 },
+            { icon: <IconCart size={16}/>, lbl:tr("Panier Moyen", "Average Basket"), sub: vsN1(kpis.panier, n1?.panier, "panier") || tr("par visite", "per visit"), val:`${fmt(kpis.panier,2)} €`, accent: C3 },
             { icon: <IconCalendarDays size={16}/>, lbl:tr("Jours Actifs", "Active Days"), sub:tr("jours avec ventes", "days with sales"), val: fmt(kpis.nb_jours), accent: PANIER },
             { icon: <IconBox size={16}/>, lbl:tr("Références", "Products"), sub:tr("produits vendus", "products sold"), val: fmt(kpis.nb_produits), accent: TICKETS },
           ].map((k) => (
@@ -859,7 +872,7 @@ export default function PerformancePage() {
           4 ONGLETS (icônes SVG + pas emojis)
           ══════════════════════════════════════════════ */}
       <div style={{ padding:"16px 20px 0" }}>
-        <div style={{ display:"flex", gap:"4px", borderBottom:"2px solid var(--dk-line, rgba(196,168,130,.22))", paddingBottom:0 }}>
+        <div style={{ display:"flex", gap:"4px", borderBottom:"2px solid var(--dk-line, rgba(140,160,140,.22))", paddingBottom:0 }}>
           {([
             { id:"evolution", iconSvg:<IconTrendUp size={16}/>, label:tr("Évolution du CA", "Revenue Trend") },
             { id:"top",       iconSvg:<IconTrophy size={16}/>, label:tr("Top Produits", "Top Products") },
@@ -869,8 +882,8 @@ export default function PerformancePage() {
             <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{
               display:"inline-flex", alignItems:"center", gap:"8px",
               fontSize:"0.9rem", fontWeight: activeTab===t.id ? 800 : 600,
-              color: activeTab===t.id ? "var(--dk-ink2, #5C4033)" : MUTED,
-              background: activeTab===t.id ? "rgba(232,115,74,0.08)" : "transparent",
+              color: activeTab===t.id ? "var(--dk-ink2, #3F4A42)" : MUTED,
+              background: activeTab===t.id ? "rgba(46,125,79,0.08)" : "transparent",
               border:"none",
               borderBottom: activeTab===t.id ? `2px solid ${ORANGE}` : "2px solid transparent",
               marginBottom:"-2px",
@@ -901,10 +914,11 @@ export default function PerformancePage() {
                           marginBottom:"12px", flexWrap:"wrap", gap:"10px" }}>
               <div>
                 <div className="ct">{tr("Chiffre d'affaires mois par mois", "Revenue month by month")}</div>
-                <div className="cs">{tr("Moyenne mensuelle :", "Monthly average:")} {fmt(monthly.moyenne)} €</div>
+                <div className="cs">{tr("Moyenne mensuelle :", "Monthly average:")} {fmt(monthly.moyenne)} € · {tr("fourchette habituelle :", "usual range:")} {fmt(Math.max(0, monthly.moyenne - monthly.ecart_type))} – {fmt(monthly.moyenne + monthly.ecart_type)} €</div>
               </div>
               <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
                 <LegendPill color={ORANGE} label={tr("Moyenne", "Average")}/>
+                <LegendPill color={PEACH} label={tr("Fourchette habituelle", "Usual range")}/>
                 <LegendPill color={C2} label={tr("CA mensuel", "Monthly revenue")}/>
               </div>
             </div>
@@ -913,9 +927,25 @@ export default function PerformancePage() {
                 series={monthly.series} moyenne={monthly.moyenne} ecartType={monthly.ecart_type}
                 caMax={monthly.ca_max} caMin={monthly.ca_min} />}
             </div>
+            {monthly.series?.length > 0 && (() => {
+              const hi = monthly.series.filter((m: any) => m.ca > monthly.moyenne + monthly.ecart_type);
+              const lo = monthly.series.filter((m: any) => m.ca < monthly.moyenne - monthly.ecart_type);
+              const names = (arr: any[]) => arr.map((m: any) => m.label).join(", ");
+              return (
+                <Takeaway>
+                  {tr(
+                    `${hi.length} mois au-dessus de la fourchette habituelle${hi.length ? ` (${names(hi)})` : ""} et ${lo.length} en dessous${lo.length ? ` (${names(lo)})` : ""} : l'été et les fêtes portent l'année.`,
+                    `${hi.length} months above the usual range${hi.length ? ` (${names(hi)})` : ""} and ${lo.length} below${lo.length ? ` (${names(lo)})` : ""}: summer and the holidays drive the year.`
+                  )}
+                </Takeaway>
+              );
+            })()}
+            <ExpertNote>
+              Fourchette habituelle = moyenne mensuelle ± 1 écart-type (σ = {fmt(monthly.ecart_type || 0)} €, μ = {fmt(monthly.moyenne || 0)} €), calculée sur les mois filtrés. Panier moyen = CA / COUNT(DISTINCT (date_id, ticket_number)). Comparaison : kpis_n1 (année − 1, mêmes filtres) ou kpis_par_annee (2025 vs 2024).
+            </ExpertNote>
 
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:"12px",
-                          marginTop:"24px", paddingTop:"20px", borderTop:"1px solid var(--dk-line, #f2e9e1)" }}>
+                          marginTop:"24px", paddingTop:"20px", borderTop:"1px solid var(--dk-line, #ECEDE7)" }}>
               <InsightBox icon={<IconArrowMaxUp size={16} color={ORANGE}/>} color={ORANGE}
                 title={tr("Meilleur mois", "Best month")}
                 strong={`${monthLabel(monthly.ca_max?.date_str)} — ${fmt(monthly.ca_max?.val)} €`}/>
@@ -923,22 +953,41 @@ export default function PerformancePage() {
                 title={tr("Mois le plus faible", "Weakest month")}
                 strong={`${monthLabel(monthly.ca_min?.date_str)} — ${fmt(monthly.ca_min?.val)} €`}/>
               <InsightBox icon={<IconScale size={16} color={C3}/>} color={C3}
-                title={tr("Amplitude saisonnière", "Seasonal range")}
+                title={tr("Écart entre meilleur et plus faible mois", "Gap between best and weakest month")}
                 strong={`${fmt(monthly.amplitude)} € — ratio ${Number(monthly.ratio_amp||0).toFixed(1)}×`}/>
             </div>
           </div>
 
-          {annee === "Toutes" && monthly.comp_24_25?.length > 0 && (
+          {annee === "Toutes" && monthly.comp_24_25?.length > 0 && monthly.comp_annees && (
             <>
               <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-                <IconBarsGrouped size={16} /> {tr("Comparaison 2024 vs 2025 — Mois par Mois", "2024 vs 2025 Comparison — Month by Month")}
+                <IconBarsGrouped size={16} /> {tr(`Comparaison ${monthly.comp_annees.prec} vs ${monthly.comp_annees.der} — Mois par Mois`, `${monthly.comp_annees.prec} vs ${monthly.comp_annees.der} Comparison — Month by Month`)}
               </div>
               <div className="cc" style={{ padding:"20px 24px" }}>
                 <div className="ct">{tr("Évolution année N vs N−1", "Year N vs year N−1")}</div>
                 <div className="cs">{tr("Barres groupées par mois — 12 mois alignés", "Bars grouped by month — 12 months side by side")}</div>
                 <div style={{ height:"400px", width:"100%", marginTop:"20px" }}>
-                  <Comp2425BarChart data={monthly.comp_24_25}/>
+                  <Comp2425BarChart data={monthly.comp_24_25} yPrec={monthly.comp_annees.prec} yDer={monthly.comp_annees.der}/>
                 </div>
+                {(() => {
+                  const c = monthly.comp_24_25 || [];
+                  const yp = monthly.comp_annees.prec, yd = monthly.comp_annees.der;
+                  // On ne compare que les mois présents dans les deux années
+                  const both = c.filter((m: any) => m.ca_prec > 0 && m.ca_der > 0);
+                  const up = both.filter((m: any) => m.ca_der > m.ca_prec).length;
+                  const tp = both.reduce((a: number, m: any) => a + m.ca_prec, 0), td = both.reduce((a: number, m: any) => a + m.ca_der, 0);
+                  const d = tp ? ((td - tp) / tp) * 100 : 0;
+                  const big = [...both].sort((a: any, b: any) => Math.abs(b.ca_der - b.ca_prec) - Math.abs(a.ca_der - a.ca_prec))[0];
+                  const dBig = big && big.ca_prec ? ((big.ca_der - big.ca_prec) / big.ca_prec) * 100 : 0;
+                  return (
+                    <Takeaway>
+                      {tr(
+                        `${yd} dépasse ${yp} sur ${up} mois sur ${both.length} comparables (${d >= 0 ? "+" : ""}${fmt(d, 1)} % au total sur ces mois).${big ? ` Le plus grand écart est en ${big.mois} (${dBig >= 0 ? "+" : ""}${fmt(dBig, 0)} %).` : ""}`,
+                        `${yd} beats ${yp} in ${up} of ${both.length} comparable months (${d >= 0 ? "+" : ""}${fmt(d, 1)}% overall on those months).${big ? ` The largest gap is in ${trData(big.mois)} (${dBig >= 0 ? "+" : ""}${fmt(dBig, 0)}%).` : ""}`
+                      )}
+                    </Takeaway>
+                  );
+                })()}
               </div>
             </>
           )}
@@ -956,9 +1005,9 @@ export default function PerformancePage() {
 
           <div style={{ display:"flex", alignItems:"center", gap:"16px", margin:"0 4px 18px",
                         padding:"12px 20px", borderRadius:"12px",
-                        background: PAPER_2, border:"1px solid var(--dk-line, #f2e3cd)"}}>
+                        background: PAPER_2, border:"1px solid var(--dk-line, #E3E4DD)"}}>
             <IconBar size={18} color={ORANGE} />
-            <span style={{ fontSize:"0.8rem", fontWeight:800, color:"var(--dk-ink2, #5C4033)", whiteSpace:"nowrap" }}>
+            <span style={{ fontSize:"0.8rem", fontWeight:800, color:"var(--dk-ink2, #3F4A42)", whiteSpace:"nowrap" }}>
               {tr("Nombre de produits à afficher", "Number of products to show")}
             </span>
             <input type="range" min={5} max={20} step={1} value={topN}
@@ -974,7 +1023,7 @@ export default function PerformancePage() {
           <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px" }}>
             <div className="cc" style={{ padding:"20px 24px" }}>
               <div className="ct">{tr(`Les ${topN} produits qui rapportent le plus`, `The ${topN} top-earning products`)}</div>
-              <div className="cs">{tr("Chiffre d'affaires et part du total", "Revenue and share of total")}</div>
+              <div className="cs">{tr("Chiffre d'affaires de chaque produit (axe en euros, à partir de 0) et sa part du total", "Each product's revenue (axis in euros, from 0) and its share of the total")}</div>
               <div style={{ marginTop:"8px" }}>
                 {topProds.by_ca?.length > 0 && <TopNHBar data={topProds.by_ca} n={topN}/>}
               </div>
@@ -1002,8 +1051,8 @@ export default function PerformancePage() {
           <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px" }}>
             <div className="cc" style={{ padding:"20px 24px" }}>
               <div className="ct">{tr("Chiffre d'affaires moyen par jour d'ouverture", "Average revenue per opening day")}</div>
-              <div className="cs">{tr("Le mercredi est fermé hors juillet-août : la moyenne par jour ouvert permet de comparer les jours",
-                                      "Closed on Wednesdays except in July–August: the average per open day makes the days comparable")}</div>
+              <div className="cs">{tr("Certains jours sont fermés une partie de l'année : la moyenne par jour ouvert permet de comparer les jours entre eux",
+                                      "Some days are closed part of the year: the average per open day makes the days comparable")}</div>
               <div style={{ height:"320px", width:"100%", marginTop:"10px" }}>
                 {seasonality.days?.length > 0 && <DayOfWeekBars days={seasonality.days} mode="moyen"/>}
               </div>
@@ -1027,10 +1076,24 @@ export default function PerformancePage() {
               </div>
               <div className="cc" style={{ padding:"20px 24px" }}>
                 <div className="ct">{tr("Chiffre d'affaires et tickets par heure", "Revenue and transactions by hour")}</div>
-                <div className="cs">{tr("Barres : chiffre d'affaires · ligne : nombre de tickets", "Bars: revenue · line: number of transactions")}</div>
+                <div className="cs">{tr("Une seule échelle : chiffre d'affaires par heure ; le nombre de tickets est indiqué au-dessus de chaque barre", "One scale: revenue by hour; the number of transactions is shown above each bar")}</div>
                 <div style={{ height:"320px", width:"100%", marginTop:"12px" }}>
                   <HourlyDual data={seasonality.hourly}/>
                 </div>
+                {seasonality.hourly?.length > 0 && (() => {
+                  const h = seasonality.hourly;
+                  const tot = h.reduce((a: number, x: any) => a + x.ca, 0) || 1;
+                  const pk = h.reduce((m: any, x: any) => (x.ca > m.ca ? x : m), h[0]);
+                  const matin = h.filter((x: any) => x.hour < 13).reduce((a: number, x: any) => a + x.ca, 0);
+                  return (
+                    <Takeaway>
+                      {tr(
+                        `Pic à ${pk.heure_label} (${fmt((pk.ca / tot) * 100, 0)} % du chiffre d'affaires) ; ${fmt((matin / tot) * 100, 0)} % des ventes se font avant 13 h.`,
+                        `Peak at ${pk.heure_label} (${fmt((pk.ca / tot) * 100, 0)}% of revenue); ${fmt((matin / tot) * 100, 0)}% of sales happen before 1 pm.`
+                      )}
+                    </Takeaway>
+                  );
+                })()}
               </div>
             </>
           )}
@@ -1056,6 +1119,14 @@ export default function PerformancePage() {
                   <CatHBar data={categories} field="ca"
                     labelFn={(_v, r) => `${fmt(r.part, 1)} %`} />
                 </div>
+                {categories[0] && (
+                  <Takeaway>
+                    {tr(
+                      `${categories[0].category} fait ${fmt(categories[0].part, 0)} % du chiffre d'affaires${categories[1] ? `, devant ${categories[1].category} (${fmt(categories[1].part, 0)} %)` : ""}.`,
+                      `${trData(categories[0].category)} makes ${fmt(categories[0].part, 0)}% of revenue${categories[1] ? `, ahead of ${trData(categories[1].category)} (${fmt(categories[1].part, 0)}%)` : ""}.`
+                    )}
+                  </Takeaway>
+                )}
               </div>
             </div>
           )}
@@ -1069,13 +1140,14 @@ export default function PerformancePage() {
                 <div style={{ overflowX:"auto" }}>
                   <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:0, marginTop:"8px" }}>
                     <thead>
-                      <tr style={{ borderBottom:"1px solid var(--dk-line, #f2e9e1)", color:MUTED,
+                      <tr style={{ borderBottom:"1px solid var(--dk-line, #ECEDE7)", color:MUTED,
                                   fontSize:"0.68rem", textTransform:"uppercase",
                                   letterSpacing:"0.05em", textAlign:"right", fontWeight:800 }}>
                         <th style={{ textAlign:"left", padding:"14px 8px"}}>{tr("Catégorie", "Category")}</th>
                         <th style={{ padding:"14px 8px", minWidth:"200px"}}>{tr("Chiffre d'affaires", "Revenue")}</th>
                         <th style={{ padding:"14px 8px", minWidth:"160px"}}>{tr("Part du total", "Share of total")}</th>
                         <th style={{ padding:"14px 8px"}}>{tr("Tickets", "Transactions")}</th>
+                        <th style={{ padding:"14px 8px"}} title={tr("Montant moyen dépensé dans la catégorie par ticket qui la contient", "Average amount spent in the category per transaction that includes it")}>{tr("Dépense / ticket", "Spend / transaction")}</th>
                         <th style={{ padding:"14px 8px"}}>{tr("Produits", "Products")}</th>
                       </tr>
                     </thead>
@@ -1086,7 +1158,7 @@ export default function PerformancePage() {
                           const caPct = (c.ca / maxCa) * 100;
                           const partPct = Math.min(c.part, 100);
                           return (
-                            <tr key={i} style={{ borderBottom:"1px solid var(--dk-surface, #fdfcfb)" }}>
+                            <tr key={i} style={{ borderBottom:"1px solid var(--dk-surface, #FCFCFA)" }}>
                               <td style={{ padding:"13px 8px", fontSize:"0.82rem", fontWeight:800,
                                            color:INK, textAlign:"left",
                                            display:"flex", alignItems:"center", gap:"10px" }}>
@@ -1098,7 +1170,7 @@ export default function PerformancePage() {
                               <td style={{ padding:"13px 8px" }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:"8px"}}>
                                   <div style={{ flex:1, height:"14px", borderRadius:"4px",
-                                                background:"var(--dk-soft, #fbf5ec)", overflow:"hidden" }}>
+                                                background:"var(--dk-soft, #F5F6F1)", overflow:"hidden" }}>
                                     <div style={{
                                       width:`${caPct}%`, height:"100%",
                                       background:`linear-gradient(90deg, color-mix(in srgb, ${ORANGE} 33%, transparent), color-mix(in srgb, ${ORANGE} 80%, transparent))` }}/>
@@ -1112,7 +1184,7 @@ export default function PerformancePage() {
                               <td style={{ padding:"13px 8px" }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:"8px"}}>
                                   <div style={{ flex:1, height:"14px", borderRadius:"4px",
-                                                background:"var(--dk-soft, #fbf5ec)", overflow:"hidden" }}>
+                                                background:"var(--dk-soft, #F5F6F1)", overflow:"hidden" }}>
                                     <div style={{ width:`${partPct}%`, height:"100%",
                                                   background:`linear-gradient(90deg, ${C1}55, ${C3}aa)` }}/>
                                   </div>
@@ -1125,6 +1197,10 @@ export default function PerformancePage() {
                               <td style={{ padding:"13px 8px", textAlign:"right",
                                            fontSize:"0.78rem", fontWeight:600, color:INK }}>
                                 {fmt(c.tickets)}
+                              </td>
+                              <td style={{ padding:"13px 8px", textAlign:"right",
+                                           fontSize:"0.78rem", fontWeight:600, color:INK }}>
+                                {fmt(c.panier, 2)} €
                               </td>
                               <td style={{ padding:"13px 8px", textAlign:"right",
                                            fontSize:"0.78rem", fontWeight:600, color:MUTED }}>
@@ -1155,7 +1231,7 @@ const opaqueSelect: React.CSSProperties = {
   fontWeight:700,
   color: INK,                 // texte SOMBRE (opaque, lisible)
   background: "var(--dk-surface, #fff)",         // fond BLANC OPAQUE (pas transparent)
-  border:"1px solid var(--dk-line, rgba(196,168,130,.35))",
+  border:"1px solid var(--dk-line, rgba(140,160,140,.35))",
   borderRadius:"8px",
   padding:"7px 10px",
   outline:"none",
@@ -1177,6 +1253,15 @@ function LegendPill({ color, label }: { color: string; label: string }) {
   );
 }
 
+// Phrase qui dit ce qu'il faut retenir du graphique (calculée à partir des données)
+function Takeaway({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ marginTop: 10, fontSize: ".8rem", color: INK, lineHeight: 1.45, borderLeft: `3px solid ${ORANGE}`, paddingLeft: 10 }}>
+      {children}
+    </div>
+  );
+}
+
 function InsightBox({ icon, color, title, strong, asRow = false }: {
   icon: React.ReactNode; color: string; title: string; strong?: string; asRow?: boolean;
 }) {
@@ -1184,7 +1269,7 @@ function InsightBox({ icon, color, title, strong, asRow = false }: {
     marginTop:"16px", padding:"14px 18px", borderRadius:"12px",
     borderTop:`4px solid ${color}`,
     background: PAPER,
-    border:`1px solid var(--dk-line, rgba(196,168,130,.30))`,
+    border:`1px solid var(--dk-line, rgba(140,160,140,.30))`,
     borderLeft:`4px solid ${color}`,
     display:"flex", alignItems:"center", justifyContent:"space-between",
     gap:"12px", flexWrap:"wrap",
@@ -1196,7 +1281,7 @@ function InsightBox({ icon, color, title, strong, asRow = false }: {
   };
   return (
     <div style={style}>
-      <div style={{ fontSize:"0.85rem", color:"var(--dk-ink2, #5C4033)", lineHeight:1.45,
+      <div style={{ fontSize:"0.85rem", color:"var(--dk-ink2, #3F4A42)", lineHeight:1.45,
                     display:"flex", alignItems:"flex-start", gap:"8px" }}>
         <span style={{ flexShrink:0, marginTop:"1px"}}>{icon}</span>
         <span>

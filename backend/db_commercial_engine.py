@@ -11,6 +11,11 @@ def safe_num(v, default=0.0):
         return float(v)
     return float(v)
 
+MOIS_COURT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
+MOIS_LONG = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août',
+             'septembre', 'octobre', 'novembre', 'décembre']
+
+
 def calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="Tous", categorie="Toutes", evenement="Tous"):
     """
     Version PostgreSQL de calculate_commercial_performance
@@ -20,6 +25,7 @@ def calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="T
 
     where_clauses = []
     params = []
+    year_int = None
 
     if annee != "Toutes":
         # Gérer n'importe quelle année spécifique (ex: 2024, 2025, 2026, etc.)
@@ -51,6 +57,20 @@ def calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="T
 
     where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
+    # Mêmes filtres sans l'année (pour la comparaison 2024 / 2025 et l'année précédente)
+    where_no_year = [w for w in where_clauses if not w.startswith("EXTRACT(YEAR")]
+    params_no_year = [p for w, p in zip(where_clauses, params) if not w.startswith("EXTRACT(YEAR")]
+    where_no_year_sql = " AND ".join(where_no_year) if where_no_year else "1=1"
+
+    BASE_JOINS = """
+    FROM fact_ticket_lines f
+    JOIN dim_dates d ON f.date_id = d.date_id
+    JOIN dim_products p ON f.product_id = p.product_id
+    LEFT JOIN dim_categories c ON p.category_id = c.category_id
+    LEFT JOIN dim_seasons s ON d.season_id = s.season_id
+    LEFT JOIN dim_events e ON f.event_id = e.event_id
+    """
+
     kpis_query = f"""
     SELECT
         SUM(f.total_revenue) as total_ca,
@@ -77,64 +97,90 @@ def calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="T
     nb_produits = int(kpis['nb_produits'] or 0)
     panier = total_ca / nb_tickets if nb_tickets > 0 else 0.0
 
-    monthly_query = """
-    SELECT
-        month_start,
-        year,
-        month,
-        total_revenue
-    FROM monthly_ca
-    ORDER BY month_start
-    """
-
-    monthly_data_raw = sql_fetch_all(monthly_query)
+    # Courbe mensuelle : calculée sur les mêmes filtres que les indicateurs
+    monthly_data_raw = sql_fetch_all(f"""
+    SELECT DATE_TRUNC('month', f.date_id)::date AS month_start,
+           SUM(f.total_revenue) AS total_revenue
+    {BASE_JOINS}
+    WHERE {where_sql}
+    GROUP BY 1
+    ORDER BY 1
+    """, tuple(params))
 
     monthly_data = []
     for r in monthly_data_raw:
         ms = r['month_start']
-        try:
-            ds = ms.strftime('%Y-%m-%d')
-            lb = ms.strftime('%b %Y')
-        except Exception:
-            ds = str(ms)[:10]
-            lb = ds
         monthly_data.append({
-            "date": ds,
-            "label": lb,
+            "date": ms.strftime('%Y-%m-%d'),
+            "label": f"{MOIS_COURT[ms.month - 1]} {ms.year}",
+            "label_long": f"{MOIS_LONG[ms.month - 1]} {ms.year}",
             "ca": safe_num(r['total_revenue'])
         })
 
     if monthly_data:
-        moyenne = safe_num(sum(d['ca'] for d in monthly_data) / len(monthly_data))
+        vals = [d['ca'] for d in monthly_data]
+        moyenne = safe_num(sum(vals) / len(vals))
+        ecart_type = safe_num(math.sqrt(sum((v - moyenne) ** 2 for v in vals) / len(vals)))
         ca_max = max(monthly_data, key=lambda x: x['ca'])
         ca_min = min(monthly_data, key=lambda x: x['ca'])
         amplitude = ca_max['ca'] - ca_min['ca']
         ratio_amp = safe_num(ca_max['ca'] / max(ca_min['ca'], 1.0))
-        ca_max_obj = {"date_str": ca_max["date"], "val": ca_max["ca"]}
-        ca_min_obj = {"date_str": ca_min["date"], "val": ca_min["ca"]}
+        ca_max_obj = {"date_str": ca_max["date"], "label": ca_max["label_long"], "val": ca_max["ca"]}
+        ca_min_obj = {"date_str": ca_min["date"], "label": ca_min["label_long"], "val": ca_min["ca"]}
     else:
-        moyenne = 0
-        amplitude = 0
-        ratio_amp = 0
-        ca_max_obj = {"date_str": "", "val": 0}
-        ca_min_obj = {"date_str": "", "val": 0}
+        moyenne = ecart_type = amplitude = ratio_amp = 0
+        ca_max_obj = {"date_str": "", "label": "", "val": 0}
+        ca_min_obj = {"date_str": "", "label": "", "val": 0}
 
-    comp_24_25 = []
-    mois_court = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
-    for m in range(1, 13):
-        ca_2024 = safe_num(sql_value(
-            "SELECT total_revenue FROM monthly_ca WHERE year = 2024 AND month = %s",
-            (m,)
-        ))
-        ca_2025 = safe_num(sql_value(
-            "SELECT total_revenue FROM monthly_ca WHERE year = 2025 AND month = %s",
-            (m,)
-        ))
-        comp_24_25.append({
-            "mois": mois_court[m-1],
-            "ca_2024": ca_2024,
-            "ca_2025": ca_2025
-        })
+    # Comparaison des deux dernières années présentes dans les ventes, mois par mois (tous filtres sauf l'année).
+    # Le nom du champ « comp_24_25 » est conservé pour l'agent ; les années réelles sont dans « comp_annees ».
+    yrs = [int(r['y']) for r in sql_fetch_all(
+        "SELECT DISTINCT EXTRACT(YEAR FROM date_id)::int AS y FROM fact_ticket_lines ORDER BY 1")]
+    comp_24_25, comp_annees = [], None
+    if len(yrs) >= 2:
+        y_prec, y_der = yrs[-2], yrs[-1]
+        comp_annees = {"prec": y_prec, "der": y_der}
+        comp_raw = sql_fetch_all(f"""
+        SELECT EXTRACT(YEAR FROM f.date_id)::int AS y, EXTRACT(MONTH FROM f.date_id)::int AS m,
+               SUM(f.total_revenue) AS ca
+        {BASE_JOINS}
+        WHERE {where_no_year_sql} AND EXTRACT(YEAR FROM f.date_id) IN (%s, %s)
+        GROUP BY 1, 2
+        """, tuple(params_no_year) + (y_prec, y_der))
+        comp = {(int(r['y']), int(r['m'])): safe_num(r['ca']) for r in comp_raw}
+        comp_24_25 = [{
+            "mois": MOIS_COURT[m - 1],
+            "ca_prec": comp.get((y_prec, m), 0.0),
+            "ca_der": comp.get((y_der, m), 0.0),
+            f"ca_{y_prec}": comp.get((y_prec, m), 0.0),
+            f"ca_{y_der}": comp.get((y_der, m), 0.0),
+        } for m in range(1, 13)]
+
+    # Indicateurs par année (tous filtres sauf l'année) : comparaison 2025 / 2024 quand « Toutes »
+    par_annee = {}
+    for r in sql_fetch_all(f"""
+        SELECT EXTRACT(YEAR FROM f.date_id)::int AS y, SUM(f.total_revenue) AS ca,
+               COUNT(DISTINCT (f.date_id, f.ticket_number)) AS tk
+        {BASE_JOINS}
+        WHERE {where_no_year_sql}
+        GROUP BY 1 ORDER BY 1
+    """, tuple(params_no_year)):
+        ca_y, tk_y = safe_num(r['ca']), int(r['tk'] or 0)
+        par_annee[str(int(r['y']))] = {"total_ca": ca_y, "nb_tickets": tk_y, "panier": ca_y / tk_y if tk_y else 0.0}
+
+    # Année précédente (mêmes filtres) quand une année est choisie
+    kpis_n1 = None
+    if year_int:
+        r1 = sql_fetch_one(f"""
+        SELECT SUM(f.total_revenue) AS total_ca,
+               COUNT(DISTINCT (f.date_id, f.ticket_number)) AS nb_tickets
+        {BASE_JOINS}
+        WHERE {where_no_year_sql} AND EXTRACT(YEAR FROM f.date_id) = %s
+        """, tuple(params_no_year) + (year_int - 1,))
+        if r1 and r1['total_ca'] is not None:
+            ca1, t1 = safe_num(r1['total_ca']), int(r1['nb_tickets'] or 0)
+            kpis_n1 = {"annee": year_int - 1, "total_ca": ca1, "nb_tickets": t1,
+                       "panier": ca1 / t1 if t1 else 0.0}
 
     top_ca_query = f"""
     SELECT
@@ -270,7 +316,8 @@ def calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="T
     SELECT
         c.category_name as category,
         SUM(f.total_revenue) as ca,
-        AVG(f.total_revenue) as panier,
+        SUM(f.total_revenue) / NULLIF(COUNT(DISTINCT (f.date_id, f.ticket_number)), 0) as panier,
+        AVG(f.total_revenue) as montant_ligne,
         COUNT(DISTINCT (f.date_id, f.ticket_number)) as tickets,
         COUNT(DISTINCT f.product_id) as produits
     FROM fact_ticket_lines f
@@ -295,7 +342,9 @@ def calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="T
             "category": r['category'],
             "ca": safe_num(r['ca']),
             "part": safe_num(safe_num(r['ca']) / total_cat_ca * 100),
+            # Dépense moyenne dans la catégorie par ticket qui la contient
             "panier": safe_num(r['panier']),
+            "montant_ligne": safe_num(r['montant_ligne']),
             "tickets": int(r['tickets'] or 0),
             "produits": int(r['produits'] or 0)
         })
@@ -304,7 +353,7 @@ def calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="T
     events_list = ["Tous"] + sorted([r['event_name'] for r in sql_fetch_all("SELECT DISTINCT event_name FROM dim_events WHERE event_name IS NOT NULL AND event_name != 'Jour Normal' ORDER BY event_name")])
     
     # Récupérer dynamiquement les années disponibles
-    years_raw = sql_fetch_all("SELECT DISTINCT EXTRACT(YEAR FROM date_id) as year FROM dim_dates ORDER BY year DESC")
+    years_raw = sql_fetch_all("SELECT DISTINCT EXTRACT(YEAR FROM date_id) as year FROM fact_ticket_lines ORDER BY year DESC")
     available_years = sorted([int(r['year']) for r in years_raw if r['year'] is not None], reverse=True)
     
     # Construire la liste des options d'années : "Toutes" + années individuelles
@@ -318,15 +367,20 @@ def calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="T
             "nb_jours": nb_jours,
             "nb_produits": nb_produits
         },
+        "kpis_n1": kpis_n1,
+        "kpis_par_annee": par_annee,
+        "periode": {"debut": str(sql_value(f"SELECT MIN(f.date_id) {BASE_JOINS} WHERE {where_sql}", tuple(params))),
+                    "fin": str(sql_value(f"SELECT MAX(f.date_id) {BASE_JOINS} WHERE {where_sql}", tuple(params)))},
         "monthly": {
             "series": monthly_data,
             "moyenne": moyenne,
-            "ecart_type": 0,
+            "ecart_type": ecart_type,
             "ca_max": ca_max_obj,
             "ca_min": ca_min_obj,
             "amplitude": amplitude,
             "ratio_amp": ratio_amp,
-            "comp_24_25": comp_24_25
+            "comp_24_25": comp_24_25,
+            "comp_annees": comp_annees
         },
         "top_products": {
             "by_ca": top_ca_list,

@@ -2,10 +2,10 @@
 import { HourlyData } from "@/types/kpis";
 import { useEffect, useRef } from "react";
 
-const ORANGE = "#E8734A";
-const PEACH  = "#F0A882";
-const LIGHT  = "#FAD4C4";
-const MUTED  = "var(--dk-muted, #9a8070)";
+const ORANGE = "#2E7D4F";
+const PEACH  = "#8DC05A";
+const LIGHT  = "#DCEBD9";
+const MUTED  = "var(--dk-muted, #6E756F)";
 
 function sparkline(canvas: HTMLCanvasElement, data: number[], color: string) {
   const ctx = canvas.getContext("2d");

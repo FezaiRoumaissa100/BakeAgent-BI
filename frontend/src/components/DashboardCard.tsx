@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 
 const CARD_SHADOW =
-  "0 14px 40px rgba(60,30,8,0.08), 0 2px 8px rgba(60,30,8,0.04)";
+  "0 14px 40px rgba(30,40,32,0.08), 0 2px 8px rgba(30,40,32,0.04)";
 
 export function DashboardCard({
   children,

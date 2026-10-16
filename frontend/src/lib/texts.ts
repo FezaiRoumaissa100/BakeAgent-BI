@@ -12,7 +12,7 @@ export const texts = {
     },
     forecast: {
       reliability: "Fiabilité de la prévision",
-      reliabilitySub: "Écart médian entre prévu et réel",
+      reliabilitySub: "Écart médian entre prévu et réel (objectif du cahier des charges : 15 à 20 %)",
     },
     theme: {
       toDark: "Passer en mode sombre",
@@ -32,7 +32,7 @@ export const texts = {
     },
     forecast: {
       reliability: "Forecast reliability",
-      reliabilitySub: "Median gap between forecast and actual",
+      reliabilitySub: "Median gap between forecast and actual (specification target: 15–20%)",
     },
     theme: {
       toDark: "Switch to dark mode",

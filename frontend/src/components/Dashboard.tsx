@@ -5,7 +5,9 @@ import { colors } from "@/lib/theme";
 import React from "react";
 import { IconSparkline } from "./Icons";
 import { siteConfig } from "@/lib/siteConfig";
-import { tr, trData, locale } from "@/lib/i18n";
+import { ExpertNote } from "@/components/Expert";
+import { RetainProvider, RetainCard, Takeaway } from "@/components/Ui";
+import { tr, trData, locale, num } from "@/lib/i18n";
 
 const ORANGE = colors.accent;
 const PEACH = colors.accentLight;
@@ -16,14 +18,14 @@ const GRID = colors.grid;
 const PAL = [
   ORANGE,
   PEACH,
-  "#e05c35",
-  "#f5c4a8",
+  "#3E8E5E",
+  "#B9D7A0",
   LIGHT,
-  "var(--dk-accent-deep, #c45030)",
-  "#fad8c0",
-  "var(--dk-accent-deep, #d4724a)",
-  "var(--dk-soft, #fbe8d8)",
-  "var(--dk-accent-deep, #b84028)",
+  "var(--dk-accent-deep, #2A7148)",
+  "#DCEBD9",
+  "var(--dk-accent-deep, #3E8E5E)",
+  "var(--dk-soft, #E4F0E6)",
+  "var(--dk-accent-deep, #1F5E3A)",
 ];
 
 function fmt(n: number, dec = 0) {
@@ -96,14 +98,14 @@ function VitesseGauge({ vitesse }: { vitesse: number }) {
         <path
           d="M 25 100 A 75 75 0 0 1 175 100"
           fill="none"
-          stroke="var(--dk-line, #fdf0ea)"
+          stroke="var(--dk-line, #EEF5EF)"
           strokeWidth="16"
           strokeLinecap="round"
         />
         <path
           d="M 25 100 A 75 75 0 0 1 175 100"
           fill="none"
-          stroke="var(--dk-line, #fad8c8)"
+          stroke="var(--dk-line, #E3E4DD)"
           strokeWidth="16"
           strokeLinecap="round"
           strokeDasharray={`${2.356 * 72} ${2.356 * 100}`}
@@ -123,7 +125,7 @@ function VitesseGauge({ vitesse }: { vitesse: number }) {
           y1="46"
           x2="152"
           y2="38"
-          stroke="var(--dk-accent-deep, #b84020)"
+          stroke="var(--dk-accent-deep, #1F5E3A)"
           strokeWidth="2.5"
         />
       </svg>
@@ -178,19 +180,19 @@ function PlotlyBarChart({
   data: HourlyData[];
   valueKey: keyof HourlyData;
   unit?: string;
-  height?: number;
+  height?: number | string;
 }) {
   const vals = data.map((d) => Number(d[valueKey]) || 0);
   const max = Math.max(...vals, 1);
 
   return (
-    <div style={{ height }} className="w-full flex flex-col justify-between pt-2">
+    <div style={typeof height === "number" ? { height } : { flex: 1, minHeight: 0 }} className="w-full flex flex-col justify-between pt-2">
       <div className="flex items-end gap-1.5 flex-1 w-full relative">
         {/* Horizontal grid lines */}
         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40">
-          <div className="w-full border-b border-[#e2d5c8] border-dashed" />
-          <div className="w-full border-b border-[#e2d5c8] border-dashed" />
-          <div className="w-full border-b border-[#e2d5c8]" />
+          <div className="w-full border-b border-[var(--dk-line)] border-dashed" />
+          <div className="w-full border-b border-[var(--dk-line)] border-dashed" />
+          <div className="w-full border-b border-[var(--dk-line)]" />
         </div>
 
         {data.map((d, i) => {
@@ -203,14 +205,15 @@ function PlotlyBarChart({
               className="flex-1 flex flex-col items-center justify-end h-full group relative z-10 cursor-pointer"
             >
               {/* Tooltip */}
-              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-[#1C1410] text-white text-[9px] font-bold py-0.5 px-1.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-30 shadow">
+              <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 text-white text-[11px] font-bold py-1 px-2 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-30 shadow-lg" style={{ background: "var(--dk-pill, #1F2B23)" }}>
                 {d.heure}{tr(" : ", ": ")}{fmt(v)} {unit}
               </div>
               <div
-                className="w-full rounded-t-sm transition-all"
+                className="w-full transition-all group-hover:brightness-90"
                 style={{
                   height: `${pct}%`,
-                  background: isMax ? ORANGE : LIGHT,
+                  background: isMax ? ORANGE : "#8DC05A",
+                  borderRadius: "6px 6px 2px 2px",
                 }}
               />
             </div>
@@ -219,12 +222,10 @@ function PlotlyBarChart({
       </div>
 
       {/* X Axis */}
-      <div className="flex justify-between mt-1.5 pt-1 border-t border-[#f0ece6] text-[8px] font-semibold" style={{ color: MUTED }}>
-        {data
-          .filter((_, i) => i === 0 || i === Math.floor(data.length / 2) || i === data.length - 1)
-          .map((d, i) => (
-            <span key={i}>{d.heure}</span>
-          ))}
+      <div className="flex gap-1.5 mt-1.5 pt-1.5 text-[10px] font-semibold" style={{ color: MUTED, borderTop: "1px solid var(--dk-line)" }}>
+        {data.map((d, i) => (
+          <span key={i} className="flex-1 text-center">{d.heure}</span>
+        ))}
       </div>
     </div>
   );
@@ -270,7 +271,7 @@ function PlotlyAreaChart({
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
           <path
             d={area}
-            fill={color === ORANGE ? "rgba(232,115,74,0.10)" : "rgba(240,168,130,0.10)"}
+            fill={color === ORANGE ? "rgba(46,125,79,0.10)" : "rgba(141,192,90,0.10)"}
           />
           <path
             d={path}
@@ -294,7 +295,7 @@ function PlotlyAreaChart({
         </svg>
       </div>
 
-      <div className="flex justify-between mt-1.5 pt-1 border-t border-[#f0ece6] text-[8px] font-semibold" style={{ color: MUTED }}>
+      <div className="flex justify-between mt-1.5 pt-1 border-t border-[#ECEDE7] text-[8px] font-semibold" style={{ color: MUTED }}>
         {data
           .filter((_, i) => i === 0 || i === Math.floor(data.length / 2) || i === data.length - 1)
           .map((d, i) => (
@@ -309,15 +310,22 @@ function PlotlyAreaChart({
    HERO SECTION (KPIs individuels, fond normal)
 ──────────────────────────────────────────────────── */
 export function Hero({ kpis }: { kpis: DailyKPIs }) {
-  const v_text = kpis.vitesse >= 20 ? tr("Forte", "Strong") : kpis.vitesse <= 5 ? tr("Faible", "Low") : tr("Normale", "Normal");
+  // Cadence comparée à la cadence habituelle du même jour de la semaine (pas de seuil fixe)
+  const v_ref = Number(kpis.vitesse_ref || 0);
+  const v_ratio = v_ref > 0 ? Number(kpis.vitesse || 0) / v_ref : 1;
+  const v_level = v_ref <= 0 ? "na" : v_ratio >= 1.2 ? "high" : v_ratio <= 0.8 ? "low" : "normal";
+  const v_text =
+    v_level === "high" ? tr("Forte", "Strong") : v_level === "low" ? tr("Faible", "Low") : v_level === "normal" ? tr("Normale", "Normal") : tr("Sans repère", "No reference");
   const v_badge_bg =
-    kpis.vitesse >= 20
-      ? "rgba(232, 115, 74, 0.08)"
-      : kpis.vitesse <= 5
-      ? "rgba(154, 128, 112, 0.08)"
-      : "rgba(122, 106, 90, 0.08)";
+    v_level === "high"
+      ? "rgba(46,125,79, 0.08)"
+      : v_level === "low"
+      ? "rgba(110,117,111, 0.08)"
+      : "rgba(92,101,96, 0.08)";
   const v_badge_color =
-    kpis.vitesse >= 20 ? ORANGE : kpis.vitesse <= 5 ? MUTED : "var(--dk-ink2, #7a6a5a)";
+    v_level === "high" ? ORANGE : v_level === "low" ? MUTED : "var(--dk-ink2, #5C6560)";
+  const jourLabel = kpis.jour_semaine ? trData(kpis.jour_semaine) : "";
+  const refLabel = kpis.ref_label || tr("jours comparables", "comparable days");
 
   const paire_texte = kpis.top_pairs[0]
     ? `${kpis.top_pairs[0].pa.slice(0, 12)} + ${kpis.top_pairs[0].pb.slice(0, 12)}`
@@ -325,399 +333,105 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
   const top_prod_name = kpis.top_qte[0]?.article || tr("Aucun", "None");
 
   const delta = Number(kpis.delta_vs_moy || 0);
-  const trend_text =
-    delta >= 10
-      ? tr(`CA +${delta.toFixed(1)}% vs moyenne`, `Revenue +${delta.toFixed(1)}% vs average`)
-      : delta <= -10
-      ? tr(`CA ${delta.toFixed(1)}% vs moyenne`, `Revenue ${delta.toFixed(1)}% vs average`)
-      : tr(`CA dans la normale (${delta > 0 ? "+" : ""}${delta.toFixed(1)}%)`, `Revenue within normal range (${delta > 0 ? "+" : ""}${delta.toFixed(1)}%)`);
+  const hasRef = Number(kpis.ca_ref || 0) > 0;
+  const deltaTxt = `${delta > 0 ? "+" : ""}${num(delta, 0)} %`;
+  const trend_text = !hasRef
+    ? tr("Aucun jour comparable", "No comparable day")
+    : Math.abs(delta) < 10
+    ? tr(`CA dans la normale (${deltaTxt} vs ${refLabel})`, `Revenue within normal range (${deltaTxt} vs previous same weekdays)`)
+    : tr(`CA ${deltaTxt} vs ${refLabel}`, `Revenue ${deltaTxt} vs previous same weekdays`);
 
   const top3 = kpis.top_qte.slice(0, 3);
   const mx_cnt = kpis.top_pairs[0]?.cnt || 1;
 
   return (
     <div className="outer" style={{ height: "auto", padding: "0 18px", boxSizing: "border-box" }}>
-      {/* Mise en page en flux normal : les cartes ne se superposent plus quand l'écran est plus étroit. */}
-      {/* ── KPI CARDS (Design moderne, fond normal) ── */}
-      <div style={{ 
-        display: "grid", 
-        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", 
-        gap: "16px", 
-        marginBottom: "16px" 
-      }}>
-        {/* CA Card */}
-        <div style={{
-          background: "var(--dk-surface, white)",
-          borderRadius: "16px",
-          padding: "20px",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-          border: "1px solid var(--dk-line, rgba(200,140,100,0.15))"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-            <div style={{
-              width: "36px", height: "36px",
-              background: "rgba(232,115,74,0.1)",
-              borderRadius: "10px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="1" x2="12" y2="23" />
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H17" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: "0.7rem", color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                {tr("Chiffre d'Affaires", "Revenue")}
-              </div>
-              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: INK, marginTop: "2px" }}>
-                {fmt(kpis.ca_jour)} EUR
-              </div>
-            </div>
-          </div>
-          <div style={{ fontSize: "0.75rem", color: MUTED, marginTop: "8px" }}>
-            {tr("Journée du ", "Day of ")}{kpis.date_str || siteConfig.dataEndLabel}
-          </div>
-        </div>
 
-        {/* Tickets Card */}
-        <div style={{
-          background: "var(--dk-surface, white)",
-          borderRadius: "16px",
-          padding: "20px",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-          border: "1px solid var(--dk-line, rgba(200,140,100,0.15))"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-            <div style={{
-              width: "36px", height: "36px",
-              background: "rgba(232,115,74,0.1)",
-              borderRadius: "10px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 9a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4a2 2 0 0 0 0-4z" />
-                <path d="M13 5v14" strokeDasharray="2 2" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: "0.7rem", color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                {tr("Tickets", "Transactions")}
-              </div>
-              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: INK, marginTop: "2px" }}>
-                {kpis.tickets}
-              </div>
-            </div>
-          </div>
-          <div style={{ fontSize: "0.75rem", color: MUTED, marginTop: "8px" }}>
-            {tr("Transactions aujourd'hui", "Transactions today")}
-          </div>
-        </div>
-
-        {/* Panier Moyen Card */}
-        <div style={{
-          background: "var(--dk-surface, white)",
-          borderRadius: "16px",
-          padding: "20px",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-          border: "1px solid var(--dk-line, rgba(200,140,100,0.15))"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-            <div style={{
-              width: "36px", height: "36px",
-              background: "rgba(232,115,74,0.1)",
-              borderRadius: "10px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="8" cy="21" r="1" />
-                <circle cx="19" cy="21" r="1" />
-                <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: "0.7rem", color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                {tr("Panier Moyen", "Average basket")}
-              </div>
-              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: INK, marginTop: "2px" }}>
-                {fmt(kpis.panier, 2)} EUR
-              </div>
-            </div>
-          </div>
-          <div style={{ fontSize: "0.75rem", color: MUTED, marginTop: "8px" }}>
-            {tr("Par transaction", "Per transaction")}
-          </div>
-        </div>
-
-        {/* Pic Card */}
-        <div style={{
-          background: "var(--dk-surface, white)",
-          borderRadius: "16px",
-          padding: "20px",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
-          border: "1px solid var(--dk-line, rgba(200,140,100,0.15))"
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-            <div style={{
-              width: "36px", height: "36px",
-              background: "rgba(232,115,74,0.1)",
-              borderRadius: "10px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={ORANGE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize: "0.7rem", color: MUTED, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                {tr("Pic Heure", "Peak hour")}
-              </div>
-              <div style={{ fontSize: "1.8rem", fontWeight: 800, color: INK, marginTop: "2px" }}>
-                {String(kpis.peak_h).padStart(2, "0")}h
-              </div>
-            </div>
-          </div>
-          <div style={{ fontSize: "0.75rem", color: MUTED, marginTop: "8px" }}>
-            {tr("Pic de la journée", "Peak of the day")}
-          </div>
-        </div>
+      {/* ── EN-TÊTE DE PAGE ── */}
+      <div style={{ padding: "0 10px", marginBottom: 16 }}>
+        <h1 className="page-h1" style={{ fontSize: "1.8rem", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1, margin: 0 }}>
+          {tr("Vue du", "Daily")} <span style={{ color: ORANGE }}>{tr("Jour", "View")}</span>
+        </h1>
+        <p style={{ color: MUTED, fontSize: ".9rem", marginTop: 6 }}>
+          {tr("Journée du ", "Day of ")}{jourLabel ? `${jourLabel.toLowerCase()} ` : ""}{kpis.date_fr || siteConfig.dataEndLabel}
+          {hasRef ? tr(` · comparée ${refLabel.startsWith("moyenne") ? "à la" : "au"} ${refLabel}`, " · compared with the previous same weekdays") : ""}
+        </p>
       </div>
 
-      {/* ── 4 CARTES DU BAS ── */}
-      <div className="cards-row" style={{ position: "static" }}>
-        {/* Carte 1 : État de la journée */}
-        <div className="bc">
-          <div className="bc-title">{tr("État de la journée", "Today's status")}</div>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
-            {/* Row 1 */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "7px 10px",
-                background: "rgba(232, 115, 74, 0.04)",
-                borderRadius: 8,
-              }}
-            >
-              <div>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={ORANGE}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                </svg>
-              </div>
-              <div style={{ fontSize: ".70rem", color: INK, lineHeight: 1.2 }}>
-                <strong style={{ color: ORANGE }}>{tr(`Activité ${v_text.toLowerCase()}`, `${v_text} activity`)}</strong>
-                <br />
-                <span style={{ color: MUTED }}>{Number(kpis.vitesse || 0).toFixed(1)} {tr("art/h", "items/h")}</span>
-              </div>
-            </div>
+      {/* ── PHRASE CLÉ ── */}
+      <div className="insight" style={{ margin: "0 10px 16px" }}>
+        <b>
+          {hasRef
+            ? (Math.abs(delta) < 10
+                ? tr("Une journée dans la normale. ", "A normal day. ")
+                : delta > 0 ? tr("Une journée plus forte que d'habitude. ", "A stronger day than usual. ") : tr("Une journée plus calme que d'habitude. ", "A quieter day than usual. "))
+            : tr("Journée sans point de comparaison. ", "No comparable day. ")}
+        </b>
+        {tr(
+          `${fmt(kpis.ca_jour)} € de chiffre d'affaires${hasRef ? ` (${deltaTxt} par rapport à d'habitude)` : ""}, ${fmt(kpis.tickets)} tickets et un pic à ${String(kpis.peak_h).padStart(2, "0")} h. ${top_prod_name !== "Aucun" ? `${top_prod_name} est le produit le plus vendu.` : ""}`,
+          `${fmt(kpis.ca_jour)} € of revenue${hasRef ? ` (${deltaTxt} vs usual)` : ""}, ${fmt(kpis.tickets)} transactions and a peak at ${String(kpis.peak_h).padStart(2, "0")}:00. ${top_prod_name !== "None" ? `${top_prod_name} is the best-selling product.` : ""}`
+        )}
+      </div>
 
-            {/* Row 2 */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "7px 10px",
-                background: "rgba(232, 115, 74, 0.04)",
-                borderRadius: 8,
-              }}
-            >
-              <div>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={ORANGE}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                </svg>
-              </div>
-              <div style={{ fontSize: ".70rem", color: INK, lineHeight: 1.2 }}>
-                <strong style={{ color: ORANGE }}>{tr("Paire forte", "Strong pair")}</strong>
-                <br />
-                <span style={{ color: MUTED }}>{paire_texte}</span>
-              </div>
-            </div>
-
-            {/* Row 3 */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "7px 10px",
-                background: "rgba(232, 115, 74, 0.04)",
-                borderRadius: 8,
-              }}
-            >
-              <div>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={ORANGE}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
-              </div>
-              <div style={{ fontSize: ".70rem", color: INK, lineHeight: 1.2 }}>
-                <strong style={{ color: ORANGE }}>{tr("Top Produit", "Top product")}</strong>
-                <br />
-                <span style={{ color: MUTED }}>{top_prod_name.slice(0, 18)}</span>
-              </div>
-            </div>
-
-            {/* Ligne « Journée : CA … vs moyenne » masquée : la moyenne de comparaison calculée par le backend
-                est fausse (ex. +1229 %). À réafficher après correction côté backend (db_data_engine). */}
-          </div>
-        </div>
-
-        {/* Carte 2 : Vitesse des Ventes */}
-        <div className="bc">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
-            <div className="bc-title">{tr("Vitesse des Ventes", "Sales velocity")}</div>
-            <div
-              style={{
-                background: v_badge_bg,
-                color: v_badge_color,
-                borderRadius: 99,
-                padding: "3px 8px",
-                fontSize: ".62rem",
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-              }}
-            >
-              ↗ {v_text}
-            </div>
-          </div>
-          <div style={{ marginBottom: 2 }}>
-            <span className="bc-big">{Number(kpis.vitesse || 0).toFixed(1)}</span>
-            <span style={{ fontSize: ".72rem", color: MUTED, marginLeft: 4, fontWeight: 600 }}>{tr("art / h", "items / h")}</span>
-            <div style={{ fontSize: ".66rem", color: MUTED, marginTop: 2 }}>{tr("Cadence de la journée", "Today's sales pace")}</div>
-          </div>
-        </div>
-
-        {/* Carte 3 : Top Produits */}
-        <div className="bc">
-          <div className="bc-title">{tr("Top 3 produits (quantités)", "Top 3 products (quantities)")}</div>
-          <div className="leg-row">
-            {top3.map((p, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  fontSize: ".68rem",
-                  color: "var(--dk-ink2, #5a4a3a)",
-                  fontWeight: 500,
-                }}
-              >
-                <div
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    background: PAL[i],
-                    flexShrink: 0,
-                  }}
-                />
-                {p.article.slice(0, 14)} &nbsp;
-                <strong>{fmt(p.quantity || 0)}</strong>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Carte 4 : Top Combinaisons */}
-        <div className="bc">
-          <div className="bc-title">{tr("Top Combinaisons", "Top combinations")}</div>
-          <div style={{ flex: 1, overflow: "hidden", marginTop: 6 }}>
-            {kpis.top_pairs.slice(0, 5).map((p, i) => {
-              const bw = Math.max(4, Math.round((p.cnt / mx_cnt) * 50));
-              return (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "5px 0",
-                    borderBottom: "1px solid var(--dk-line, #f5f0ea)",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: ".70rem",
-                      color: INK,
-                      fontWeight: 500,
-                      flex: 1,
-                      minWidth: 0,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {p.pa.slice(0, 13)} + {p.pb.slice(0, 13)}
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0, marginLeft: 6 }}>
-                    <div
-                      style={{
-                        width: bw,
-                        height: 4,
-                        background: ORANGE,
-                        borderRadius: 99,
-                        opacity: 0.7,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontSize: ".68rem",
-                        fontWeight: 700,
-                        color: "var(--dk-accent-deep, #c05030)",
-                        background: "var(--dk-soft, #fdf0ea)",
-                        borderRadius: 4,
-                        padding: "1px 5px",
-                      }}
-                    >
-                      {p.cnt}x
-                    </span>
-                  </div>
+      {/* ── 4 INDICATEURS : valeur du jour, écart à l'habituel, mini-barres habituel / ce jour ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 16, marginBottom: 16, padding: "0 10px" }}>
+        {[
+          { icon: "€", lbl: tr("Chiffre d'affaires", "Revenue"), cur: Number(kpis.ca_jour || 0), ref: Number(kpis.ca_ref || 0), unit: " €", dec: 0 },
+          { icon: "№", lbl: tr("Tickets", "Transactions"), cur: Number(kpis.tickets || 0), ref: Number(kpis.tickets_ref || 0), unit: "", dec: 0 },
+          { icon: "Ø", lbl: tr("Panier moyen", "Average basket"), cur: Number(kpis.panier || 0), ref: Number(kpis.tickets_ref || 0) > 0 ? Number(kpis.ca_ref || 0) / Number(kpis.tickets_ref) : 0, unit: " €", dec: 2 },
+        ].map((k, i) => {
+          const d = k.ref > 0 ? ((k.cur - k.ref) / k.ref) * 100 : null;
+          const up = (d ?? 0) >= 0;
+          const mx = Math.max(k.cur, k.ref, 1);
+          return (
+            <div key={i} className="cc" style={{ padding: "18px 20px", display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--dk-accent-wash)", color: "var(--dk-accent-deep)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: ".95rem" }}>{k.icon}</span>
+                  <span style={{ fontSize: ".85rem", fontWeight: 600, color: "var(--dk-ink2)" }}>{k.lbl}</span>
                 </div>
-              );
-            })}
+                <div className="num" style={{ fontSize: "2rem", fontWeight: 800, color: INK, letterSpacing: "-0.03em", marginTop: 12, lineHeight: 1 }}>
+                  {fmt(k.cur, k.dec)}{k.unit}
+                </div>
+                <div style={{ fontSize: ".8rem", marginTop: 8, color: MUTED }}>
+                  {d !== null ? (
+                    <>
+                      <span style={{ fontWeight: 700, color: up ? "var(--dk-ok)" : "var(--dk-alert)" }}>{up ? "▲ +" : "▼ "}{num(d, 1)} %</span>
+                      {tr(` vs ${fmt(k.ref, k.dec)}${k.unit}`, ` vs ${fmt(k.ref, k.dec)}${k.unit}`)}
+                    </>
+                  ) : tr("sans repère", "no reference")}
+                </div>
+              </div>
+              {k.ref > 0 && (
+                <div title={tr(`Habituel : ${fmt(k.ref, k.dec)}${k.unit} · ce jour : ${fmt(k.cur, k.dec)}${k.unit}`, `Usual: ${fmt(k.ref, k.dec)}${k.unit} · this day: ${fmt(k.cur, k.dec)}${k.unit}`)}
+                     style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", flexShrink: 0 }}>
+                  <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 70 }}>
+                    <div style={{ width: 18, height: `${(k.ref / mx) * 100}%`, background: "#8DC05A", borderRadius: "4px 4px 2px 2px" }} />
+                    <div style={{ width: 18, height: `${(k.cur / mx) * 100}%`, background: "#2E7D4F", borderRadius: "4px 4px 2px 2px" }} />
+                  </div>
+                  <div style={{ fontSize: ".64rem", color: MUTED, marginTop: 5 }}>{tr("hab. · jour", "usual · day")}</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {/* Heure de pointe */}
+        <div className="cc" style={{ padding: "18px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--dk-accent-wash)", color: "var(--dk-accent-deep)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+            </span>
+            <span style={{ fontSize: ".85rem", fontWeight: 600, color: "var(--dk-ink2)" }}>{tr("Heure de pointe", "Peak hour")}</span>
+          </div>
+          <div className="num" style={{ fontSize: "2rem", fontWeight: 800, color: INK, letterSpacing: "-0.03em", marginTop: 12, lineHeight: 1 }}>
+            {String(kpis.peak_h).padStart(2, "0")} h
+          </div>
+          <div style={{ fontSize: ".8rem", marginTop: 8, color: MUTED }}>
+            {tr(`${fmt(Number(kpis.peak_ca_h || 0))} € encaissés sur cette heure`, `${fmt(Number(kpis.peak_ca_h || 0))} € taken in that hour`)}
           </div>
         </div>
       </div>
+
     </div>
   );
 }
@@ -749,10 +463,77 @@ function ProdRows({
             <div className="pbar-w">
               <div className="pbar" style={{ width: bw, background: c }} />
             </div>
-            <span className="pval">{fmt(row[col])}</span>
+            <span className="pval">{fmt(row[col])} €</span>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* Cadence de vente : articles par heure d'activité, comparée aux mêmes jours précédents */
+function CadenceCard({ kpis }: { kpis: DailyKPIs }) {
+  const v = Number(kpis.vitesse || 0);
+  const v_ref = Number(kpis.vitesse_ref || 0);
+  const ratio = v_ref > 0 ? v / v_ref : 1;
+  const level = v_ref <= 0 ? "na" : ratio >= 1.2 ? "high" : ratio <= 0.8 ? "low" : "normal";
+  const label = level === "high" ? tr("Forte", "Strong") : level === "low" ? tr("Faible", "Low") : level === "normal" ? tr("Normale", "Normal") : tr("Sans repère", "No reference");
+  const col = level === "high" ? "var(--dk-ok)" : level === "low" ? "var(--dk-warn)" : "var(--dk-ink2)";
+  const mx = Math.max(v, v_ref, 1);
+  return (
+    <div className="cc">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div className="ct">{tr("Cadence de vente", "Sales pace")}</div>
+        <span className="pp-tag" style={{ background: "var(--dk-accent-wash)", color: col }}>{label}</span>
+      </div>
+      <div style={{ marginTop: 6 }}>
+        <span className="bc-big">{num(v, 1)}</span>
+        <span style={{ fontSize: ".8rem", color: MUTED, marginLeft: 6, fontWeight: 600 }}>{tr("articles / heure", "items / hour")}</span>
+      </div>
+      {v_ref > 0 && (
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+          {[{ l: tr("Ce jour", "This day"), x: v, c: "#2E7D4F" }, { l: tr("D'habitude", "Usually"), x: v_ref, c: "#8DC05A" }].map((r) => (
+            <div key={r.l} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: ".76rem", color: MUTED }}>
+              <span style={{ width: 70 }}>{r.l}</span>
+              <div style={{ flex: 1, height: 8, borderRadius: 99, background: "var(--dk-grid)" }}>
+                <div style={{ width: `${(r.x / mx) * 100}%`, height: "100%", borderRadius: 99, background: r.c }} />
+              </div>
+              <b className="num" style={{ color: INK, width: 34, textAlign: "right" }}>{num(r.x, 1)}</b>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="cs" style={{ marginTop: 10, marginBottom: 0 }}>
+        {tr(`Sur ${kpis.heures_act || 0} heures avec des ventes.`, `Over ${kpis.heures_act || 0} hours with sales.`)}
+      </div>
+    </div>
+  );
+}
+
+/* Produits achetés ensemble ce jour-là (paires les plus fréquentes) */
+function PairsCard({ kpis }: { kpis: DailyKPIs }) {
+  const pairs = kpis.top_pairs.slice(0, 5);
+  const mx = pairs[0]?.cnt || 1;
+  return (
+    <div className="cc">
+      <div className="ct">{tr("Achetés ensemble ce jour-là", "Bought together that day")}</div>
+      <div className="cs">{tr("Paires de produits dans le même ticket", "Product pairs in the same transaction")}</div>
+      {pairs.length === 0 && <div className="cs">{tr("Aucune paire ce jour-là.", "No pair that day.")}</div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {pairs.map((p, i) => (
+          <div key={i} title={`${p.pa} + ${p.pb} : ${p.cnt}`}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: ".8rem", color: INK }}>
+              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
+                {p.pa} <span style={{ color: MUTED }}>+</span> {p.pb}
+              </span>
+              <b className="num" style={{ flexShrink: 0 }}>{p.cnt} {tr("fois", "times")}</b>
+            </div>
+            <div style={{ height: 6, borderRadius: 99, background: "var(--dk-grid)", marginTop: 5 }}>
+              <div style={{ width: `${(p.cnt / mx) * 100}%`, height: "100%", borderRadius: 99, background: i === 0 ? "#2E7D4F" : "#8DC05A" }} />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -762,36 +543,59 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
   const nb_total = Math.max(kpis.tickets, 1);
 
   return (
+    <RetainProvider>
     <div style={{ paddingBottom: 24 }}>
-      {/* Graphiques horaires en double retirés (quantités, tickets, panier, CA cumulé) : on garde le CA par heure. */}
-      {/* ── Section 2 : CA Horaire ── */}
+      {/* ── Rangée principale : CA par heure (2/3) + cadence et « À retenir » (1/3) ── */}
       <div className="sec-title">{tr("Rythme de la journée", "Daily rhythm")}</div>
       <div className="sw">
-        <div>
-          <div className="cc">
+        <div className="grid-main stretch">
+          <div className="cc hero-card" style={{ display: "flex", flexDirection: "column" }}>
             <div className="ct">{tr("Chiffre d'affaires par heure", "Revenue by hour")}</div>
-            <div className="cs">{tr("Pic d'activité : ", "Peak activity: ")}{String(kpis.peak_h).padStart(2, "0")}h</div>
-            <PlotlyBarChart data={kpis.hourly_data} valueKey="ca" unit="EUR" height={180} />
+            <div className="cs">{tr("Survolez une barre pour le montant exact. Pic d'activité : ", "Hover a bar for the exact amount. Peak activity: ")}{String(kpis.peak_h).padStart(2, "0")}h</div>
+            <div style={{ flex: 1, minHeight: 290, display: "flex", flexDirection: "column" }}>
+              <PlotlyBarChart data={kpis.hourly_data} valueKey="ca" unit="€" height="100%" />
+            </div>
+            {kpis.hourly_data?.length > 0 && (
+              <Takeaway>
+                {tr(
+                  `Pic à ${String(kpis.peak_h).padStart(2, "0")}h : ${fmt(kpis.peak_ca_h || 0)} €, soit ${fmt(((kpis.peak_ca_h || 0) / (kpis.ca_jour || 1)) * 100)} % du chiffre d'affaires de la journée.`,
+                  `Peak at ${String(kpis.peak_h).padStart(2, "0")}:00: ${fmt(kpis.peak_ca_h || 0)} €, i.e. ${fmt(((kpis.peak_ca_h || 0) / (kpis.ca_jour || 1)) * 100)}% of the day's revenue.`
+                )}
+              </Takeaway>
+            )}
+          </div>
+          <div className="side-col">
+            <CadenceCard kpis={kpis} />
+            <RetainCard max={3} />
           </div>
         </div>
       </div>
 
-      {/* ── Section 3 : Top produits du jour ── */}
-      <div className="sec-title">{tr("Top produits du jour", "Today's top products")}</div>
+      {/* ── Produits du jour : ce qui rapporte (1/2) + ce qui s'achète ensemble (1/2) ── */}
+      <div className="sec-title">{tr("Produits du jour", "Today's products")}</div>
       <div className="sw">
-        <div>
+        <div className="grid-2 stretch">
           <div className="cc">
             <div className="ct">{tr("Produits qui rapportent le plus", "Highest-earning products")}</div>
             <div className="cs">{tr("Chiffre d'affaires du jour (€)", "Today's revenue (€)")}</div>
             <ProdRows products={kpis.top_ca} col="total_revenue" />
+            {kpis.top_ca?.[0] && (
+              <Takeaway>
+                {tr(
+                  `${kpis.top_ca[0].article} réalise ${fmt(((kpis.top_ca[0].total_revenue || 0) / (kpis.ca_jour || 1)) * 100)} % du chiffre d'affaires de la journée.`,
+                  `${kpis.top_ca[0].article} makes ${fmt(((kpis.top_ca[0].total_revenue || 0) / (kpis.ca_jour || 1)) * 100)}% of the day's revenue.`
+                )}
+              </Takeaway>
+            )}
           </div>
+          <PairsCard kpis={kpis} />
         </div>
       </div>
 
-      {/* ── Section 4 : Mix et catégories ── */}
+      {/* ── Mix et catégories (1/2 + 1/2) ── */}
       <div className="sec-title">{tr("Mix et catégories", "Mix & categories")}</div>
       <div className="sw">
-        <div className="g2">
+        <div className="grid-2 stretch">
           <div className="cc">
             <div className="ct">{tr("Répartition par catégorie", "Breakdown by category")}</div>
             <div className="cs">{tr("CA par famille de produits", "Revenue by product family")}</div>
@@ -823,10 +627,10 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
                     >
                       {trData(c.category)}
                     </span>
-                    <div style={{ width: 100, height: 6, background: "var(--dk-line, #f0ece6)", borderRadius: 99, flexShrink: 0 }}>
+                    <div style={{ width: 100, height: 6, background: "var(--dk-line, #ECEDE7)", borderRadius: 99, flexShrink: 0 }}>
                       <div style={{ width: `${pct}%`, height: "100%", background: PAL[i % PAL.length], borderRadius: 99 }} />
                     </div>
-                    <span style={{ fontSize: ".74rem", fontWeight: 700, color: "var(--dk-ink2, #5a4a3a)", width: 36, textAlign: "right" }}>
+                    <span style={{ fontSize: ".74rem", fontWeight: 700, color: "var(--dk-ink2, #4A524C)", width: 36, textAlign: "right" }}>
                       {pct.toFixed(0)}%
                     </span>
                     <span style={{ fontSize: ".74rem", fontWeight: 700, color: MUTED, width: 70, textAlign: "right" }}>
@@ -836,42 +640,19 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
                 );
               })}
             </div>
+            {kpis.categories?.[0] && (
+              <Takeaway>
+                {tr(
+                  `${kpis.categories[0].category} pèse ${fmt((kpis.categories[0].total_revenue / catTotal) * 100)} % du chiffre d'affaires de la journée.`,
+                  `${trData(kpis.categories[0].category)} weighs ${fmt((kpis.categories[0].total_revenue / catTotal) * 100)}% of the day's revenue.`
+                )}
+              </Takeaway>
+            )}
           </div>
 
           <div className="cc">
             <div className="ct">{tr("Composition des paniers", "Basket composition")}</div>
             <div className="cs">{tr("Tickets à plusieurs articles ou à un seul article", "Multi-item vs single-item transactions")}</div>
-            <div
-              style={{
-                background: "var(--dk-soft, #fdf5f0)",
-                borderRadius: 11,
-                padding: "8px 12px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 10,
-              }}
-            >
-              <span style={{ fontSize: ".82rem", fontWeight: 600, color: "var(--dk-ink2, #5a3820)" }}>
-                {tr("Tickets : ", "Transactions: ")}<span style={{ fontSize: "1.05rem", fontWeight: 800, color: ORANGE }}>{kpis.tickets}</span>
-              </span>
-              <div
-                style={{
-                  width: 22,
-                  height: 22,
-                  background: ORANGE,
-                  color: "white",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: ".75rem",
-                  fontWeight: 700,
-                }}
-              >
-                ↗
-              </div>
-            </div>
             {/* Barre corrigée : elle mélangeait le CA (en €) et des nombres de tickets, avec des tailles fixes.
                 Elle montre maintenant la vraie répartition des tickets à plusieurs articles / à un seul article. */}
             <div style={{ display: "flex", gap: 5, marginBottom: 12 }}>
@@ -879,15 +660,24 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
               <div style={{ height: 42, borderRadius: 10, background: LIGHT, flex: kpis.nb_mono || 0 }} />
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "var(--dk-ink2, #5a4a3a)", fontWeight: 500 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "var(--dk-ink2, #4A524C)", fontWeight: 500 }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: ORANGE }} />
                 {tr("Plusieurs articles : ", "Multiple items: ")}{kpis.nb_multi} ({fmt((kpis.nb_multi / nb_total) * 100)}{tr(" %", "%")})
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "var(--dk-ink2, #5a4a3a)", fontWeight: 500 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "var(--dk-ink2, #4A524C)", fontWeight: 500 }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: LIGHT, border: `1px solid ${PEACH}` }} />
                 {tr("Un seul article : ", "Single item: ")}{kpis.nb_mono} ({fmt((kpis.nb_mono / nb_total) * 100)}{tr(" %", "%")})
               </div>
             </div>
+            <Takeaway>
+              {tr(
+                `${fmt((kpis.nb_mono / nb_total) * 100)} % des clients n'ont pris qu'un seul produit : c'est là qu'une suggestion en caisse peut faire monter le panier.`,
+                `${fmt((kpis.nb_mono / nb_total) * 100)}% of customers bought a single product: that is where a till suggestion can raise the basket.`
+              )}
+            </Takeaway>
+            <ExpertNote>
+              Repère (ca_ref, tickets_ref) = moyenne des jours ouverts J−7, J−14, J−21, J−28 ({kpis.nb_jours_ref ?? 0} jour(s)). Vitesse = articles / heures avec ventes ; vitesse_ref sur les mêmes jours ; seuils ±20 %. Heure de pointe = heure au CA maximal. Ticket mono = 1 seul product_id distinct.
+            </ExpertNote>
           </div>
         </div>
       </div>
@@ -895,10 +685,11 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
       {/* ── Footer ── */}
       <div className="pf">
         <span>
-          {siteConfig.bakeryName} &nbsp;·&nbsp; {tr(siteConfig.dataSourceLabel, "POS · Checkout system")} &nbsp;·&nbsp; {fmt(kpis.total_lignes)} {tr("lignes", "rows")} &nbsp;·&nbsp; {kpis.date_str || siteConfig.dataEndLabel}
+          {siteConfig.bakeryName} &nbsp;·&nbsp; {tr(siteConfig.dataSourceLabel, "POS · Checkout system")} &nbsp;·&nbsp; {kpis.total_lignes ? <>{fmt(kpis.total_lignes)} {tr("lignes", "rows")} &nbsp;·&nbsp; </> : null}{kpis.date_str || siteConfig.dataEndLabel}
         </span>
         <span>{tr("Données historiques — pas le stock réel", "Historical data — not actual stock")}</span>
       </div>
     </div>
+    </RetainProvider>
   );
 }

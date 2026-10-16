@@ -1,0 +1,3 @@
+# Données exportées de la base : ne pas envoyer sur Git
+*
+!.gitignore

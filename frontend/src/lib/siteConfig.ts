@@ -4,10 +4,12 @@ export const siteConfig = {
   appName: "Tableau de Bord BI",
   appTagline: "Intelligence Retail & Aide à la Décision",
   dataPeriodLabel: "Données historiques 2024–2025",
-  // Période couverte par les données de ventes (affichée dans l'en-tête).
-  // À remplacer par une valeur envoyée par le backend quand il la fournira.
+  // Valeurs de secours seulement : l'en-tête et les filtres lisent la vraie période
+  // dans le backend (/api/data-period) ; ces dates ne s'affichent que si le backend ne répond pas.
   dataStartLabel: "01/01/2024",
   dataEndLabel: "31/12/2025",
+  // Adresse de l'assistant IA (interface « adk web » de l'agent). Bouton « Demander à l'assistant » de l'en-tête.
+  agentUrl: "http://localhost:8080",
   dataSourceLabel: "POS · Système d'encaissement",
   contact: {
     address: "Place du Marché, 44490 Le Croisic",

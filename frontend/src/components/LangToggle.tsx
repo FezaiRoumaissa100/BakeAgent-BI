@@ -16,14 +16,14 @@ export function LangToggle() {
         aria-pressed={active}
         title={title}
         style={{
-          minWidth: "36px",
-          height: "32px",
+          minWidth: "34px",
+          height: "30px",
           padding: "0 8px",
           borderRadius: "999px",
           border: "none",
           cursor: active ? "default" : "pointer",
-          background: active ? "#E8734A" : "transparent",
-          color: active ? "#fff" : "var(--dk-chrome-text, #5a4a3a)",
+          background: active ? "var(--dk-pill, #1F2B23)" : "transparent",
+          color: active ? "#fff" : "var(--dk-chrome-text, #4A524C)",
           fontSize: "0.75rem",
           fontWeight: 800,
           letterSpacing: "0.04em",
@@ -44,8 +44,8 @@ export function LangToggle() {
         gap: "2px",
         padding: "3px",
         borderRadius: "999px",
-        background: "var(--dk-chrome-chip, #FBF6F0)",
-        border: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
+        background: "var(--dk-chrome-chip, #F5F6F1)",
+        border: "1px solid var(--dk-chrome-chip-line, #E3E4DD)",
       }}
     >
       {btn("fr", "FR", "Afficher en français")}

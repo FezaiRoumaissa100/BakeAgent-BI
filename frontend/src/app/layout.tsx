@@ -5,7 +5,6 @@ import { Sidebar } from "@/components/Sidebar";
 import { Navbar } from "@/components/Navbar";
 import { themeInitScript } from "@/lib/themeMode";
 import { navInitScript } from "@/lib/navMode";
-import { NavModeSwitch } from "@/components/NavModeSwitch";
 import { PageFade } from "@/components/PageFade";
 import { LangProvider } from "@/components/LangProvider";
 
@@ -26,19 +25,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Applique l'affichage du menu mémorisé (barre d'icônes ou menu caché). */}
         <script dangerouslySetInnerHTML={{ __html: navInitScript }} />
       </head>
-      <body className={`${inter.className} antialiased`} style={{ background: "var(--dk-page, #f2ede6)" }}>
+      <body className={`${inter.className} antialiased`} style={{ background: "var(--dk-page)" }}>
         {/* Langue FR / EN (bouton dans l'en-tête) */}
         <LangProvider>
           <div className="flex min-h-screen">
             <Sidebar />
             <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto">
               <Navbar />
-              <div style={{ paddingTop: "40px", paddingBottom: "40px" }}>
+              <div style={{ paddingTop: "28px", paddingBottom: "40px" }}>
                 <PageFade>{children}</PageFade>
               </div>
             </div>
           </div>
-          <NavModeSwitch />
         </LangProvider>
       </body>
     </html>

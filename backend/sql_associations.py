@@ -24,12 +24,23 @@ def get_associations_from_sql(sort_by="Lift ↓", top_n=20):
         limit_sql = ""
         params = []
 
+    # Une seule règle par groupe de produits (A -> B et B -> A sont le même groupe)
     sql = (
         "SELECT antecedents_str, consequents_str, support, confidence, lift "
-        "FROM association_rules ORDER BY %s%s"
-        % (order_clause, limit_sql)
+        "FROM association_rules ORDER BY %s" % order_clause
     )
-    rows = sql_fetch_all(sql, params)
+    seen = set()
+    rows = []
+    for r in sql_fetch_all(sql):
+        noms = str(r["antecedents_str"] or "").split(",") + str(r["consequents_str"] or "").split(",")
+        key = frozenset(n.strip() for n in noms if n.strip())
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(r)
+    nb_total = len(rows)
+    if params:
+        rows = rows[: params[0]]
 
     rules = []
     for r in rows:

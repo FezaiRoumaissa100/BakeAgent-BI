@@ -1,0 +1,33 @@
+{
+  "_aide": "Réglages de la prévision par produit. Changer ces valeurs ne demande aucune modification du code.",
+  "horizon_jours": 14,
+  "historique_min_jours_vente": 20,
+  "inactif_si_aucune_vente_depuis_jours": 56,
+  "nb_fenetres_test": 6,
+  "pas_origines_entrainement_jours": 7,
+  "quantiles": [
+    0.1,
+    0.9
+  ],
+  "fiabilite_bonne_wape_max": 0.35,
+  "fiabilite_moyenne_wape_max": 0.6,
+  "rupture_baisse_min_pct": 40,
+  "rupture_semaines_min": 2,
+  "utiliser_prophet_si_installe": true,
+  "prophet_min_jours_historique": 365,
+  "methodes": [
+    "moyenne_4_semaines",
+    "an_dernier",
+    "tsb",
+    "gbm_global",
+    "prophet"
+  ],
+  "ecart_fenetres_jours": 56,
+  "_fiabilite": "Erreur moyenne (WAPE) d'une prévision JOURNALIÈRE par produit : ≤ 35 % = bonne, ≤ 60 % = moyenne, au-delà = faible.",
+  "seuil_jour_ouvert_pct": 15,
+  "poids_an_dernier_jours_evenement": 0.5,
+  "_seuils": "seuil_jour_ouvert_pct : un jour compte comme ouvert s'il vend au moins ce % d'un jour normal (sinon : ventes isolées, jour fermé). poids_an_dernier_jours_evenement : jours de fête (Noël, 1er janvier, Pâques…), part donnée aux ventes du même jour l'an dernier (0 à 1), le reste au modèle.",
+  "jours_feries_pays": "FR",
+  "jours_feries_dates": [],
+  "_jours_feries": "jours_feries_pays : jours fériés ajoutés automatiquement comme événements (\"FR\" = France, \"\" = aucun). jours_feries_dates : autres dates fixes à traiter comme des jours particuliers, au format \"MM-JJ\" (ex. \"06-21\")."
+}

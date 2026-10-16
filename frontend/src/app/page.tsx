@@ -26,9 +26,9 @@ export default function Page() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--dk-page, #f2ede6)" }}>
-        <div className="flex items-center gap-3 text-base font-bold" style={{ color: "#E8734A" }}>
-          <div className="w-5 h-5 rounded-full border-2 border-[#E8734A] border-t-transparent animate-spin" />
+      <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--dk-page, #F1F1EC)" }}>
+        <div className="flex items-center gap-3 text-base font-bold" style={{ color: "#2E7D4F" }}>
+          <div className="w-5 h-5 rounded-full border-2 border-[#2E7D4F] border-t-transparent animate-spin" />
           {tr("Chargement du tableau de bord…", "Loading dashboard…")}
         </div>
       </main>
@@ -37,7 +37,7 @@ export default function Page() {
 
   if (error || !kpis) {
     return (
-      <main className="min-h-screen flex items-center justify-center p-6 text-center" style={{ background: "var(--dk-page, #f2ede6)" }}>
+      <main className="min-h-screen flex items-center justify-center p-6 text-center" style={{ background: "var(--dk-page, #F1F1EC)" }}>
         <div className="bg-white rounded-2xl p-6 shadow-lg max-w-md">
           <div className="flex justify-center mb-3">
             <div
@@ -51,7 +51,7 @@ export default function Page() {
                 justifyContent: "center",
               }}
             >
-              <IconAlert size={24} color="var(--dk-red, #DC2626)" strokeWidth={2.2} />
+              <IconAlert size={24} color="var(--dk-red, #C0392B)" strokeWidth={2.2} />
             </div>
           </div>
           <div className="text-sm font-bold text-red-600 mb-2">{error}</div>
@@ -60,7 +60,7 @@ export default function Page() {
             type="button"
             onClick={() => window.location.reload()}
             className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow"
-            style={{ background: "#E8734A" }}
+            style={{ background: "#2E7D4F" }}
           >
             {tr("Réessayer", "Retry")}
           </button>
@@ -70,7 +70,7 @@ export default function Page() {
   }
 
   return (
-    <main className="min-h-screen" style={{ background: "var(--dk-page, #f2ede6)" }}>
+    <main className="min-h-screen" style={{ background: "var(--dk-page, #F1F1EC)" }}>
       {/* Hero simplifié sans image "Le Croisic" */}
       <Hero kpis={kpis} />
 

@@ -75,8 +75,9 @@ def calculate_daily_kpis_pg(sel_date: date):
     hourly_list = []
     ca_cum = 0
     qte_total = 0
-    peak_h = 0
-    peak_qte_h = 0
+    peak_h = 0          # heure de pointe en chiffre d'affaires (même définition que le graphique « CA par heure »)
+    peak_ca_h = 0.0
+    peak_qte_h = 0      # quantité vendue pendant cette heure
     heures_act = 0
     
     for row in hourly_data:
@@ -91,9 +92,10 @@ def calculate_daily_kpis_pg(sel_date: date):
         
         if qte > 0:
             heures_act += 1
-            if qte > peak_qte_h:
-                peak_qte_h = qte
-                peak_h = hour
+        if ca > peak_ca_h:
+            peak_ca_h = ca
+            peak_h = hour
+            peak_qte_h = qte
         
         hourly_list.append({
             "hour": hour,
@@ -107,12 +109,33 @@ def calculate_daily_kpis_pg(sel_date: date):
     
     vitesse = qte_jour / heures_act if heures_act > 0 else 0.0
     
-    # CA moyen global
-    ca_moy_global = safe_float(sql_value(
-        "SELECT AVG(ca_jour) FROM daily_aggregates"
-    ))
-    
+    # Référence comparable : le même jour de la semaine des 4 semaines précédentes (jours ouverts)
+    ref = sql_fetch_one(
+        """
+        SELECT AVG(ca_jour) AS ca, AVG(nb_tickets) AS tkt, COUNT(*) AS n
+        FROM daily_aggregates
+        WHERE date_id IN (%s::date - 7, %s::date - 14, %s::date - 21, %s::date - 28)
+          AND ca_jour > 0
+        """,
+        (date_str, date_str, date_str, date_str)
+    ) or {}
+    ca_moy_global = safe_float(ref.get('ca'))
+    tickets_ref = safe_float(ref.get('tkt'))
+    nb_ref = int(ref.get('n') or 0)
     delta_vs_moy = (ca_jour - ca_moy_global) / ca_moy_global * 100 if ca_moy_global > 0 else 0
+
+    # Vitesse habituelle (articles par heure d'activité) sur ces mêmes jours
+    vitesse_ref = safe_float(sql_value(
+        """
+        SELECT AVG(v) FROM (
+            SELECT SUM(quantity)::numeric / NULLIF(COUNT(DISTINCT hour) FILTER (WHERE quantity > 0), 0) AS v
+            FROM fact_ticket_lines
+            WHERE date_id IN (%s::date - 7, %s::date - 14, %s::date - 21, %s::date - 28)
+            GROUP BY date_id
+        ) t
+        """,
+        (date_str, date_str, date_str, date_str)
+    ))
     
     # Top produits quantité
     top_qte = sql_fetch_all(
@@ -211,7 +234,7 @@ def calculate_daily_kpis_pg(sel_date: date):
     # Tickets mono vs multi
     ticket_sizes = sql_fetch_all(
         """
-        SELECT ticket_number, COUNT(*) as nb_items
+        SELECT ticket_number, COUNT(DISTINCT product_id) as nb_items
         FROM fact_ticket_lines
         WHERE date_id = %s
         GROUP BY ticket_number
@@ -223,10 +246,19 @@ def calculate_daily_kpis_pg(sel_date: date):
     nb_mono = len(ticket_sizes) - nb_multi
     pct_m = nb_multi / tickets * 100 if tickets > 0 else 0
     
-    # Alerts count (à implémenter avec la table alerts quand disponible)
-    alerts_count = 5
+    # Nombre de jours en « risque de manque » sur la prévision estivale (page Alertes)
+    try:
+        from db_alerts_engine import get_alerts_data_pg
+        alerts_count = int((get_alerts_data_pg("Tout").get("kpis") or {}).get("statuts", {}).get("RUPTURE", 0))
+    except Exception:
+        alerts_count = 0
+
+    jours_fr = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
     
     return {
+        "date": date_str,
+        "date_fr": sel_date.strftime('%d/%m/%Y'),
+        "jour_semaine": jours_fr[sel_date.weekday()],
         "ca_jour": ca_jour,
         "tickets": tickets,
         "panier": panier,
@@ -236,7 +268,16 @@ def calculate_daily_kpis_pg(sel_date: date):
         "vitesse": vitesse,
         "peak_h": peak_h,
         "peak_qte_h": peak_qte_h,
+        "peak_ca_h": peak_ca_h,
+        # Référence : même jour de la semaine, 4 semaines précédentes
         "ca_moy_global": ca_moy_global,
+        "ca_ref": ca_moy_global,
+        "tickets_ref": tickets_ref,
+        "ref_label": (f"moyenne des {nb_ref} {jours_fr[sel_date.weekday()].lower()}s précédents" if nb_ref > 1
+                      else f"{jours_fr[sel_date.weekday()].lower()} précédent ouvert" if nb_ref == 1
+                      else "aucun jour comparable"),
+        "nb_jours_ref": nb_ref,
+        "vitesse_ref": vitesse_ref,
         "delta_vs_moy": delta_vs_moy,
         "top_qte": top_qte_list,
         "top_ca": top_ca_list,

@@ -44,25 +44,7 @@ export function ThemeToggle() {
       onClick={toggle}
       aria-label={label}
       title={label}
-      style={{
-        width: "40px",
-        height: "40px",
-        borderRadius: "50%",
-        background: "var(--dk-chrome-chip, #FBF6F0)",
-        border: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        cursor: "pointer",
-        color: "var(--dk-chrome-ink, #1C1410)",
-        transition: "all 0.2s ease",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--dk-chrome-hover, #F3E9DE)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = "var(--dk-chrome-chip, #FBF6F0)";
-      }}
+      className="icon-chip"
     >
       {dark ? (
         // Lune : mode sombre actif

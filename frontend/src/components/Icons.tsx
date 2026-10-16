@@ -1,7 +1,7 @@
 import React from "react";
 
-const stroke = "#E8734A";
-const strokeAlt = "#F0A882";
+const stroke = "#2E7D4F";
+const strokeAlt = "#8DC05A";
 const ink = "var(--dk-ink, #1C1410)"; // s'adapte au mode sombre (voir lib/theme.ts)
 const muted = "var(--dk-muted, #9a8070)";
 

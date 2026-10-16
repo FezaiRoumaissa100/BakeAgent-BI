@@ -1,0 +1,4 @@
+pandas
+numpy
+scikit-learn
+# optionnel : prophet (ajouté à la compétition s'il est installé)

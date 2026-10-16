@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { IconMapPin, IconCalendar } from "./Icons";
 import { siteConfig, formatTodayDate } from "@/lib/siteConfig";
 
-const ORANGE = "#E8734A";
+const ORANGE = "#2E7D4F";
 
 const NAV = [
   { id: "dashboard", label: "Vue du Jour", active: true },
@@ -45,14 +45,14 @@ export function TopNav({
               : {
                   background: "white",
                   border: "1px solid rgba(0,0,0,0.06)",
-                  color: "#1C1410",
-                  boxShadow: "0 4px 14px rgba(60,30,8,0.06)",
+                  color: "#1E2420",
+                  boxShadow: "0 4px 14px rgba(30,40,32,0.06)",
                 }
           }
         >
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(232,115,74,0.14)" }}
+            style={{ background: "rgba(46,125,79,0.14)" }}
           >
             <IconMapPin size={15} color={ORANGE} strokeWidth={2.3} />
           </div>
@@ -82,11 +82,11 @@ export function TopNav({
               style={
                 item.active
                   ? {
-                      background: onHero ? "white" : "#1C1410",
-                      color: onHero ? "#1C1410" : "white",
+                      background: onHero ? "white" : "#1E2420",
+                      color: onHero ? "#1E2420" : "white",
                     }
                   : {
-                      color: onHero ? "rgba(255,255,255,0.75)" : "#9a8070",
+                      color: onHero ? "rgba(255,255,255,0.75)" : "#6E756F",
                       background: "transparent",
                     }
               }
@@ -99,17 +99,17 @@ export function TopNav({
 
       <div
         className="flex items-center gap-3 text-xs font-semibold shrink-0"
-        style={{ color: onHero ? "rgba(255,255,255,0.85)" : "#5a4a3a" }}
+        style={{ color: onHero ? "rgba(255,255,255,0.85)" : "#4A524C" }}
       >
         <div className="hidden lg:flex items-center gap-2 px-2.5 py-1.5 rounded-lg"
           style={
             onHero
               ? { background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }
-              : { background: "rgba(232,115,74,0.06)", border: "1px solid rgba(232,115,74,0.15)" }
+              : { background: "rgba(46,125,79,0.06)", border: "1px solid rgba(46,125,79,0.15)" }
           }
         >
           <IconCalendar size={14} color={ORANGE} strokeWidth={2.2} />
-          <span style={{ fontWeight: 700, color: onHero ? "white" : "#1C1410" }}>
+          <span style={{ fontWeight: 700, color: onHero ? "white" : "#1E2420" }}>
             {todayLabel || "Chargement…"}
           </span>
         </div>

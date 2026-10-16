@@ -71,6 +71,10 @@ const DATA_EN: Record<string, string> = {
   "Traiteur & Salé": "Deli & Savoury",
   "Boissons": "Drinks",
   "Confiserie & Chocolat": "Confectionery & Chocolate",
+  // Statuts de pénétration (cahier des charges, libellés accentués)
+  "Produit Cœur (Core)": "Core product",
+  "Produit Régulier": "Regular product",
+  "Niche / À surveiller": "Niche / To watch",
   // Jours
   "Lundi": "Monday", "Mardi": "Tuesday", "Mercredi": "Wednesday", "Jeudi": "Thursday",
   "Vendredi": "Friday", "Samedi": "Saturday", "Dimanche": "Sunday",
@@ -98,7 +102,8 @@ const DATA_EN: Record<string, string> = {
   "Niche / A surv": "Niche / To watch",
   // Rôle dans le panier et régularité
   "Ancre": "Anchor", "Moteur": "Driver", "Complémentaire": "Complementary", "Micro": "Minor",
-  "Cyclique": "Cyclical", "Sporadique": "Sporadic", "Quotidien": "Daily", "Hebdomadaire": "Weekly",
+  "Cyclique": "Cyclical", "Sporadique": "Sporadic", "Quotidien": "Every week", "Regulier": "Regular", "Hebdomadaire": "Weekly",
+  "Générateur de chiffre": "Revenue driver", "Accessoire": "Accessory",
   // Force des associations
   "Forte": "Strong", "Tres forte": "Very strong", "Très forte": "Very strong", "Moyenne": "Medium", "Faible": "Weak",
   // Statuts des alertes

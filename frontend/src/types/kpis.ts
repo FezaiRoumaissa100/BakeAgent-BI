@@ -48,6 +48,17 @@ export interface DailyKPIs {
   nb_mono: number;
   pct_m: number;
   alerts_count: number;
+  // Date réelle de la journée affichée (dernière journée disponible)
+  date?: string;
+  date_fr?: string;
+  jour_semaine?: string;
+  // Référence : même jour de la semaine des semaines précédentes
+  ca_ref?: number;
+  tickets_ref?: number;
+  ref_label?: string;
+  nb_jours_ref?: number;
+  vitesse_ref?: number;
+  peak_ca_h?: number;
   date_str: string;
   jour_str: string;
   total_lignes: number;

@@ -38,7 +38,7 @@ from forecast_tools import get_forecast
 from alert_tools import get_alerts
 
 agent = Agent(
-    model="gemini-2.5-flash",
+    model="gemini-3.8-flash",
     name="analyste_BI_performances_Boulangerie",
     instruction=load_system_instruction(),
     tools=[
