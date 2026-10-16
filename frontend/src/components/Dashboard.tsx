@@ -6,6 +6,8 @@ import React from "react";
 import { IconSparkline } from "./Icons";
 import { siteConfig } from "@/lib/siteConfig";
 import { tr, trData, locale } from "@/lib/i18n";
+import { ChartAssistantButton } from "./ChartAssistantButton";
+import { useChat } from "@/contexts/ChatContext";
 
 const ORANGE = colors.accent;
 const PEACH = colors.accentLight;
@@ -85,12 +87,20 @@ function Sparkline({
 /* ──────────────────────────────────────────────────── 
    GAUGE VITESSE (fig_g)
 ──────────────────────────────────────────────────── */
-function VitesseGauge({ vitesse }: { vitesse: number }) {
+function VitesseGauge({ vitesse, onOpenChat }: { vitesse: number; onOpenChat: (msg: string, meta: any) => void }) {
   const vit_max = Math.max(vitesse * 1.7, 25);
   const pct = Math.min((vitesse / vit_max) * 100, 100);
 
   return (
-    <div className="w-full flex flex-col items-center justify-end" style={{ height: 130 }}>
+    <div className="w-full flex flex-col items-center justify-end relative" style={{ height: 130 }}>
+      <ChartAssistantButton
+        chartType="vitesse_gauge"
+        chartData={{ vitesse }}
+        chartName="VitesseGauge"
+        userQuestion="Explique cette jauge de vitesse de vente"
+        position="top-right"
+        onOpenChat={onOpenChat}
+      />
       <svg viewBox="0 0 200 115" className="w-full" style={{ height: 115 }}>
         {/* Background arc steps */}
         <path
@@ -131,17 +141,27 @@ function VitesseGauge({ vitesse }: { vitesse: number }) {
   );
 }
 
-/* ──────────────────────────────────────────────────── 
+/* ────────────────────────────────────────────────────
    TREEMAP PRODUITS (fig_tree)
 ──────────────────────────────────────────────────── */
 function Treemap({
   products,
+  onOpenChat,
 }: {
   products: Array<{ article: string; quantity?: number }>;
+  onOpenChat: (msg: string, meta: any) => void;
 }) {
   const total = products.reduce((s, p) => s + (p.quantity || 0), 0) || 1;
   return (
-    <div className="w-full flex flex-wrap gap-1 content-start overflow-hidden" style={{ height: 140 }}>
+    <div className="w-full flex flex-wrap gap-1 content-start overflow-hidden relative" style={{ height: 140 }}>
+      <ChartAssistantButton
+        chartType="treemap_products"
+        chartData={{ products }}
+        chartName="Treemap"
+        userQuestion="Explique cette treemap des produits"
+        position="top-right"
+        onOpenChat={onOpenChat}
+      />
       {products.slice(0, 8).map((p, i) => {
         const pct = Math.max(10, ((p.quantity || 0) / total) * 100);
         return (
@@ -166,7 +186,7 @@ function Treemap({
   );
 }
 
-/* ──────────────────────────────────────────────────── 
+/* ────────────────────────────────────────────────────
    PLOTLY-STYLE BAR CHART (fig_hb, fig_qte, fig_tkt, fig_ca)
 ──────────────────────────────────────────────────── */
 function PlotlyBarChart({
@@ -174,17 +194,27 @@ function PlotlyBarChart({
   valueKey,
   unit = "",
   height = 160,
+  onOpenChat,
 }: {
   data: HourlyData[];
   valueKey: keyof HourlyData;
   unit?: string;
   height?: number;
+  onOpenChat: (msg: string, meta: any) => void;
 }) {
   const vals = data.map((d) => Number(d[valueKey]) || 0);
   const max = Math.max(...vals, 1);
 
   return (
-    <div style={{ height }} className="w-full flex flex-col justify-between pt-2">
+    <div style={{ height }} className="w-full flex flex-col justify-between pt-2 relative">
+      <ChartAssistantButton
+        chartType="hourly_bar"
+        chartData={{ data, valueKey, unit }}
+        chartName="PlotlyBarChart"
+        userQuestion={`Explique ce graphique horaire de ${valueKey}`}
+        position="top-right"
+        onOpenChat={onOpenChat}
+      />
       <div className="flex items-end gap-1.5 flex-1 w-full relative">
         {/* Horizontal grid lines */}
         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40">
@@ -230,7 +260,7 @@ function PlotlyBarChart({
   );
 }
 
-/* ──────────────────────────────────────────────────── 
+/* ────────────────────────────────────────────────────
    PLOTLY-STYLE AREA LINE CHART (fig_pan, fig_cum)
 ──────────────────────────────────────────────────── */
 function PlotlyAreaChart({
@@ -239,12 +269,14 @@ function PlotlyAreaChart({
   color = ORANGE,
   unit = "",
   height = 160,
+  onOpenChat,
 }: {
   data: HourlyData[];
   valueKey: keyof HourlyData;
   color?: string;
   unit?: string;
   height?: number;
+  onOpenChat: (msg: string, meta: any) => void;
 }) {
   if (!data || data.length < 2) return null;
   const W = 320;
@@ -265,7 +297,15 @@ function PlotlyAreaChart({
   const area = `${path} L ${pts[pts.length - 1].x} ${H} L ${pts[0].x} ${H} Z`;
 
   return (
-    <div style={{ height }} className="w-full flex flex-col justify-between pt-2">
+    <div style={{ height }} className="w-full flex flex-col justify-between pt-2 relative">
+      <ChartAssistantButton
+        chartType="hourly_area"
+        chartData={{ data, valueKey, unit }}
+        chartName="PlotlyAreaChart"
+        userQuestion={`Explique ce graphique d'évolution horaire de ${valueKey}`}
+        position="top-right"
+        onOpenChat={onOpenChat}
+      />
       <div className="relative flex-1 w-full">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
           <path
@@ -305,7 +345,7 @@ function PlotlyAreaChart({
   );
 }
 
-/* ──────────────────────────────────────────────────── 
+/* ────────────────────────────────────────────────────
    HERO SECTION (KPIs individuels, fond normal)
 ──────────────────────────────────────────────────── */
 export function Hero({ kpis }: { kpis: DailyKPIs }) {
@@ -494,7 +534,7 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
       {/* ── 4 CARTES DU BAS ── */}
       <div className="cards-row" style={{ position: "static" }}>
         {/* Carte 1 : État de la journée */}
-        <div className="bc">
+        <div className="bc" style={{ position: "relative" }}>
           <div className="bc-title">{tr("État de la journée", "Today's status")}</div>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
             {/* Row 1 */}
@@ -593,14 +633,11 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
                 <span style={{ color: MUTED }}>{top_prod_name.slice(0, 18)}</span>
               </div>
             </div>
-
-            {/* Ligne « Journée : CA … vs moyenne » masquée : la moyenne de comparaison calculée par le backend
-                est fausse (ex. +1229 %). À réafficher après correction côté backend (db_data_engine). */}
           </div>
         </div>
 
         {/* Carte 2 : Vitesse des Ventes */}
-        <div className="bc">
+        <div className="bc" style={{ position: "relative" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 2 }}>
             <div className="bc-title">{tr("Vitesse des Ventes", "Sales velocity")}</div>
             <div
@@ -627,7 +664,7 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
         </div>
 
         {/* Carte 3 : Top Produits */}
-        <div className="bc">
+        <div className="bc" style={{ position: "relative" }}>
           <div className="bc-title">{tr("Top 3 produits (quantités)", "Top 3 products (quantities)")}</div>
           <div className="leg-row">
             {top3.map((p, i) => (
@@ -659,7 +696,7 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
         </div>
 
         {/* Carte 4 : Top Combinaisons */}
-        <div className="bc">
+        <div className="bc" style={{ position: "relative" }}>
           <div className="bc-title">{tr("Top Combinaisons", "Top combinations")}</div>
           <div style={{ flex: 1, overflow: "hidden", marginTop: 6 }}>
             {kpis.top_pairs.slice(0, 5).map((p, i) => {
@@ -733,9 +770,10 @@ function ProdRows({
   col: string;
 }) {
   const mv = products[0]?.[col] || 1;
+  const list = products.slice(0, 8);
   return (
     <div className="prod-list">
-      {products.slice(0, 8).map((row, i) => {
+      {list.map((row, i) => {
         const pct = row[col] / mv;
         const bw = Math.max(3, Math.round(pct * 52));
         const c = PAL[i % PAL.length];
@@ -758,6 +796,7 @@ function ProdRows({
 }
 
 export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
+  const { openChat } = useChat();
   const catTotal = kpis.categories.reduce((s, c) => s + c.total_revenue, 0) || 1;
   const nb_total = Math.max(kpis.tickets, 1);
 
@@ -768,10 +807,11 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
       <div className="sec-title">{tr("Rythme de la journée", "Daily rhythm")}</div>
       <div className="sw">
         <div>
+          {/* ChartAssistantButton est déjà dans PlotlyBarChart */}
           <div className="cc">
             <div className="ct">{tr("Chiffre d'affaires par heure", "Revenue by hour")}</div>
             <div className="cs">{tr("Pic d'activité : ", "Peak activity: ")}{String(kpis.peak_h).padStart(2, "0")}h</div>
-            <PlotlyBarChart data={kpis.hourly_data} valueKey="ca" unit="EUR" height={180} />
+            <PlotlyBarChart data={kpis.hourly_data} valueKey="ca" unit="EUR" height={180} onOpenChat={openChat} />
           </div>
         </div>
       </div>
@@ -780,7 +820,15 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
       <div className="sec-title">{tr("Top produits du jour", "Today's top products")}</div>
       <div className="sw">
         <div>
-          <div className="cc">
+          <div className="cc" style={{ position: "relative" }}>
+            <ChartAssistantButton
+              chartType="prod_rows_top_ca"
+              chartData={{ list: kpis.top_ca.slice(0, 8), col: "total_revenue" }}
+              chartName="TopProductsCA"
+              userQuestion="Explique ce classement des top produits par chiffre d'affaires"
+              position="top-right"
+              onOpenChat={openChat}
+            />
             <div className="ct">{tr("Produits qui rapportent le plus", "Highest-earning products")}</div>
             <div className="cs">{tr("Chiffre d'affaires du jour (€)", "Today's revenue (€)")}</div>
             <ProdRows products={kpis.top_ca} col="total_revenue" />
@@ -792,7 +840,15 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
       <div className="sec-title">{tr("Mix et catégories", "Mix & categories")}</div>
       <div className="sw">
         <div className="g2">
-          <div className="cc">
+          <div className="cc" style={{ position: "relative" }}>
+            <ChartAssistantButton
+              chartType="category_revenue_distribution"
+              chartData={{ categories: kpis.categories, total: catTotal }}
+              chartName="CategoryRevenue"
+              userQuestion="Explique la répartition du chiffre d'affaires par catégorie"
+              position="top-right"
+              onOpenChat={openChat}
+            />
             <div className="ct">{tr("Répartition par catégorie", "Breakdown by category")}</div>
             <div className="cs">{tr("CA par famille de produits", "Revenue by product family")}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
@@ -838,7 +894,21 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
             </div>
           </div>
 
-          <div className="cc">
+          <div className="cc" style={{ position: "relative" }}>
+            <ChartAssistantButton
+              chartType="basket_composition"
+              chartData={{
+                total_tickets: kpis.tickets,
+                nb_multi: kpis.nb_multi,
+                nb_mono: kpis.nb_mono,
+                pct_multi: (kpis.nb_multi / nb_total) * 100,
+                pct_mono: (kpis.nb_mono / nb_total) * 100,
+              }}
+              chartName="BasketComposition"
+              userQuestion="Explique la composition des paniers d'aujourd'hui"
+              position="top-right"
+              onOpenChat={openChat}
+            />
             <div className="ct">{tr("Composition des paniers", "Basket composition")}</div>
             <div className="cs">{tr("Tickets à plusieurs articles ou à un seul article", "Multi-item vs single-item transactions")}</div>
             <div
@@ -850,6 +920,7 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
                 justifyContent: "space-between",
                 alignItems: "center",
                 marginBottom: 10,
+                marginTop: 4,
               }}
             >
               <span style={{ fontSize: ".82rem", fontWeight: 600, color: "var(--dk-ink2, #5a3820)" }}>

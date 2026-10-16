@@ -11,6 +11,8 @@ import {
   IconBar, IconPin, IconSparkline, IconScale, IconBarsGrouped,
   ink, muted, stroke, strokeAlt
 } from "@/components/Icons";
+import { ChartAssistantButton } from "@/components/ChartAssistantButton";
+import { useChat } from "@/contexts/ChatContext";
 
 /* ════════════════════════════════════════════════
    PALETTE (identique Vue du Jour + tons chauds)
@@ -48,13 +50,14 @@ function fmt(n: number, dec = 0) {
    ════════════════════════════════════════════════ */
 
 function EvolutionLineChart({
-  series, moyenne, ecartType, caMax, caMin,
+  series, moyenne, ecartType, caMax, caMin, onOpenChat,
 }: {
   series: Array<{ date: string; label: string; ca: number }>;
   moyenne: number;
   ecartType: number;
   caMax: { date_str: string; val: number };
   caMin: { date_str: string; val: number };
+  onOpenChat: (msg: string, meta: any) => void;
 }) {
   const W = 1100, H = 480, padL = 64, padR = 40, padT = 52, padB = 80;
   const vals = series.map((s) => s.ca);
@@ -159,7 +162,21 @@ function EvolutionLineChart({
   const selX2 = selStart !== null && selCurrent !== null ? getX(Math.max(selStart, selCurrent)) : 0;
 
   return (
-    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", position: "relative" }}>
+      <ChartAssistantButton
+        chartType="evolution_ca"
+        chartData={{
+          series,
+          moyenne,
+          ecartType,
+          caMax,
+          caMin,
+        }}
+        chartName="EvolutionLineChart"
+        userQuestion="Explique ce graphique d'évolution du chiffre d'affaires"
+        position="top-right"
+        onOpenChat={onOpenChat}
+      />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, paddingRight: 6, paddingLeft: 4 }}>
         <span style={{ fontSize: ".72rem", color: MUTED, fontWeight: 600 }}>
           {isZoomed
@@ -272,7 +289,7 @@ function EvolutionLineChart({
   );
 }
 
-function Comp2425BarChart({ data }: { data: Array<{ mois: string; ca_2024: number; ca_2025: number }> }) {
+function Comp2425BarChart({ data, onOpenChat }: { data: Array<{ mois: string; ca_2024: number; ca_2025: number }>; onOpenChat: (msg: string, meta: any) => void }) {
   const W = 1100, H = 400, padL = 60, padR = 40, padT = 30, padB = 64;
   const max = Math.max(...data.flatMap(d => [d.ca_2024, d.ca_2025]), 1) * 1.1;
   const n = data.length;
@@ -281,7 +298,16 @@ function Comp2425BarChart({ data }: { data: Array<{ mois: string; ca_2024: numbe
   const getY = (v: number) => padT + (H - padT - padB) * (1 - v / max);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="xMidYMid meet">
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      <ChartAssistantButton
+        chartType="comparison_2024_2025"
+        chartData={{ data }}
+        chartName="Comp2425BarChart"
+        userQuestion="Explique ce graphique comparant le CA 2024 vs 2025"
+        position="top-right"
+        onOpenChat={onOpenChat}
+      />
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="xMidYMid meet">
       {[0.25, 0.5, 0.75, 1].map((t, i) => {
         const v = t * max, y = getY(v);
         return (
@@ -314,10 +340,11 @@ function Comp2425BarChart({ data }: { data: Array<{ mois: string; ca_2024: numbe
         <text x="98" y="10" fontSize="11" fill={INK} fontWeight="700">2025</text>
       </g>
     </svg>
+    </div>
   );
 }
 
-function TopNHBar({ data, n }: { data: Array<{ article: string; total_revenue: number; part: number }>; n: number }) {
+function TopNHBar({ data, n, onOpenChat }: { data: Array<{ article: string; total_revenue: number; part: number }>; n: number; onOpenChat: (msg: string, meta: any) => void }) {
   const items = data.slice(0, n);
   const max = Math.max(...items.map(i => i.total_revenue), 1);
   const H = Math.max(320, items.length * 34 + 40);
@@ -325,7 +352,16 @@ function TopNHBar({ data, n }: { data: Array<{ article: string; total_revenue: n
   const rowH = (H - padT - padB) / items.length;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, maxHeight: "70vh" }} preserveAspectRatio="xMidYMid meet">
+    <div style={{ width: "100%", position: "relative" }}>
+      <ChartAssistantButton
+        chartType="top_products_revenue"
+        chartData={{ items, n }}
+        chartName="TopNHBar"
+        userQuestion="Explique ce graphique des top produits par revenu"
+        position="top-right"
+        onOpenChat={onOpenChat}
+      />
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, maxHeight: "70vh" }} preserveAspectRatio="xMidYMid meet">
       {[0.25, 0.5, 0.75, 1].map((t, i) => {
         const v = t * max;
         const x = padL + t * (W - padL - padR);
@@ -356,11 +392,13 @@ function TopNHBar({ data, n }: { data: Array<{ article: string; total_revenue: n
         );
       })}
     </svg>
+    </div>
   );
 }
 
-function DonutTopN({ data, n, centerLabel }: {
+function DonutTopN({ data, n, centerLabel, onOpenChat }: {
   data: Array<{ article: string; total_revenue: number; part: number }>; n: number; centerLabel: string;
+  onOpenChat: (msg: string, meta: any) => void;
 }) {
   const items = data.slice(0, n);
   const total = items.reduce((s, it) => s + it.total_revenue, 0) || 1;
@@ -380,7 +418,15 @@ function DonutTopN({ data, n, centerLabel }: {
   });
 
   return (
-    <div style={{ display: "flex", gap: "24px", alignItems: "center", height: "100%" }}>
+    <div style={{ display: "flex", gap: "24px", alignItems: "center", height: "100%", position: "relative" }}>
+      <ChartAssistantButton
+        chartType="donut_top_revenue"
+        chartData={{ items, n, centerLabel }}
+        chartName="DonutTopN"
+        userQuestion="Explique ce graphique donut des top produits par revenu"
+        position="top-right"
+        onOpenChat={onOpenChat}
+      />
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "50%", maxWidth: "380px" }} preserveAspectRatio="xMidYMid meet">
         {arcs.map((a, i) => (
           <path key={i} d={a.d} fill={a.color} stroke="var(--dk-surface, #fff)" strokeWidth="2"/>
@@ -403,8 +449,9 @@ function DonutTopN({ data, n, centerLabel }: {
   );
 }
 
-function DayOfWeekBars({ days, mode }: {
+function DayOfWeekBars({ days, mode, onOpenChat }: {
   days: Array<{ day: string; ca_total: number; ca_moyen: number }>; mode: "total" | "moyen";
+  onOpenChat: (msg: string, meta: any) => void;
 }) {
   const valFn = (d: any) => mode === "total" ? d.ca_total : d.ca_moyen;
   const max = Math.max(...days.map(valFn), 1);
@@ -414,7 +461,16 @@ function DayOfWeekBars({ days, mode }: {
   const getY = (v: number) => padT + (H - padT - padB) * (1 - v / max);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="xMidYMid meet">
+    <div style={{ width: "100%", position: "relative" }}>
+      <ChartAssistantButton
+        chartType="day_of_week_bars"
+        chartData={{ days, mode, max, mean }}
+        chartName="DayOfWeekBars"
+        userQuestion={mode === "total" ? "Explique ce graphique du CA total par jour de la semaine" : "Explique ce graphique du CA moyen par jour de la semaine"}
+        position="top-right"
+        onOpenChat={onOpenChat}
+      />
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="xMidYMid meet">
       {[0.25, 0.5, 0.75, 1].map((t, i) => {
         const v = t * max, y = getY(v);
         return (
@@ -448,10 +504,11 @@ function DayOfWeekBars({ days, mode }: {
           : tr("CA moyen par jour ouvert (€/j)", "Average revenue per open day (€/d)")}
       </text>
     </svg>
+    </div>
   );
 }
 
-function HourlyDual({ data }: { data: Array<{ hour: number; heure_label: string; ca: number; tickets: number }> }) {
+function HourlyDual({ data, onOpenChat }: { data: Array<{ hour: number; heure_label: string; ca: number; tickets: number }>; onOpenChat: (msg: string, meta: any) => void }) {
   const W = 780, H = 320, padL = 44, padR = 50, padT = 20, padB = 50;
   const maxCA = Math.max(...data.map(d => d.ca), 1) * 1.1;
   const maxTk = Math.max(...data.map(d => d.tickets), 1) * 1.15;
@@ -472,7 +529,8 @@ function HourlyDual({ data }: { data: Array<{ hour: number; heure_label: string;
   }
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="xMidYMid meet">
+    <div style={{ width: "100%" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="xMidYMid meet">
       {[0.25, 0.5, 0.75, 1].map((t, i) => {
         const v = t * maxCA, y = getYca(v);
         return (
@@ -515,6 +573,7 @@ function HourlyDual({ data }: { data: Array<{ hour: number; heure_label: string;
         <text x="258" y="0" fontSize="10.5" fill={INK} fontWeight="700">{tr("Tickets — axe droit", "Transactions — right axis")}</text>
       </g>
     </svg>
+    </div>
   );
 }
 
@@ -612,10 +671,11 @@ function TreemapCats({ data }: { data: Array<{ category: string; ca: number; par
   );
 }
 
-function CatHBar({ data, field, labelFn }: {
+function CatHBar({ data, field, labelFn, onOpenChat }: {
   data: Array<{ category: string; ca: number; part: number; panier: number; tickets: number; produits: number }>;
   field: "ca" | "panier";
   labelFn: (val: number, row: any) => string;
+  onOpenChat: (msg: string, meta: any) => void;
 }) {
   const max = Math.max(...data.map(d => d[field] as number), 1);
   const H = Math.max(460, data.length * 64 + 80);
@@ -623,7 +683,16 @@ function CatHBar({ data, field, labelFn }: {
   const rowH = (H - padT - padB) / data.length;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H }} preserveAspectRatio="xMidYMid meet">
+    <div style={{ width: "100%", position: "relative" }}>
+      <ChartAssistantButton
+        chartType="category_performance_hbar"
+        chartData={{ data, field }}
+        chartName="CategoryPerformanceHBar"
+        userQuestion={field === "ca" ? "Explique la répartition du chiffre d'affaires par catégorie" : "Explique le panier moyen par catégorie"}
+        position="top-right"
+        onOpenChat={onOpenChat}
+      />
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H }} preserveAspectRatio="xMidYMid meet">
       {[0.25, 0.5, 0.75, 1].map((t, i) => {
         const v = t * max;
         const x = padL + t * (W - padL - padR);
@@ -647,6 +716,7 @@ function CatHBar({ data, field, labelFn }: {
         );
       })}
     </svg>
+    </div>
   );
 }
 
@@ -658,6 +728,7 @@ type TabId = "evolution" | "top" | "saison" | "categories";
 export default function PerformancePage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { openChat } = useChat();
 
   const [annee, setAnnee] = useState<string>("Toutes");
   const [saison, setSaison] = useState<string>("Toutes");
@@ -911,7 +982,7 @@ export default function PerformancePage() {
             <div style={{ height:"520px", width:"100%", marginTop:"20px" }}>
               {monthly.series && <EvolutionLineChart
                 series={monthly.series} moyenne={monthly.moyenne} ecartType={monthly.ecart_type}
-                caMax={monthly.ca_max} caMin={monthly.ca_min} />}
+                caMax={monthly.ca_max} caMin={monthly.ca_min} onOpenChat={openChat} />}
             </div>
 
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:"12px",
@@ -937,7 +1008,7 @@ export default function PerformancePage() {
                 <div className="ct">{tr("Évolution année N vs N−1", "Year N vs year N−1")}</div>
                 <div className="cs">{tr("Barres groupées par mois — 12 mois alignés", "Bars grouped by month — 12 months side by side")}</div>
                 <div style={{ height:"400px", width:"100%", marginTop:"20px" }}>
-                  <Comp2425BarChart data={monthly.comp_24_25}/>
+                  <Comp2425BarChart data={monthly.comp_24_25} onOpenChat={openChat}/>
                 </div>
               </div>
             </>
@@ -976,7 +1047,7 @@ export default function PerformancePage() {
               <div className="ct">{tr(`Les ${topN} produits qui rapportent le plus`, `The ${topN} top-earning products`)}</div>
               <div className="cs">{tr("Chiffre d'affaires et part du total", "Revenue and share of total")}</div>
               <div style={{ marginTop:"8px" }}>
-                {topProds.by_ca?.length > 0 && <TopNHBar data={topProds.by_ca} n={topN}/>}
+                {topProds.by_ca?.length > 0 && <TopNHBar data={topProds.by_ca} n={topN} onOpenChat={openChat}/>}
               </div>
             </div>
           </div>
@@ -1005,7 +1076,7 @@ export default function PerformancePage() {
               <div className="cs">{tr("Le mercredi est fermé hors juillet-août : la moyenne par jour ouvert permet de comparer les jours",
                                       "Closed on Wednesdays except in July–August: the average per open day makes the days comparable")}</div>
               <div style={{ height:"320px", width:"100%", marginTop:"10px" }}>
-                {seasonality.days?.length > 0 && <DayOfWeekBars days={seasonality.days} mode="moyen"/>}
+                {seasonality.days?.length > 0 && <DayOfWeekBars days={seasonality.days} mode="moyen" onOpenChat={openChat}/>}
               </div>
             </div>
           </div>
@@ -1025,11 +1096,21 @@ export default function PerformancePage() {
               <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
                 <IconClock size={16} /> {tr("Distribution Horaire des Ventes", "Hourly Sales Distribution")}
               </div>
-              <div className="cc" style={{ padding:"20px 24px" }}>
+              <div className="cc" style={{ padding:"20px 24px", position: "relative" }}>
+                <div style={{ position: "absolute", top: "-4px", right: "-4px", zIndex: 50 }}>
+                  <ChartAssistantButton
+                    chartType="hourly_dual"
+                    chartData={{ data: seasonality.hourly }}
+                    chartName="HourlyDual"
+                    userQuestion="Explique ce graphique du CA et des tickets par heure"
+                    position="top-right"
+                    onOpenChat={openChat}
+                  />
+                </div>
                 <div className="ct">{tr("Chiffre d'affaires et tickets par heure", "Revenue and transactions by hour")}</div>
                 <div className="cs">{tr("Barres : chiffre d'affaires · ligne : nombre de tickets", "Bars: revenue · line: number of transactions")}</div>
                 <div style={{ height:"320px", width:"100%", marginTop:"12px" }}>
-                  <HourlyDual data={seasonality.hourly}/>
+                  <HourlyDual data={seasonality.hourly} onOpenChat={openChat}/>
                 </div>
               </div>
             </>
@@ -1054,7 +1135,8 @@ export default function PerformancePage() {
                 <div className="cs">{tr("Montant et part du total", "Amount and share of total")}</div>
                 <div style={{ marginTop:"20px" }}>
                   <CatHBar data={categories} field="ca"
-                    labelFn={(_v, r) => `${fmt(r.part, 1)} %`} />
+                    labelFn={(_v, r) => `${fmt(r.part, 1)} %`}
+                    onOpenChat={openChat} />
                 </div>
               </div>
             </div>
@@ -1065,7 +1147,15 @@ export default function PerformancePage() {
               <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
                 <IconBarsGrouped size={16} /> {tr("Tableau Récapitulatif des Catégories", "Category Summary Table")}
               </div>
-              <div className="cc" style={{ padding:"20px 32px 32px", marginTop:"14px" }}>
+              <div className="cc" style={{ padding:"20px 32px 32px", marginTop:"14px", position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="category_summary_table"
+                  chartData={{ categories }}
+                  chartName="CategorySummaryTable"
+                  userQuestion="Explique le tableau récapitulatif des catégories"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <div style={{ overflowX:"auto" }}>
                   <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:0, marginTop:"8px" }}>
                     <thead>

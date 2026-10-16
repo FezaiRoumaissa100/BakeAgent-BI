@@ -46,6 +46,8 @@ import {
   IconCart,
 } from "@/components/Icons";
 import { tr, trData, locale } from "@/lib/i18n";
+import { ChartAssistantButton } from "@/components/ChartAssistantButton";
+import { useChat } from "@/contexts/ChatContext";
 
 /* ──────────── Palette & helpers (couleurs FONCÉES, DISTINCTES & saturées) ──────────── */
 const ORANGE = colors.accentDeep;
@@ -113,6 +115,7 @@ function RankedRows({
   colorKey,
   maxShow = 15,
   unit = "",
+  onOpenChat,
 }: {
   rows: any[];
   labelKey?: string;
@@ -121,6 +124,7 @@ function RankedRows({
   colorKey?: (r: any, i: number) => string;
   maxShow?: number;
   unit?: string;
+  onOpenChat?: (msg: string, meta: any) => void;
 }) {
   const list = rows.slice(0, maxShow);
   const max = Math.max(...list.map((r) => Number(r[valueKey]) || 0), 1);
@@ -155,11 +159,13 @@ function Donut({
   labelKey,
   valueKey,
   height = 180,
+  onOpenChat,
 }: {
   data: { [k: string]: any } | any[];
   labelKey?: string;
   valueKey?: string;
   height?: number;
+  onOpenChat?: (msg: string, meta: any) => void;
 }) {
   const arr: { label: string; value: number }[] = Array.isArray(data)
     ? data.map((d) => ({ label: labelKey ? d[labelKey] : d.label, value: Number(valueKey ? d[valueKey] : d.value) || 0 }))
@@ -250,6 +256,7 @@ function BubbleScatter({
   yCapPercentile,
   xCapPercentile,
   legendWidth = 180,
+  onOpenChat,
 }: {
   data: any[];
   xKey: string;
@@ -273,6 +280,7 @@ function BubbleScatter({
   yCapPercentile?: number; // e.g. 0.9 — scale max to 90th percentile
   xCapPercentile?: number;
   legendWidth?: number;
+  onOpenChat?: (msg: string, meta: any) => void;
 }) {
   const W = 1400;
   const H = height - 30;
@@ -420,7 +428,7 @@ function BubbleScatter({
   const selEy = selStart !== null && selCurrent !== null ? toY(Math.min(selStart.y, selCurrent.y)) : 0;
 
   return (
-    <div style={{ width: "100%", display: "flex", gap: 16, alignItems: "flex-start" }}>
+    <div style={{ width: "100%", display: "flex", gap: 16, alignItems: "flex-start", position: "relative" }}>
       {/* Main Chart */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, paddingRight: 4 }}>
@@ -635,9 +643,11 @@ function BubbleScatter({
 function MultiLineChart({
   series,
   height = 200,
+  onOpenChat,
 }: {
   series: { article: string; series: { week: string; rate: number }[] }[];
   height?: number;
+  onOpenChat?: (msg: string, meta: any) => void;
 }) {
   const W = 1400;
   const H = height - 20;
@@ -1385,6 +1395,7 @@ function CardHeader({
    ══════════════════════════════════════════════ */
 
 export default function ProduitsPage() {
+  const { openChat } = useChat();
   const [tab, setTab] = useState<"pen" | "vel" | "ticket" | "freq" | "assoc">("pen");
   const [loading, setLoading] = useState(false);
 
@@ -1701,7 +1712,23 @@ export default function ProduitsPage() {
           </div>
           <div className="sw">
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 0.7fr) minmax(0, 1.3fr)", gap: 12, marginBottom: 12 }}>
-              <div className="cc" style={{ minHeight: 440 }}>
+              <div className="cc" style={{ minHeight: 440, position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="penetration_ranking"
+                  chartData={{
+                    items: penData.items,
+                    filters: {
+                      search: searchPen,
+                      categories: penCats,
+                      statuts: penStatuts,
+                      year: yearPen
+                    }
+                  }}
+                  chartName="PenetrationRanking"
+                  userQuestion="Explique le classement selon le taux de pénétration"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Classement selon le taux de pénétration", "Ranking by penetration rate")}
                   sub={tr("Top 12 des références les plus présentes", "Top 12 most present products")}
@@ -1716,7 +1743,23 @@ export default function ProduitsPage() {
                   unit="%"
                 />
               </div>
-              <div className="cc" style={{ minHeight: 440 }}>
+              <div className="cc" style={{ minHeight: 440, position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="penetration_scatter_ca"
+                  chartData={{
+                    items: penData.items?.slice(0, 120) || [],
+                    filters: {
+                      search: searchPen,
+                      categories: penCats,
+                      statuts: penStatuts,
+                      year: yearPen
+                    }
+                  }}
+                  chartName="PenetrationScatterCA"
+                  userQuestion="Explique ce graphique de présence × chiffre d'affaires"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Présence × Chiffre d'affaires : où investir ?", "Presence × Revenue: where to invest?")}
                   sub={tr("Plus le point est haut et à droite, plus il est stratégique. Taille = quantités totales vendues.", "The higher and further right a point is, the more strategic it is. Size = total quantity sold.")}
@@ -1769,7 +1812,23 @@ export default function ProduitsPage() {
                     <div className="sw">
                       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 0.55fr) minmax(0, 1.45fr)", gap: 12, marginBottom: 14 }}>
                         {!isSearchActive && (
-                          <div className="cc">
+                          <div className="cc" style={{ position: "relative" }}>
+                            <ChartAssistantButton
+                              chartType="penetration_status_distribution"
+                              chartData={{
+                                status_counts: penData.kpis?.status_counts,
+                                filters: {
+                                  search: searchPen,
+                                  categories: penCats,
+                                  statuts: penStatuts,
+                                  year: yearPen
+                                }
+                              }}
+                              chartName="PenetrationStatusDistribution"
+                              userQuestion="Explique la répartition des produits par statut"
+                              position="top-right"
+                              onOpenChat={openChat}
+                            />
                             <CardHeader
                               title={tr("Part des produits par statut", "Share of products by status")}
                               sub={tr("Classement des produits selon leur présence dans les tickets", "Products classified by their presence in transactions")}
@@ -1785,7 +1844,23 @@ export default function ProduitsPage() {
                             />
                           </div>
                         )}
-                        <div className="cc" style={{ gridColumn: isSearchActive ? "1 / -1" : undefined }}>
+                        <div className="cc" style={{ gridColumn: isSearchActive ? "1 / -1" : undefined, position: "relative" }}>
+                          <ChartAssistantButton
+                            chartType="penetration_weekly_trend"
+                            chartData={{
+                              weekly_trend: penData.weekly_trend,
+                              filters: {
+                                search: searchPen,
+                                categories: penCats,
+                                statuts: penStatuts,
+                                year: yearPen
+                              }
+                            }}
+                            chartName="PenetrationWeeklyTrend"
+                            userQuestion="Explique l'évolution hebdomadaire du taux de pénétration"
+                            position="top-right"
+                            onOpenChat={openChat}
+                          />
                           <CardHeader
                             title={tr("Évolution hebdomadaire du taux de pénétration", "Weekly penetration rate trend")}
                             sub={isSearchActive ? tr("Produits phares du catalogue (TOP 6) — conserve la tendance globale", "Catalogue flagship products (TOP 6) — keeps the overall trend") : tr("Survolez un point pour voir la date et la valeur exacte.", "Hover over a point to see the date and exact value.")}
@@ -1806,7 +1881,23 @@ export default function ProduitsPage() {
                     </div>
                     <div className="sw">
                       <div className="g2">
-                        <div className="cc">
+                        <div className="cc" style={{ position: "relative" }}>
+                          <ChartAssistantButton
+                            chartType="penetration_category_avg"
+                            chartData={{
+                              category_summary: penData.category_summary,
+                              filters: {
+                                search: searchPen,
+                                categories: penCats,
+                                statuts: penStatuts,
+                                year: yearPen
+                              }
+                            }}
+                            chartName="PenetrationCategoryAvg"
+                            userQuestion="Explique le taux de pénétration moyen par catégorie"
+                            position="top-right"
+                            onOpenChat={openChat}
+                          />
                           <CardHeader
                             title={tr("Taux de pénétration moyen par catégorie", "Average penetration rate by category")}
                             sub={tr("Comparatif des familles de produits", "Comparison of product families")}
@@ -1830,7 +1921,15 @@ export default function ProduitsPage() {
           </div>
           <div className="sw">
             <div className="g2">
-              <div className="cc">
+              <div className="cc" style={{ position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="penetration_product_trend"
+                  chartData={{ items: penData.items }}
+                  chartName="PenetrationProductTrend"
+                  userQuestion="Explique l'évolution de pénétration du produit sélectionné"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Évolution de la pénétration — produit sélectionné", "Penetration trend — selected product")}
                   sub={tr("Cliquez sur un produit dans le classement pour l'analyser", "Click a product in the ranking to analyse it")}
@@ -1871,7 +1970,7 @@ export default function ProduitsPage() {
                             </span>
                           </div>
                           {trend ? (
-                            <MultiLineChart series={[trend]} height={140} />
+                            <MultiLineChart series={[trend]} height={140} onOpenChat={openChat} />
                           ) : (
                             <SimpleBar
                               rows={[{ label: tr("Pénét.", "Penet."), qte: p?.penetration_rate || 0 }, { label: tr("CA", "Rev."), qte: (p?.ca_total || 0) / 100 }]}
@@ -1890,7 +1989,24 @@ export default function ProduitsPage() {
                   </div>
                 )}
               </div>
-              <div className="cc">
+              <div className="cc" style={{ position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="penetration_recommendations"
+                  chartData={{
+                    kpis: penData.kpis,
+                    status_counts: penData.kpis?.status_counts,
+                    filters: {
+                      search: searchPen,
+                      categories: penCats,
+                      statuts: penStatuts,
+                      year: yearPen
+                    }
+                  }}
+                  chartName="PenetrationRecommendations"
+                  userQuestion="Explique les recommandations basées sur la pénétration"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Recommandations fondées sur la pénétration", "Penetration-based recommendations")}
                   sub={tr("Actions opérationnelles suggérées", "Suggested operational actions")}
@@ -1933,7 +2049,15 @@ export default function ProduitsPage() {
           </div>
           <div className="sw">
             <div>
-              <div className="cc">
+              <div className="cc" style={{ position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="velocity_dow"
+                  chartData={{ dow_velocity: velData.dow_velocity }}
+                  chartName="VelocityDOW"
+                  userQuestion="Explique la vitesse de vente par jour de la semaine"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Articles vendus selon le jour de la semaine", "Items sold by day of the week")}
                   sub={tr("Moyenne par jour d'ouverture", "Average per opening day")}
@@ -1949,7 +2073,15 @@ export default function ProduitsPage() {
           </div>
           <div className="sw">
             <div className="g2">
-              <div className="cc">
+              <div className="cc" style={{ position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="velocity_hourly_distribution"
+                  chartData={{ hourly_distribution: velData.hourly_distribution }}
+                  chartName="VelocityHourlyDistribution"
+                  userQuestion="Explique la distribution horaire de la vitesse"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Distribution horaire globale de la vitesse", "Overall hourly velocity distribution")}
                   sub={tr("Concentration des ventes selon l'heure", "Sales concentration by hour")}
@@ -1957,7 +2089,15 @@ export default function ProduitsPage() {
                 />
                 <SimpleBar rows={velData.hourly_distribution || []} labelKey="heure_label" valueKey="global_qte_per_hour" unit={tr("u.", "u.")} color={PEACH} height={200} />
               </div>
-              <div className="cc">
+              <div className="cc" style={{ position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="velocity_top_products"
+                  chartData={{ macro_items: velData.macro_items }}
+                  chartName="VelocityTopProducts"
+                  userQuestion="Explique les top produits par vitesse de vente"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Top produits par vitesse journalière", "Top products by daily velocity")}
                   sub={tr("Articles avec le plus fort volume moyen", "Items with the highest average volume")}
@@ -1978,7 +2118,15 @@ export default function ProduitsPage() {
           </div>
           <div className="sw">
             <div className="g2">
-              <div className="cc">
+              <div className="cc" style={{ position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="velocity_hourly_concentration"
+                  chartData={{ macro_items: velData.macro_items }}
+                  chartName="VelocityHourlyConcentration"
+                  userQuestion="Explique les produits concentrés sur une plage horaire"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Produits fortement concentrés sur une plage horaire", "Products heavily concentrated in one time slot")}
                   sub={tr("Risque de rupture en période de pic", "Stock-out risk at peak times")}
@@ -1999,7 +2147,15 @@ export default function ProduitsPage() {
                   ))}
                 </div>
               </div>
-              <div className="cc">
+              <div className="cc" style={{ position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="velocity_hourly_monitoring"
+                  chartData={{ macro_items: velData.macro_items }}
+                  chartName="VelocityHourlyMonitoring"
+                  userQuestion="Explique le tableau de surveillance horaire"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Produits nécessitant une surveillance horaire", "Products needing hourly monitoring")}
                   sub={tr("Classement complet — préconisation de suivi", "Full ranking — monitoring advice")}
@@ -2095,7 +2251,15 @@ export default function ProduitsPage() {
           </div>
           <div className="sw">
             <div className="g2">
-              <div className="cc">
+              <div className="cc" style={{ position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="ticket_contribution_top20"
+                  chartData={{ top20: ticketData.top20 }}
+                  chartName="TicketContributionTop20"
+                  userQuestion="Explique les produits qui contribuent le plus au ticket"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Produits contribuant le plus à la valeur médiane du ticket", "Products contributing most to the median basket value")}
                   sub={tr("Top 20 — contribution médiane en pourcentage du panier", "Top 20 — median contribution as a percentage of the basket")}
@@ -2109,7 +2273,15 @@ export default function ProduitsPage() {
                   unit="%"
                 />
               </div>
-              <div className="cc">
+              <div className="cc" style={{ position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="ticket_frequency_value_scatter"
+                  chartData={{ top20: ticketData.top20 }}
+                  chartName="TicketFrequencyValueScatter"
+                  userQuestion="Explique ce graphique de fréquence × valeur ajoutée"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Fréquence × Valeur ajoutée sur le ticket", "Frequency × Value added to the basket")}
                   sub={tr("Plus la bulle est grande, plus le CA du produit est élevé.", "The bigger the bubble, the higher the product revenue.")}
@@ -2220,6 +2392,7 @@ export default function ProduitsPage() {
                   colorKey={(r) => statutColor(r.statut_frequence)}
                   maxShow={20}
                   unit="%"
+                  onOpenChat={openChat}
                 />
               </div>
               <div className="cc">
@@ -2228,7 +2401,7 @@ export default function ProduitsPage() {
                   sub={tr("Classes de régularité", "Regularity classes")}
                   icon={<IconDonutPie size={16} color={ORANGE} />}
                 />
-                <Donut data={freqData.status_distribution || {}} height={250} />
+                <Donut data={freqData.status_distribution || {}} height={250} onOpenChat={openChat} />
               </div>
             </div>
           </div>
@@ -2396,7 +2569,15 @@ export default function ProduitsPage() {
           </div>
           <div className="sw">
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.3fr) minmax(0, 0.7fr)", gap: 12, marginBottom: 12 }}>
-              <div className="cc" style={{ minHeight: 440 }}>
+              <div className="cc" style={{ minHeight: 440, position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="association_scatter"
+                  chartData={{ rules: assocData.rules }}
+                  chartName="AssociationScatter"
+                  userQuestion="Explique ce graphique des associations à promouvoir"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Paires à promouvoir en priorité", "Pairs to promote first")}
                   sub={tr("En haut à droite : paires fréquentes et probables, à proposer en offre groupée. Taille = force du lien.", "Top right: frequent and likely pairs, to offer as a bundle. Size = link strength.")}
@@ -2430,7 +2611,15 @@ export default function ProduitsPage() {
                   legendWidth={200}
                 />
               </div>
-              <div className="cc" style={{ minHeight: 440 }}>
+              <div className="cc" style={{ minHeight: 440, position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="association_top12"
+                  chartData={{ rules: assocData.rules }}
+                  chartName="AssociationTop12"
+                  userQuestion="Explique les 12 liens les plus forts"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Les 12 liens les plus forts", "The 12 strongest links")}
                   sub={tr(`${(assocData.rules || []).length} règles totales après filtres`, `${(assocData.rules || []).length} rules in total after filters`)}
@@ -2460,7 +2649,15 @@ export default function ProduitsPage() {
           </div>
           <div className="sw">
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 12, marginBottom: 12 }}>
-              <div className="cc" style={{ minHeight: 420 }}>
+              <div className="cc" style={{ minHeight: 420, position: "relative" }}>
+                <ChartAssistantButton
+                  chartType="associations_table"
+                  chartData={{ rules: assocData.rules }}
+                  chartName="AssociationsTable"
+                  userQuestion="Explique le tableau des associations"
+                  position="top-right"
+                  onOpenChat={openChat}
+                />
                 <CardHeader
                   title={tr("Tableau des associations", "Associations table")}
                   sub={tr("Fréquence · probabilité · force du lien", "Frequency · probability · link strength")}

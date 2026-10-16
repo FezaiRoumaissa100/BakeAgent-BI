@@ -1,6 +1,6 @@
 """
 Agent Tools - Performance Module
-Fonctions tools pour l'agent ADK - Performance commerciale
+ADK agent tools - Commercial performance
 """
 
 import sys
@@ -8,7 +8,7 @@ import os
 
 # Add backend to path to import engines
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
-from db_commercial_engine import calculate_commercial_performance_pg
+from engines.commercial_engine import calculate_commercial_performance_pg
 
 
 def get_commercial_performance(
@@ -19,95 +19,95 @@ def get_commercial_performance(
     evenement: str = "Tous"
 ) -> dict:
     """
-    Récupère les données de performance commerciale avec filtres.
+    Retrieves commercial performance data with filters.
     
-    Cette fonction analyse la performance globale du chiffre d'affaires sur une période
-    définie par les filtres. Elle retourne les KPIs, l'évolution mensuelle, les top produits,
-    la saisonnalité, et les données par catégorie.
+    This function analyzes global revenue performance over a period
+    defined by filters. It returns KPIs, monthly evolution, top products,
+    seasonality, and category data.
     
     Args:
-        annee (str): Filtre année. Options: "Toutes" ou année spécifique (ex: "2024", "2025", "2026").
-            Les années disponibles sont détectées automatiquement depuis la base de données.
-            Défaut: "Toutes"
+        annee (str): Year filter. Options: "Toutes" or specific year (ex: "2024", "2025", "2026").
+            Available years are automatically detected from the database.
+            Default: "Toutes"
         
-        saison (str): Filtre saison. Options: "Toutes", "Printemps", "Ete", "Automne", "Hiver".
-            Défaut: "Toutes"
+        saison (str): Season filter. Options: "Toutes", "Printemps", "Ete", "Automne", "Hiver".
+            Default: "Toutes"
         
-        mois (str): Filtre mois. Options: "Tous", "Janvier", "Février", "Mars", "Avril", 
+        mois (str): Month filter. Options: "Tous", "Janvier", "Février", "Mars", "Avril", 
                    "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre".
-            Défaut: "Tous"
+            Default: "Tous"
         
-        categorie (str): Filtre catégorie. Options: "Toutes" ou nom de catégorie spécifique.
-            Exemples: "Patisseries", "Pains", "Traiteur & Sale", "Viennoiseries"
-            Défaut: "Toutes"
+        categorie (str): Category filter. Options: "Toutes" or specific category name.
+            Examples: "Patisseries", "Pains", "Traiteur & Sale", "Viennoiseries"
+            Default: "Toutes"
         
-        evenement (str): Filtre événement. Options: "Tous" ou nom d'événement spécifique.
-            Exemples: "Fêtes", "Vacances"
-            Défaut: "Tous"
+        evenement (str): Event filter. Options: "Tous" or specific event name.
+            Examples: "Fêtes", "Vacances"
+            Default: "Tous"
     
     Returns:
-        dict: Dictionnaire contenant:
-            - kpis (dict): KPIs globaux de la période:
-                - total_ca (float): Chiffre d'affaires total
-                - nb_tickets (int): Nombre total de tickets
-                - panier (float): Panier moyen
-                - nb_jours (int): Nombre de jours actifs
-                - nb_produits (int): Nombre de produits vendus
+        dict: Dictionary containing:
+            - kpis (dict): Global period KPIs:
+                - total_ca (float): Total revenue
+                - nb_tickets (int): Total number of tickets
+                - panier (float): Average basket
+                - nb_jours (int): Number of active days
+                - nb_produits (int): Number of products sold
             
-            - monthly (dict): Données mensuelles:
-                - series (list): Série temporelle mensuelle, chaque élément contient:
-                    - date (str): Date formatée
-                    - label (str): Label du mois (ex: "Oct 2025")
-                    - ca (float): CA du mois
-                - moyenne (float): CA moyen mensuel
-                - ecart_type (float): Écart-type du CA
-                - ca_max (dict): CA maximum avec date_str et val
-                - ca_min (dict): CA minimum avec date_str et val
+            - monthly (dict): Monthly data:
+                - series (list): Monthly time series, each element contains:
+                    - date (str): Formatted date
+                    - label (str): Month label (ex: "Oct 2025")
+                    - ca (float): Monthly revenue
+                - moyenne (float): Monthly average revenue
+                - ecart_type (float): Revenue standard deviation
+                - ca_max (dict): Maximum revenue with date_str and val
+                - ca_min (dict): Minimum revenue with date_str and val
                 - amplitude (float): Amplitude (max - min)
                 - ratio_amp (float): Ratio max/min
-                - comp_24_25 (list): Comparaison 2024 vs 2025 par mois, chaque élément contient:
-                    - mois (str): Nom du mois court
-                    - ca_2024 (float): CA 2024
-                    - ca_2025 (float): CA 2025
+                - comp_24_25 (list): 2024 vs 2025 comparison by month, each element contains:
+                    - mois (str): Short month name
+                    - ca_2024 (float): 2024 revenue
+                    - ca_2025 (float): 2025 revenue
             
-            - top_products (dict): Top produits:
-                - by_ca (list): Top par CA, chaque élément contient:
-                    - article (str): Nom du produit
-                    - total_revenue (float): CA total
-                    - part (float): Part en % du CA total
-                    - cumul (float): Cumul des parts
-                - by_qte (list): Top par quantité, chaque élément contient:
-                    - article (str): Nom du produit
-                    - quantity (float): Quantité totale
-                - by_tkt (list): Top par tickets, chaque élément contient:
-                    - article (str): Nom du produit
-                    - nb_tkt (int): Nombre de tickets
+            - top_products (dict): Top products:
+                - by_ca (list): Top by revenue, each element contains:
+                    - article (str): Product name
+                    - total_revenue (float): Total revenue
+                    - part (float): Share in % of total revenue
+                    - cumul (float): Cumulative share
+                - by_qte (list): Top by quantity, each element contains:
+                    - article (str): Product name
+                    - quantity (float): Total quantity
+                - by_tkt (list): Top by tickets, each element contains:
+                    - article (str): Product name
+                    - nb_tkt (int): Number of tickets
             
-            - seasonality (dict): Données de saisonnalité:
-                - days (list): Par jour de la semaine, chaque élément contient:
-                    - day (str): Nom du jour (Lundi, Mardi, etc.)
-                    - ca_total (float): CA total ce jour
-                    - ca_moyen (float): CA moyen ce jour
-                - hourly (list): Par heure, chaque élément contient:
-                    - hour (int): Heure
-                    - heure_label (str): Heure formatée "HHh"
-                    - ca (float): CA cette heure
-                    - tickets (int): Tickets cette heure
+            - seasonality (dict): Seasonality data:
+                - days (list): By day of week, each element contains:
+                    - day (str): Day name (Lundi, Mardi, etc.)
+                    - ca_total (float): Total revenue this day
+                    - ca_moyen (float): Average revenue this day
+                - hourly (list): By hour, each element contains:
+                    - hour (int): Hour
+                    - heure_label (str): Formatted hour "HHh"
+                    - ca (float): Revenue this hour
+                    - tickets (int): Tickets this hour
             
-            - categories (list): Liste des catégories, chaque élément contient:
-                - category (str): Nom de la catégorie
-                - ca (float): CA de la catégorie
-                - part (float): Part en % du CA total
-                - panier (float): Panier moyen de la catégorie
-                - tickets (int): Tickets de la catégorie
-                - produits (int): Nombre de produits dans la catégorie
+            - categories (list): List of categories, each element contains:
+                - category (str): Category name
+                - ca (float): Category revenue
+                - part (float): Share in % of total revenue
+                - panier (float): Category average basket
+                - tickets (int): Category tickets
+                - produits (int): Number of products in category
             
-            - available_filters (dict): Filtres disponibles:
-                - annees (list): Liste des années disponibles
-                - saisons (list): Liste des saisons disponibles
-                - mois (list): Liste des mois disponibles
-                - categories (list): Liste des catégories disponibles
-                - evenements (list): Liste des événements disponibles
+            - available_filters (dict): Available filters:
+                - annees (list): Available years
+                - saisons (list): Available seasons
+                - mois (list): Available months
+                - categories (list): Available categories
+                - evenements (list): Available events
     
     Example:
         >>> get_commercial_performance(annee="2025", categorie="Patisseries")

@@ -8,6 +8,8 @@ import { navInitScript } from "@/lib/navMode";
 import { NavModeSwitch } from "@/components/NavModeSwitch";
 import { PageFade } from "@/components/PageFade";
 import { LangProvider } from "@/components/LangProvider";
+import { ChatProvider } from "@/contexts/ChatContext";
+import { ChatDrawerWithContext } from "@/components/ChatDrawerWithContext";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -29,16 +31,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} antialiased`} style={{ background: "var(--dk-page, #f2ede6)" }}>
         {/* Langue FR / EN (bouton dans l'en-tête) */}
         <LangProvider>
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto">
-              <Navbar />
-              <div style={{ paddingTop: "40px", paddingBottom: "40px" }}>
-                <PageFade>{children}</PageFade>
+          <ChatProvider>
+            <div className="flex min-h-screen">
+              <Sidebar />
+              <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto">
+                <Navbar />
+                <div style={{ paddingTop: "40px", paddingBottom: "40px" }}>
+                  <PageFade>{children}</PageFade>
+                </div>
               </div>
             </div>
-          </div>
-          <NavModeSwitch />
+            <NavModeSwitch />
+            <ChatDrawerWithContext />
+          </ChatProvider>
         </LangProvider>
       </body>
     </html>

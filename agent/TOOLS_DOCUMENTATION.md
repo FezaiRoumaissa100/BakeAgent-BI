@@ -1,10 +1,10 @@
-# Documentation des Tools - Agent Retail Intelligence
+# Tools Documentation - Retail Intelligence Agent
 
-Ce document décrit tous les tools disponibles pour l'agent AI de Retail Intelligence.
+This document describes all available tools for the Retail Intelligence AI agent.
 
 ---
 
-## Table des matières
+## Table of Contents
 
 1. [Daily Tools](#daily-tools)
 2. [Performance Tools](#performance-tools)
@@ -18,96 +18,96 @@ Ce document décrit tous les tools disponibles pour l'agent AI de Retail Intelli
 
 ### `get_daily_kpis`
 
-Récupère les KPIs journaliers pour une date spécifique.
+Retrieves daily KPIs for a specific date.
 
-**Description :**
-Cette fonction retourne toutes les métriques clés d'une journée : chiffre d'affaires, nombre de tickets, panier moyen, vitesse des ventes, top produits, top combinaisons, données horaires, catégories, etc.
+**Description:**
+This function returns all key metrics for a day: revenue, number of tickets, average basket, sales velocity, top products, top combinations, hourly data, categories, etc.
 
-**Paramètres :**
+**Parameters:**
 
-| Paramètre | Type | Défaut | Description |
-|-----------|------|--------|-------------|
-| `target_date` | str (optionnel) | None | Date cible au format 'YYYY-MM-DD'. Si None, utilise la date du jour. |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `target_date` | str (optional) | None | Target date in 'YYYY-MM-DD' format. If None, uses today's date. |
 
-**Retour :**
+**Return:**
 
 ```python
 dict: {
-    "ca_jour": float,              # Chiffre d'affaires du jour en EUR
-    "tickets": int,                # Nombre de tickets transactions
-    "panier": float,               # Panier moyen en EUR
-    "qte_jour": int,               # Quantité totale d'articles vendus
-    "hourly_data": list,           # Liste des données horaires
-    "heures_act": int,             # Nombre d'heures avec ventes
-    "vitesse": float,              # Vitesse des ventes (articles/heure)
-    "peak_h": int,                 # Heure de pointe
-    "peak_qte_h": float,           # Quantité vendue à l'heure de pointe
-    "ca_moy_global": float,        # CA moyen global
-    "delta_vs_moy": float,         # Écart en % vs moyenne
-    "top_qte": list,               # Top produits par quantité
-    "top_ca": list,                # Top produits par CA
-    "top_tkt": list,               # Top produits par nombre de tickets
-    "categories": list,            # Liste des catégories avec leur CA
-    "top_pairs": list,             # Top combinaisons de produits
-    "nb_multi": int,               # Nombre de tickets multi-produits
-    "nb_mono": int,                # Nombre de tickets mono-produit
-    "pct_m": float,                # Pourcentage de tickets multi-produits
-    "alerts_count": int,           # Nombre d'alertes
-    "date_str": str,               # Date formatée
-    "jour_str": str,               # Jour de la semaine
-    "total_lignes": int            # Nombre total de lignes
+    "ca_jour": float,              # Daily revenue in EUR
+    "tickets": int,                # Number of ticket transactions
+    "panier": float,               # Average basket in EUR
+    "qte_jour": int,               # Total quantity of items sold
+    "hourly_data": list,           # List of hourly data
+    "heures_act": int,             # Number of hours with sales
+    "vitesse": float,              # Sales velocity (items/hour)
+    "peak_h": int,                 # Peak hour
+    "peak_qte_h": float,           # Quantity sold at peak hour
+    "ca_moy_global": float,        # Global average revenue
+    "delta_vs_moy": float,         # Difference in % vs average
+    "top_qte": list,               # Top products by quantity
+    "top_ca": list,                # Top products by revenue
+    "top_tkt": list,               # Top products by ticket count
+    "categories": list,            # List of categories with their revenue
+    "top_pairs": list,             # Top product combinations
+    "nb_multi": int,               # Number of multi-product tickets
+    "nb_mono": int,                # Number of single-product tickets
+    "pct_m": float,                # Percentage of multi-product tickets
+    "alerts_count": int,           # Number of alerts
+    "date_str": str,               # Formatted date
+    "jour_str": str,               # Day of the week
+    "total_lignes": int            # Total number of lines
 }
 ```
 
-**Structure de `hourly_data` :**
+**`hourly_data` structure:**
 ```python
 [
     {
-        "hour": int,           # Heure de la journée (0-23)
-        "ca": float,           # CA de cette heure
-        "tkt": int,            # Nombre de tickets cette heure
-        "qte": float,          # Quantité vendue cette heure
-        "panier_h": float,     # Panier moyen cette heure
-        "heure": str,          # Heure formatée "HHh"
-        "ca_cum": float        # CA cumulé jusqu'à cette heure
+        "hour": int,           # Hour of the day (0-23)
+        "ca": float,           # Revenue for this hour
+        "tkt": int,            # Number of tickets this hour
+        "qte": float,          # Quantity sold this hour
+        "panier_h": float,     # Average basket this hour
+        "heure": str,          # Formatted hour "HHh"
+        "ca_cum": float        # Cumulative revenue up to this hour
     }
 ]
 ```
 
-**Structure de `top_qte`, `top_ca`, `top_tkt` :**
+**`top_qte`, `top_ca`, `top_tkt` structure:**
 ```python
 [
     {
-        "article": str,        # Nom du produit
-        "quantity": float,     # Quantité vendue (pour top_qte)
-        "total_revenue": float, # CA total (pour top_ca)
-        "nb_tkt": int          # Nombre de tickets (pour top_tkt)
+        "article": str,        # Product name
+        "quantity": float,     # Quantity sold (for top_qte)
+        "total_revenue": float, # Total revenue (for top_ca)
+        "nb_tkt": int          # Number of tickets (for top_tkt)
     }
 ]
 ```
 
-**Structure de `categories` :**
+**`categories` structure:**
 ```python
 [
     {
-        "category": str,         # Nom de la catégorie
-        "total_revenue": float   # CA de la catégorie
+        "category": str,         # Category name
+        "total_revenue": float   # Category revenue
     }
 ]
 ```
 
-**Structure de `top_pairs` :**
+**`top_pairs` structure:**
 ```python
 [
     {
-        "pa": str,    # Premier produit de la paire
-        "pb": str,    # Deuxième produit de la paire
-        "cnt": int    # Nombre d'occurrences de cette combinaison
+        "pa": str,    # First product in the pair
+        "pb": str,    # Second product in the pair
+        "cnt": int    # Number of occurrences of this combination
     }
 ]
 ```
 
-**Exemple d'utilisation :**
+**Usage example:**
 ```python
 >>> get_daily_kpis("2025-10-02")
 {
@@ -130,105 +130,105 @@ dict: {
 
 ### `get_commercial_performance`
 
-Récupère les données de performance commerciale avec filtres.
+Retrieves commercial performance data with filters.
 
-**Description :**
-Cette fonction analyse la performance globale du chiffre d'affaires sur une période définie par les filtres. Elle retourne les KPIs, l'évolution mensuelle, les top produits, la saisonnalité, et les données par catégorie.
+**Description:**
+This function analyzes global revenue performance over a period defined by filters. It returns KPIs, monthly evolution, top products, seasonality, and category data.
 
-**Paramètres :**
+**Parameters:**
 
-| Paramètre | Type | Défaut | Description |
-|-----------|------|--------|-------------|
-| `annee` | str | "Toutes" | Filtre année. Options: "Toutes" ou année spécifique (ex: "2024", "2025", "2026"). Les années disponibles sont détectées automatiquement depuis la base de données. |
-| `saison` | str | "Toutes" | Filtre saison. Options: "Toutes", "Printemps", "Ete", "Automne", "Hiver" |
-| `mois` | str | "Tous" | Filtre mois. Options: "Tous", "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre" |
-| `categorie` | str | "Toutes" | Filtre catégorie. Options: "Toutes" ou nom spécifique (ex: "Patisseries", "Pains") |
-| `evenement` | str | "Tous" | Filtre événement. Options: "Tous" ou nom spécifique (ex: "Fêtes", "Vacances") |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `annee` | str | "Toutes" | Year filter. Options: "Toutes" or specific year (ex: "2024", "2025", "2026"). Available years are automatically detected from the database. |
+| `saison` | str | "Toutes" | Season filter. Options: "Toutes", "Printemps", "Ete", "Automne", "Hiver" |
+| `mois` | str | "Tous" | Month filter. Options: "Tous", "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre" |
+| `categorie` | str | "Toutes" | Category filter. Options: "Toutes" or specific name (ex: "Patisseries", "Pains") |
+| `evenement` | str | "Tous" | Event filter. Options: "Tous" or specific name (ex: "Fêtes", "Vacances") |
 
-**Retour :**
+**Return:**
 
 ```python
 dict: {
     "kpis": {
-        "total_ca": float,      # Chiffre d'affaires total
-        "nb_tickets": int,      # Nombre total de tickets
-        "panier": float,        # Panier moyen
-        "nb_jours": int,        # Nombre de jours actifs
-        "nb_produits": int      # Nombre de produits vendus
+        "total_ca": float,      # Total revenue
+        "nb_tickets": int,      # Total number of tickets
+        "panier": float,        # Average basket
+        "nb_jours": int,        # Number of active days
+        "nb_produits": int      # Number of products sold
     },
     "monthly": {
-        "series": list,         # Série temporelle mensuelle
-        "moyenne": float,       # CA moyen mensuel
-        "ecart_type": float,    # Écart-type du CA
-        "ca_max": dict,         # CA maximum avec date_str et val
-        "ca_min": dict,         # CA minimum avec date_str et val
+        "series": list,         # Monthly time series
+        "moyenne": float,       # Monthly average revenue
+        "ecart_type": float,    # Revenue standard deviation
+        "ca_max": dict,         # Maximum revenue with date_str and val
+        "ca_min": dict,         # Minimum revenue with date_str and val
         "amplitude": float,     # Amplitude (max - min)
         "ratio_amp": float,     # Ratio max/min
-        "comp_24_25": list      # Comparaison 2024 vs 2025 par mois
+        "comp_24_25": list      # 2024 vs 2025 comparison by month
     },
     "top_products": {
-        "by_ca": list,          # Top par CA
-        "by_qte": list,         # Top par quantité
-        "by_tkt": list          # Top par tickets
+        "by_ca": list,          # Top by revenue
+        "by_qte": list,         # Top by quantity
+        "by_tkt": list          # Top by tickets
     },
     "seasonality": {
-        "days": list,           # Par jour de la semaine
-        "hourly": list          # Par heure
+        "days": list,           # By day of week
+        "hourly": list          # By hour
     },
-    "categories": list,         # Liste des catégories
-    "available_filters": dict   # Filtres disponibles
+    "categories": list,         # List of categories
+    "available_filters": dict   # Available filters
 }
 ```
 
-**Structure de `monthly.series` :**
+**`monthly.series` structure:**
 ```python
 [
     {
-        "date": str,    # Date formatée
-        "label": str,   # Label du mois (ex: "Oct 2025")
-        "ca": float     # CA du mois
+        "date": str,    # Formatted date
+        "label": str,   # Month label (ex: "Oct 2025")
+        "ca": float     # Monthly revenue
     }
 ]
 ```
 
-**Structure de `top_products.by_ca` :**
+**`top_products.by_ca` structure:**
 ```python
 [
     {
-        "article": str,         # Nom du produit
-        "total_revenue": float, # CA total
-        "part": float,          # Part en % du CA total
-        "cumul": float          # Cumul des parts
+        "article": str,         # Product name
+        "total_revenue": float, # Total revenue
+        "part": float,          # Share in % of total revenue
+        "cumul": float          # Cumulative share
     }
 ]
 ```
 
-**Structure de `seasonality.days` :**
+**`seasonality.days` structure:**
 ```python
 [
     {
-        "day": str,         # Nom du jour (Lundi, Mardi, etc.)
-        "ca_total": float,  # CA total ce jour
-        "ca_moyen": float   # CA moyen ce jour
+        "day": str,         # Day name (Lundi, Mardi, etc.)
+        "ca_total": float,  # Total revenue this day
+        "ca_moyen": float   # Average revenue this day
     }
 ]
 ```
 
-**Structure de `categories` :**
+**`categories` structure:**
 ```python
 [
     {
-        "category": str,         # Nom de la catégorie
-        "ca": float,              # CA de la catégorie
-        "part": float,            # Part en % du CA total
-        "panier": float,          # Panier moyen de la catégorie
-        "tickets": int,           # Tickets de la catégorie
-        "produits": int           # Nombre de produits dans la catégorie
+        "category": str,         # Category name
+        "ca": float,              # Category revenue
+        "part": float,            # Share in % of total revenue
+        "panier": float,          # Category average basket
+        "tickets": int,           # Category tickets
+        "produits": int           # Number of products in category
     }
 ]
 ```
 
-**Exemple d'utilisation :**
+**Usage example:**
 ```python
 >>> get_commercial_performance(annee="2025", categorie="Patisseries")
 {
@@ -254,56 +254,56 @@ dict: {
 
 ### `get_penetration_data`
 
-Récupère les données de pénétration des produits.
+Retrieves product penetration data.
 
-**Description :**
-La pénétration indique dans quel pourcentage de tickets un produit apparaît. C'est un indicateur clé de la popularité d'un produit.
+**Description:**
+Penetration indicates in what percentage of tickets a product appears. It's a key indicator of a product's popularity.
 
-**Paramètres :**
+**Parameters:**
 
-| Paramètre | Type | Défaut | Description |
-|-----------|------|--------|-------------|
-| `search` | str | "" | Recherche textuelle sur le nom du produit (recherche partielle). Ex: "BAGUETTE", "BUCHE" |
-| `categories` | list (optionnel) | None | Liste des catégories à filtrer. Si None ou contient "Toutes", pas de filtre |
-| `statuts` | list (optionnel) | None | Liste des statuts stratégiques à filtrer |
-| `year` | str | "Toutes" | Année d'analyse. Options: "Toutes", "2024", "2025" |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `search` | str | "" | Text search on product name (partial search). Ex: "BAGUETTE", "BUCHE" |
+| `categories` | list (optional) | None | List of categories to filter. If None or contains "Toutes", no filter |
+| `statuts` | list (optional) | None | List of strategic statuses to filter |
+| `year` | str | "Toutes" | Analysis year. Options: "Toutes", "2024", "2025" |
 
-**Retour :**
+**Return:**
 
 ```python
 dict: {
     "kpis": {
-        "total_articles": int,    # Nombre total d'articles
-        "pen_max": float,         # Taux de pénétration maximum
-        "pen_median": float,      # Taux de pénétration médian
-        "status_counts": dict     # Compte par statut stratégique
+        "total_articles": int,    # Total number of articles
+        "pen_max": float,         # Maximum penetration rate
+        "pen_median": float,      # Median penetration rate
+        "status_counts": dict     # Count by strategic status
     },
-    "items": list,               # Liste des produits
-    "category_summary": list,    # Résumé par catégorie
-    "weekly_trend": list,         # Tendance hebdomadaire
-    "available_categories": list, # Catégories disponibles
-    "available_statuts": list,   # Statuts disponibles
-    "available_years": list      # Années disponibles
+    "items": list,               # List of products
+    "category_summary": list,    # Summary by category
+    "weekly_trend": list,         # Weekly trend
+    "available_categories": list, # Available categories
+    "available_statuts": list,   # Available statuses
+    "available_years": list      # Available years
 }
 ```
 
-**Structure de `items` :**
+**`items` structure:**
 ```python
 [
     {
-        "article": str,             # Nom du produit
-        "category": str,            # Catégorie du produit
-        "penetration_rate": float,  # Taux de pénétration (0.0 à 1.0)
-        "tickets_count": int,       # Nombre de tickets où le produit apparaît
-        "ca_total": float,          # CA total du produit
-        "qty_total": float,         # Quantité totale vendue
-        "upt": float,               # Unités par ticket (quantité / tickets)
-        "statut": str              # Statut stratégique
+        "article": str,             # Product name
+        "category": str,            # Product category
+        "penetration_rate": float,  # Penetration rate (0.0 to 1.0)
+        "tickets_count": int,       # Number of tickets where product appears
+        "ca_total": float,          # Total product revenue
+        "qty_total": float,         # Total quantity sold
+        "upt": float,               # Units per ticket (quantity / tickets)
+        "statut": str              # Strategic status
     }
 ]
 ```
 
-**Exemple d'utilisation :**
+**Usage example:**
 ```python
 >>> get_penetration_data(search="BAGUETTE", year="2025")
 {
@@ -323,55 +323,55 @@ dict: {
 
 ### `get_sales_velocity`
 
-Récupère les données de vitesse de vente des produits.
+Retrieves product sales velocity data.
 
-**Description :**
-La vitesse de vente indique combien d'articles sont vendus par jour en moyenne. C'est crucial pour la gestion des stocks et le réapprovisionnement.
+**Description:**
+Sales velocity indicates how many items are sold per day on average. It's crucial for inventory management and restocking.
 
-**Paramètres :**
-Aucun paramètre (vue globale).
+**Parameters:**
+No parameters (global view).
 
-**Retour :**
+**Return:**
 
 ```python
 dict: {
-    "dow_velocity": list,           # Vitesse par jour de la semaine
-    "macro_items": list,            # Liste des produits avec leur vélocité
-    "hourly_distribution": list     # Distribution horaire
+    "dow_velocity": list,           # Velocity by day of week
+    "macro_items": list,            # List of products with their velocity
+    "hourly_distribution": list     # Hourly distribution
 }
 ```
 
-**Structure de `dow_velocity` :**
+**`dow_velocity` structure:**
 ```python
 [
     {
-        "day": str,      # Nom du jour (Lundi, Mardi, etc.)
-        "all": float,    # Vitesse globale
-        "touristic": float,  # Vitesse période touristique
-        "event": float      # Vitesse période événement
+        "day": str,      # Day name (Lundi, Mardi, etc.)
+        "all": float,    # Global velocity
+        "touristic": float,  # Touristic period velocity
+        "event": float      # Event period velocity
     }
 ]
 ```
 
-**Structure de `macro_items` :**
+**`macro_items` structure:**
 ```python
 [
     {
-        "article": str,                # Nom du produit
-        "daily_velocity": float,       # Vitesse quotidienne moyenne
-        "velocity_touristic": float,   # Vitesse en période touristique
-        "velocity_event": float,       # Vitesse en période événement
-        "stock_securite": float,       # Stock de sécurité recommandé
-        "ratio_touristic": float,      # Ratio période touristique
-        "ratio_event": float,          # Ratio période événement
-        "peak_hour": int,              # Heure de pointe de vente
-        "ratio_pic_percent": float,    # Pourcentage vendu à l'heure de pointe
-        "alerte_replissage_avant": str # Heure recommandée pour le replissage
+        "article": str,                # Product name
+        "daily_velocity": float,       # Average daily velocity
+        "velocity_touristic": float,   # Touristic period velocity
+        "velocity_event": float,       # Event period velocity
+        "stock_securite": float,       # Recommended safety stock
+        "ratio_touristic": float,      # Touristic period ratio
+        "ratio_event": float,          # Event period ratio
+        "peak_hour": int,              # Peak sales hour
+        "ratio_pic_percent": float,    # Percentage sold at peak hour
+        "alerte_replissage_avant": str # Recommended restocking time
     }
 ]
 ```
 
-**Exemple d'utilisation :**
+**Usage example:**
 ```python
 >>> get_sales_velocity()
 {
@@ -390,58 +390,58 @@ dict: {
 
 ### `get_ticket_contribution`
 
-Récupère les données de contribution des produits au ticket moyen.
+Retrieves product contribution data to average ticket.
 
-**Description :**
-La contribution indique quel pourcentage du CA d'un ticket multi-produits est représenté par un produit donné. Utile pour identifier les produits "ancre" qui structurent le panier.
+**Description:**
+Contribution indicates what percentage of a multi-product ticket's revenue is represented by a given product. Useful to identify "anchor" products that structure the basket.
 
-**Paramètres :**
-Aucun paramètre (vue globale).
+**Parameters:**
+No parameters (global view).
 
-**Retour :**
+**Return:**
 
 ```python
 dict: {
     "stats": {
-        "nb_produits_analysables": int,  # Nombre de produits analysés
-        "ca_total_multi": float,         # CA total des tickets multi-produits
-        "distribution_par_statut": dict, # Distribution par statut de contribution
-        "nb_multi": int,                # Nombre de tickets multi-produits
-        "nb_mono": int,                 # Nombre de tickets mono-produit
-        "nb_total": int,                # Nombre total de tickets
-        "pct_multi": float              # Pourcentage de tickets multi-produits
+        "nb_produits_analysables": int,  # Number of analyzed products
+        "ca_total_multi": float,         # Total revenue of multi-product tickets
+        "distribution_par_statut": dict, # Distribution by contribution status
+        "nb_multi": int,                # Number of multi-product tickets
+        "nb_mono": int,                 # Number of single-product tickets
+        "nb_total": int,                # Total number of tickets
+        "pct_multi": float              # Percentage of multi-product tickets
     },
-    "top20": list,                      # Top 20 produits par contribution
-    "bcg_quadrants": dict               # Quadrants BCG
+    "top20": list,                      # Top 20 products by contribution
+    "bcg_quadrants": dict               # BCG quadrants
 }
 ```
 
-**Structure de `top20` :**
+**`top20` structure:**
 ```python
 [
     {
-        "article": str,                 # Nom du produit
-        "contribution_med": float,      # Contribution médiane au ticket en %
-        "contribution_moy": float,      # Contribution moyenne au ticket en %
-        "nb_tickets_multi": int,        # Nombre de tickets multi-produits
-        "statut_contribution": str,     # Statut ("Ancre", "Moteur", "Complement", "Micro")
-        "ca_total_multi": float,       # CA total en tickets multi-produits
-        "frequence_multi_pct": float   # Fréquence en tickets multi-produits en %
+        "article": str,                 # Product name
+        "contribution_med": float,      # Median contribution to ticket in %
+        "contribution_moy": float,      # Average contribution to ticket in %
+        "nb_tickets_multi": int,        # Number of multi-product tickets
+        "statut_contribution": str,     # Status ("Ancre", "Moteur", "Complement", "Micro")
+        "ca_total_multi": float,       # Total revenue in multi-product tickets
+        "frequence_multi_pct": float   # Frequency in multi-product tickets in %
     }
 ]
 ```
 
-**Structure de `bcg_quadrants` :**
+**`bcg_quadrants` structure:**
 ```python
 {
-    "etoiles": list,        # Produits stars (haute contribution, haute fréquence)
-    "moteurs": list,        # Produits moteurs (haute contribution)
-    "opportunites": list,   # Produits opportunités (haute fréquence)
-    "a_reevaluer": list     # Produits à réévaluer
+    "etoiles": list,        # Star products (high contribution, high frequency)
+    "moteurs": list,        # Driver products (high contribution)
+    "opportunites": list,   # Opportunity products (high frequency)
+    "a_reevaluer": list     # Products to reevaluate
 }
 ```
 
-**Exemple d'utilisation :**
+**Usage example:**
 ```python
 >>> get_ticket_contribution()
 {
@@ -459,42 +459,42 @@ dict: {
 
 ### `get_repurchase_frequency`
 
-Récupère les données de fréquence de rachat des produits.
+Retrieves product repurchase frequency data.
 
-**Description :**
-La fréquence de rachat indique combien de semaines un produit est vendu sur la période totale. C'est un indicateur de régularité de la demande.
+**Description:**
+Repurchase frequency indicates how many weeks a product is sold over the total period. It's an indicator of demand regularity.
 
-**Paramètres :**
-Aucun paramètre (vue globale).
+**Parameters:**
+No parameters (global view).
 
-**Retour :**
+**Return:**
 
 ```python
 dict: {
-    "total_sem": int,               # Nombre total de semaines dans la période
-    "nb_produits": int,             # Nombre de produits analysés
-    "status_distribution": dict,    # Distribution par statut de fréquence
-    "items": list,                  # Liste des produits
-    "weekly_multi": list            # Données hebdomadaires multiples
+    "total_sem": int,               # Total number of weeks in period
+    "nb_produits": int,             # Number of analyzed products
+    "status_distribution": dict,    # Distribution by frequency status
+    "items": list,                  # List of products
+    "weekly_multi": list            # Multiple weekly data
 }
 ```
 
-**Structure de `items` :**
+**`items` structure:**
 ```python
 [
     {
-        "article": str,               # Nom du produit
-        "category": str,              # Catégorie du produit
-        "semaines_actives": int,      # Nombre de semaines avec ventes
-        "repurchase_freq_pct": float, # Fréquence de rachat en %
-        "statut_frequence": str,      # Statut ("Quotidien", "Regulier", "Cyclique", "Sporadique")
-        "ca_total": float,            # CA total
-        "ca_par_sem_active": float    # CA par semaine active
+        "article": str,               # Product name
+        "category": str,              # Product category
+        "semaines_actives": int,      # Number of weeks with sales
+        "repurchase_freq_pct": float, # Repurchase frequency in %
+        "statut_frequence": str,      # Status ("Quotidien", "Regulier", "Cyclique", "Sporadique")
+        "ca_total": float,            # Total revenue
+        "ca_par_sem_active": float    # Revenue per active week
     }
 ]
 ```
 
-**Exemple d'utilisation :**
+**Usage example:**
 ```python
 >>> get_repurchase_frequency()
 {
@@ -513,41 +513,41 @@ dict: {
 
 ### `get_associations`
 
-Récupère les règles d'association de produits (Apriori).
+Retrieves product association rules (Apriori).
 
-**Description :**
-Les règles d'association identifient les produits qui sont souvent achetés ensemble. Le lift mesure la force de l'association (>1 = association forte).
+**Description:**
+Association rules identify products that are often bought together. Lift measures the strength of association (>1 = strong association).
 
-**Paramètres :**
+**Parameters:**
 
-| Paramètre | Type | Défaut | Description |
-|-----------|------|--------|-------------|
-| `sort_by` | str | "Lift ↓" | Critère de tri. Options: "Lift ↓", "Confiance ↓", "Support ↓" |
-| `top_n` | int | 20 | Nombre de règles à retourner |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `sort_by` | str | "Lift ↓" | Sort criteria. Options: "Lift ↓", "Confiance ↓", "Support ↓" |
+| `top_n` | int | 20 | Number of rules to return |
 
-**Retour :**
+**Return:**
 
 ```python
 dict: {
-    "nb_total_regles": int,  # Nombre total de règles disponibles
-    "rules": list            # Liste des règles
+    "nb_total_regles": int,  # Total number of available rules
+    "rules": list            # List of rules
 }
 ```
 
-**Structure de `rules` :**
+**`rules` structure:**
 ```python
 [
     {
-        "antecedent": str,    # Produit antécédent (si A est acheté)
-        "consequent": str,    # Produit conséquent (alors B est acheté)
-        "support": float,     # Support en % (fréquence de la combinaison)
-        "confidence": float,  # Confiance en % (probabilité que B soit acheté si A est acheté)
-        "lift": float         # Lift (force de l'association, >1 = forte)
+        "antecedent": str,    # Antecedent product (if A is bought)
+        "consequent": str,    # Consequent product (then B is bought)
+        "support": float,     # Support in % (frequency of combination)
+        "confidence": float,  # Confidence in % (probability B is bought if A is bought)
+        "lift": float         # Lift (association strength, >1 = strong)
     }
 ]
 ```
 
-**Exemple d'utilisation :**
+**Usage example:**
 ```python
 >>> get_associations(sort_by="Lift ↓", top_n=10)
 {
@@ -570,71 +570,71 @@ dict: {
 
 ### `get_forecast`
 
-Récupère les prévisions de demande (Prophet).
+Retrieves demand forecasts (Prophet).
 
-**Description :**
-Cette fonction retourne les prévisions de demande pour un horizon donné, basées sur le modèle Prophet. Elle inclut l'historique, les métriques de précision, et les prévisions saisonnières.
+**Description:**
+This function returns demand forecasts for a given horizon, based on the Prophet model. It includes history, accuracy metrics, and seasonal forecasts.
 
-**Paramètres :**
+**Parameters:**
 
-| Paramètre | Type | Défaut | Description |
-|-----------|------|--------|-------------|
-| `horizon` | int | 14 | Horizon de prévision en jours. Options: 7, 14, 30 |
-| `forecast_type` | str | "articles" | Type de prévision. Options: "articles", "ca" |
-| `product` | str (optionnel) | None | Produit spécifique pour la prévision. Si None, prévision globale |
-| `category` | str (optionnel) | None | Catégorie spécifique pour la prévision. Si None, prévision globale |
-| `season` | str (optionnel) | None | Saison spécifique pour la prévision |
-| `event` | str (optionnel) | None | Événement spécifique pour la prévision |
-| `history_period` | str | "all" | Période historique utilisée pour l'entraînement. Options: "all", "30d", "90d", "180d" |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `horizon` | int | 14 | Forecast horizon in days. Options: 7, 14, 30 |
+| `forecast_type` | str | "articles" | Forecast type. Options: "articles", "ca" |
+| `product` | str (optional) | None | Specific product for forecast. If None, global forecast |
+| `category` | str (optional) | None | Specific category for forecast. If None, global forecast |
+| `season` | str (optional) | None | Specific season for forecast |
+| `event` | str (optional) | None | Specific event for forecast |
+| `history_period` | str | "all" | Historical period used for training. Options: "all", "30d", "90d", "180d" |
 
-**Retour :**
+**Return:**
 
 ```python
 dict: {
     "forecast_info": {
-        "type": str,           # Type de prévision
-        "label": str,          # Label lisible
-        "unit": str,           # Unité (€ ou unités)
-        "horizon": int,        # Horizon en jours
-        "history_period": str  # Période historique
+        "type": str,           # Forecast type
+        "label": str,          # Readable label
+        "unit": str,           # Unit (€ or units)
+        "horizon": int,        # Horizon in days
+        "history_period": str  # Historical period
     },
     "metrics": {
-        "mdape_cv": float,         # MDAPE (erreur médiane absolue en %)
-        "moy_jour_historique": float, # Moyenne journalière historique
-        "total_prevision": float,    # Total prévu sur l'horizon
-        "horizon_jours": int         # Nombre de jours de l'horizon
+        "mdape_cv": float,         # MDAPE (median absolute percentage error)
+        "moy_jour_historique": float, # Historical daily average
+        "total_prevision": float,    # Total forecast over horizon
+        "horizon_jours": int         # Number of horizon days
     },
     "prophet_metrics": {
         "mdape_cv": float,          # MDAPE validation
-        "train_error": float,       # Erreur d'entraînement
-        "validation_error": float,  # Erreur de validation
-        "mape_by_horizon": list     # MAPE par horizon
+        "train_error": float,       # Training error
+        "validation_error": float,  # Validation error
+        "mape_by_horizon": list     # MAPE by horizon
     },
-    "model_comparison": list,      # Comparaison de modèles
-    "history": list,               # Historique
-    "forecast": list,             # Prévisions
-    "forecast_season": list,      # Prévisions saisonnières
-    "available_filters": dict     # Filtres disponibles
+    "model_comparison": list,      # Model comparison
+    "history": list,               # History
+    "forecast": list,             # Forecasts
+    "forecast_season": list,      # Seasonal forecasts
+    "available_filters": dict     # Available filters
 }
 ```
 
-**Structure de `forecast` :**
+**`forecast` structure:**
 ```python
 [
     {
         "horizon": str,       # Label "J+X"
         "ds": str,            # Date
-        "date_fr": str,       # Date formatée FR
-        "jour_semaine": str,  # Jour de la semaine
-        "yhat": int,          # Valeur prédite
-        "yhat_lower": int,    # Borne inférieure
-        "yhat_upper": int,    # Borne supérieure
-        "is_ferme": int       # 1 si jour fermé, 0 sinon
+        "date_fr": str,       # Formatted FR date
+        "jour_semaine": str,  # Day of the week
+        "yhat": int,          # Predicted value
+        "yhat_lower": int,    # Lower bound
+        "yhat_upper": int,    # Upper bound
+        "is_ferme": int       # 1 if closed day, 0 otherwise
     }
 ]
 ```
 
-**Exemple d'utilisation :**
+**Usage example:**
 ```python
 >>> get_forecast(horizon=14, forecast_type="articles")
 {
@@ -660,62 +660,62 @@ dict: {
 
 ### `get_alerts`
 
-Récupère les alertes de stock basées sur les prévisions saisonnières.
+Retrieves stock alerts based on seasonal forecasts.
 
-**Description :**
-Cette fonction analyse les prévisions de demande et génère des alertes de stock (rupture, vigilance, normal, surstock) pour chaque jour.
+**Description:**
+This function analyzes demand forecasts and generates stock alerts (stockout, warning, normal, overstock) for each day.
 
-**Paramètres :**
+**Parameters:**
 
-| Paramètre | Type | Défaut | Description |
-|-----------|------|--------|-------------|
-| `mois_filter` | str | "Tout" | Filtre de mois pour les alertes. Options: "Tout", "Juin", "Juillet", "Août", "Septembre" |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mois_filter` | str | "Tout" | Month filter for alerts. Options: "Tout", "Juin", "Juillet", "Août", "Septembre" |
 
-**Retour :**
+**Return:**
 
 ```python
 dict: {
     "kpis": {
-        "total_articles": int,    # Total d'articles prévus
-        "ca_total_prevu": float,  # CA total prévu
-        "marge_totale": float,    # Marge totale prévue
-        "ca_risque": float,       # CA à risque (jours en rupture)
-        "pic_val": int,           # Valeur du pic
-        "pic_date": str,          # Date du pic
+        "total_articles": int,    # Total forecasted items
+        "ca_total_prevu": float,  # Total forecasted revenue
+        "marge_totale": float,    # Total forecasted margin
+        "ca_risque": float,       # Revenue at risk (stockout days)
+        "pic_val": int,           # Peak value
+        "pic_date": str,          # Peak date
         "statuts": {
-            "RUPTURE": int,       # Nombre de jours en rupture
-            "VIGILANCE": int,     # Nombre de jours en vigilance
-            "NORMAL": int,        # Nombre de jours normaux
-            "SURSTOCK": int,      # Nombre de jours en surstock
-            "FERMÉ": int          # Nombre de jours fermés
+            "RUPTURE": int,       # Number of stockout days
+            "VIGILANCE": int,     # Number of warning days
+            "NORMAL": int,        # Number of normal days
+            "SURSTOCK": int,      # Number of overstock days
+            "FERMÉ": int          # Number of closed days
         }
     },
-    "days": list,                 # Liste des jours avec alertes
-    "available_mois": list       # Mois disponibles pour le filtre
+    "days": list,                 # List of days with alerts
+    "available_mois": list       # Available months for filter
 }
 ```
 
-**Structure de `days` :**
+**`days` structure:**
 ```python
 [
     {
         "ds": str,                    # Date
-        "date_fr": str,               # Date formatée FR
-        "jour_semaine": str,          # Jour de la semaine
-        "yhat": int,                  # Prévision de demande
-        "yhat_lower": int,            # Borne inférieure
-        "yhat_upper": int,            # Borne supérieure
-        "ca_prevu": float,            # CA prévu
-        "marge_prevue": float,        # Marge prévue
-        "ratio_pct": float,           # Ratio stock/prévision en %
-        "commande_recommandee": int,  # Commande recommandée
-        "statut": str,                # Statut ("RUPTURE", "VIGILANCE", "NORMAL", "SURSTOCK", "FERMÉ")
-        "bar_color": str              # Code couleur hex pour l'affichage
+        "date_fr": str,               # Formatted FR date
+        "jour_semaine": str,          # Day of the week
+        "yhat": int,                  # Demand forecast
+        "yhat_lower": int,            # Lower bound
+        "yhat_upper": int,            # Upper bound
+        "ca_prevu": float,            # Forecasted revenue
+        "marge_prevue": float,        # Forecasted margin
+        "ratio_pct": float,           # Stock/forecast ratio in %
+        "commande_recommandee": int,  # Recommended order
+        "statut": str,                # Status ("RUPTURE", "VIGILANCE", "NORMAL", "SURSTOCK", "FERMÉ")
+        "bar_color": str              # Hex color code for display
     }
 ]
 ```
 
-**Exemple d'utilisation :**
+**Usage example:**
 ```python
 >>> get_alerts(mois_filter="Juillet")
 {
@@ -741,27 +741,27 @@ dict: {
 
 ---
 
-## Résumé des Tools
+## Tools Summary
 
-| Tool | Module | Description principale |
-|------|--------|----------------------|
-| `get_daily_kpis` | Daily | KPIs journaliers avec top produits et combinaisons |
-| `get_commercial_performance` | Performance | Performance commerciale avec filtres temporels et catégories |
-| `get_penetration_data` | Product | Taux de pénétration des produits dans les tickets |
-| `get_sales_velocity` | Product | Vitesse de vente par jour pour gestion des stocks |
-| `get_ticket_contribution` | Product | Contribution des produits au ticket moyen |
-| `get_repurchase_frequency` | Product | Fréquence de rachat et régularité de la demande |
-| `get_associations` | Product | Règles d'association entre produits (Apriori) |
-| `get_forecast` | Forecast | Prévisions de demande Prophet |
-| `get_alerts` | Alert | Alertes de stock basées sur les prévisions |
+| Tool | Module | Main description |
+|------|--------|------------------|
+| `get_daily_kpis` | Daily | Daily KPIs with top products and combinations |
+| `get_commercial_performance` | Performance | Commercial performance with time and category filters |
+| `get_penetration_data` | Product | Product penetration rate in tickets |
+| `get_sales_velocity` | Product | Sales velocity per day for inventory management |
+| `get_ticket_contribution` | Product | Product contribution to average ticket |
+| `get_repurchase_frequency` | Product | Repurchase frequency and demand regularity |
+| `get_associations` | Product | Product association rules (Apriori) |
+| `get_forecast` | Forecast | Prophet demand forecasts |
+| `get_alerts` | Alert | Stock alerts based on forecasts |
 
 ---
 
-## Notes importantes
+## Important Notes
 
-- Tous les tools utilisent le décorateur `@tool` d'ADK
-- Les tools importent les engines depuis le dossier `backend/`
-- Les retours sont les données brutes des engines (JSON/dictionnaires)
-- Les paramètres optionnels ont des valeurs par défaut indiquées
-- Les dates doivent être au format 'YYYY-MM-DD' lorsqu'elles sont fournies
-- Les filtres de catégorie et d'événement acceptent "Toutes"/"Tous" pour désactiver le filtre
+- All tools use the ADK `@tool` decorator
+- Tools import engines from the `backend/` folder
+- Returns are raw data from engines (JSON/dictionaries)
+- Optional parameters have indicated default values
+- Dates must be in 'YYYY-MM-DD' format when provided
+- Category and event filters accept "Toutes"/"Tous" to disable the filter

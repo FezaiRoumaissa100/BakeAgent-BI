@@ -25,6 +25,8 @@ import {
   IconSparkline,
   IconSearch,
 } from "@/components/Icons";
+import { ChartAssistantButton } from "@/components/ChartAssistantButton";
+import { useChat } from "@/contexts/ChatContext";
 
 /* ──────────── Palette & helpers ──────────── */
 const ORANGE = colors.accentDeep;
@@ -46,6 +48,7 @@ function fmt(n: number, dec = 0) {
 }
 
 export default function PrevisionsPage() {
+  const { openChat } = useChat();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
@@ -319,12 +322,13 @@ export default function PrevisionsPage() {
           
           <div style={{ height: "800px", width: "100%", marginTop: "12px" }}>
             {history.length > 0 && forecast.length > 0 ? (
-              <ForecastChart 
-                history={history} 
+              <ForecastChart
+                history={history}
                 forecast={forecast}
                 showObserved={showObserved}
                 showPredicted={showPredicted}
                 showConfidence={showConfidence}
+                onOpenChat={openChat}
               />
             ) : (
               <div style={{ 
@@ -355,7 +359,7 @@ export default function PrevisionsPage() {
               <div className="ct">{tr("Prévision des ventes pour la saison estivale", "Sales forecast for the summer season")}</div>
               <div className="cs">{tr("Projection Juin - Septembre", "June - September projection")}</div>
               <div style={{ height: "350px", width: "100%", marginTop: "16px" }}>
-                <SeasonalChart data={forecastSeason} />
+                <SeasonalChart data={forecastSeason} onOpenChat={openChat} />
               </div>
             </div>
           </div>
@@ -461,8 +465,8 @@ function Toggle({ label, checked, onChange, icon }: any) {
   );
 }
 
-function ForecastChart({ history, forecast, showObserved, showPredicted, showConfidence }: any) {
-  const W = 1200; const H = 800; 
+function ForecastChart({ history, forecast, showObserved, showPredicted, showConfidence, onOpenChat }: any) {
+  const W = 1200; const H = 800;
   const pad = { l: 70, r: 50, t: 50, b: 80 };
   
   // Zoom state
@@ -595,7 +599,15 @@ function ForecastChart({ history, forecast, showObserved, showPredicted, showCon
   const gridColor = "var(--dk-grid, rgba(200,140,100,0.2))";
 
   return (
-    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", position: "relative" }}>
+      <ChartAssistantButton
+        chartType="forecast"
+        chartData={{ history, forecast, showObserved, showPredicted, showConfidence }}
+        chartName="ForecastChart"
+        userQuestion="Explique cette prévision de demande"
+        position="top-right"
+        onOpenChat={onOpenChat}
+      />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, paddingRight: 4 }}>
         <span style={{ fontSize: "0.75rem", color: MUTED, fontWeight: 600 }}>
           {isZoomed
@@ -721,7 +733,7 @@ function ForecastChart({ history, forecast, showObserved, showPredicted, showCon
   );
 }
 
-function SeasonalChart({ data }: any) {
+function SeasonalChart({ data, onOpenChat }: any) {
   const W = 1000; const H = 350;
   const pad = { l: 60, r: 40, t: 30, b: 50 };
   
@@ -757,7 +769,16 @@ function SeasonalChart({ data }: any) {
   const gridColor = "var(--dk-grid, rgba(200,140,100,0.2))";
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="none">
+    <div style={{ width: "100%", position: "relative" }}>
+      <ChartAssistantButton
+        chartType="seasonal"
+        chartData={{ data }}
+        chartName="SeasonalChart"
+        userQuestion="Explique cette saisonnalité"
+        position="top-right"
+        onOpenChat={onOpenChat}
+      />
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="none">
       {/* Grid lines */}
       {yLabels.map((label) => (
         <line key={label.y} x1={pad.l} y1={label.y} x2={W - pad.r} y2={label.y} stroke={gridColor} strokeWidth="1" />
@@ -789,6 +810,7 @@ function SeasonalChart({ data }: any) {
       <line x1={pad.l} y1={pad.t} x2={pad.l} y2={H - pad.b} stroke={INK} strokeWidth="1" />
       <line x1={pad.l} y1={H - pad.b} x2={W - pad.r} y2={H - pad.b} stroke={INK} strokeWidth="1" />
     </svg>
+    </div>
   );
 }
 

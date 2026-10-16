@@ -40,3 +40,4 @@ temp/
 *.tmp
 .DS_Store
 Thumbs.db
+agent/.adk/

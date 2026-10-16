@@ -14,10 +14,14 @@ import { tr } from "@/lib/i18n";
 import { ThemeToggle } from "./ThemeToggle";
 import { LangToggle } from "./LangToggle";
 import { toggleSidebar } from "./Sidebar";
+import { ChatDrawer } from "./ChatDrawer";
+import { useChat } from "@/contexts/ChatContext";
 
 export function Navbar() {
   // Compteur d'alertes masqué : le backend renvoie aujourd'hui une valeur fixe (5).
   // À réactiver quand le backend calculera le nombre réel d'alertes.
+
+  const { isChatOpen, closeChat, openChat } = useChat();
 
   return (
     <nav
@@ -199,6 +203,7 @@ export function Navbar() {
         
         {/* Chat/Copilot Icon */}
         <button
+          onClick={() => openChat("", {})}
           style={{
             width: "40px",
             height: "40px",
@@ -218,6 +223,7 @@ export function Navbar() {
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "var(--dk-chrome-chip, #FBF6F0)";
           }}
+          title="Ouvrir l'assistant BI"
         >
           <svg
             width="20"
@@ -237,6 +243,9 @@ export function Navbar() {
           </svg>
         </button>
       </div>
+
+      {/* Chat Drawer */}
+      {isChatOpen && <ChatDrawer isOpen={isChatOpen} onClose={closeChat} useContext={true} />}
     </nav>
   );
 }

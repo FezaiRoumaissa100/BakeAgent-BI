@@ -1,6 +1,6 @@
 """
 Agent Tools - Product Module
-Fonctions tools pour l'agent ADK - Analyse produits
+ADK agent tools - Product analysis
 """
 
 import sys
@@ -8,7 +8,7 @@ import os
 
 # Add backend to path to import engines
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
-from db_products_engine import (
+from engines.products_engine import (
     get_penetration_data_pg,
     get_sales_velocity_data_pg,
     get_ticket_contribution_data_pg,
@@ -24,61 +24,61 @@ def get_penetration_data(
     year: str = "Toutes"
 ) -> dict:
     """
-    Récupère les données de pénétration des produits.
+    Retrieves product penetration data.
     
-    La pénétration indique dans quel pourcentage de tickets un produit apparaît.
-    C'est un indicateur clé de la popularité d'un produit.
+    Penetration indicates in what percentage of tickets a product appears.
+    It's a key indicator of a product's popularity.
     
     Args:
-        search (str): Recherche textuelle sur le nom du produit (recherche partielle).
-            Exemples: "BAGUETTE", "BUCHE", "MACARON"
-            Défaut: "" (pas de filtre)
+        search (str): Text search on product name (partial search).
+            Examples: "BAGUETTE", "BUCHE", "MACARON"
+            Default: "" (no filter)
         
-        categories (list, optional): Liste des catégories à filtrer.
-            Si None ou contient "Toutes", pas de filtre.
-            Exemples: ["Patisseries", "Pains"], ["Toutes"]
-            Défaut: None
+        categories (list, optional): List of categories to filter.
+            If None or contains "Toutes", no filter.
+            Examples: ["Patisseries", "Pains"], ["Toutes"]
+            Default: None
         
-        statuts (list, optional): Liste des statuts stratégiques à filtrer.
-            Exemples: ["Star", "Cash Cow", "Question Mark"]
-            Défaut: None
+        statuts (list, optional): List of strategic statuses to filter.
+            Examples: ["Star", "Cash Cow", "Question Mark"]
+            Default: None
         
-        year (str): Année d'analyse. Options: "Toutes", "2024", "2025", etc.
-            Défaut: "Toutes"
+        year (str): Analysis year. Options: "Toutes", "2024", "2025", etc.
+            Default: "Toutes"
     
     Returns:
-        dict: Dictionnaire contenant:
-            - kpis (dict): KPIs globaux:
-                - total_articles (int): Nombre total d'articles
-                - pen_max (float): Taux de pénétration maximum
-                - pen_median (float): Taux de pénétration médian
-                - status_counts (dict): Compte par statut stratégique
+        dict: Dictionary containing:
+            - kpis (dict): Global KPIs:
+                - total_articles (int): Total number of articles
+                - pen_max (float): Maximum penetration rate
+                - pen_median (float): Median penetration rate
+                - status_counts (dict): Count by strategic status
             
-            - items (list): Liste des produits, chaque élément contient:
-                - article (str): Nom du produit
-                - category (str): Catégorie du produit
-                - penetration_rate (float): Taux de pénétration (0.0 à 1.0)
-                - tickets_count (int): Nombre de tickets où le produit apparaît
-                - ca_total (float): CA total du produit
-                - qty_total (float): Quantité totale vendue
-                - upt (float): Unités par ticket (quantité / tickets)
-                - statut (str): Statut stratégique
+            - items (list): List of products, each element contains:
+                - article (str): Product name
+                - category (str): Product category
+                - penetration_rate (float): Penetration rate (0.0 to 1.0)
+                - tickets_count (int): Number of tickets where product appears
+                - ca_total (float): Total product revenue
+                - qty_total (float): Total quantity sold
+                - upt (float): Units per ticket (quantity / tickets)
+                - statut (str): Strategic status
             
-            - category_summary (list): Résumé par catégorie, chaque élément contient:
-                - category (str): Nom de la catégorie
-                - taux_moyen (float): Taux de pénétration moyen de la catégorie
-                - ca_total (float): CA total de la catégorie
-                - nb_articles (int): Nombre d'articles dans la catégorie
+            - category_summary (list): Summary by category, each element contains:
+                - category (str): Category name
+                - taux_moyen (float): Average penetration rate of category
+                - ca_total (float): Total category revenue
+                - nb_articles (int): Number of articles in category
             
-            - weekly_trend (list): Tendance hebdomadaire, chaque élément contient:
-                - article (str): Nom du produit
-                - series (list): Série de données par semaine, chaque élément contient:
-                    - week (str): Semaine formatée "SXX-YY"
-                    - rate (float): Taux de pénétration cette semaine
+            - weekly_trend (list): Weekly trend, each element contains:
+                - article (str): Product name
+                - series (list): Data series by week, each element contains:
+                    - week (str): Formatted week "SXX-YY"
+                    - rate (float): Penetration rate this week
             
-            - available_categories (list): Catégories disponibles
-            - available_statuts (list): Statuts disponibles
-            - available_years (list): Années disponibles
+            - available_categories (list): Available categories
+            - available_statuts (list): Available statuses
+            - available_years (list): Available years
     
     Example:
         >>> get_penetration_data(search="BAGUETTE", year="2025")
@@ -100,41 +100,41 @@ def get_penetration_data(
 
 def get_sales_velocity() -> dict:
     """
-    Récupère les données de vitesse de vente des produits.
+    Retrieves product sales velocity data.
     
-    La vitesse de vente indique combien d'articles sont vendus par jour en moyenne.
-    C'est crucial pour la gestion des stocks et le réapprovisionnement.
+    Sales velocity indicates how many items are sold per day on average.
+    It's crucial for inventory management and restocking.
     
     Args:
-        Aucun paramètre (vue globale).
+        No parameters (global view).
     
     Returns:
-        dict: Dictionnaire contenant:
-            - dow_velocity (list): Vitesse par jour de la semaine, chaque élément contient:
-                - day (str): Nom du jour (Lundi, Mardi, etc.)
-                - all (float): Vitesse globale
-                - touristic (float): Vitesse période touristique
-                - event (float): Vitesse période événement
+        dict: Dictionary containing:
+            - dow_velocity (list): Velocity by day of week, each element contains:
+                - day (str): Day name (Lundi, Mardi, etc.)
+                - all (float): Global velocity
+                - touristic (float): Touristic period velocity
+                - event (float): Event period velocity
             
-            - macro_items (list): Liste des produits avec leur vélocité, chaque élément contient:
-                - article (str): Nom du produit
-                - daily_velocity (float): Vitesse quotidienne moyenne
-                - velocity_touristic (float): Vitesse en période touristique
-                - velocity_event (float): Vitesse en période événement
-                - stock_securite (float): Stock de sécurité recommandé
-                - ratio_touristic (float): Ratio période touristique
-                - ratio_event (float): Ratio période événement
-                - peak_hour (int): Heure de pointe de vente
-                - ratio_pic_percent (float): Pourcentage vendu à l'heure de pointe
-                - alerte_replissage_avant (str): Heure recommandée pour le replissage
+            - macro_items (list): List of products with their velocity, each element contains:
+                - article (str): Product name
+                - daily_velocity (float): Average daily velocity
+                - velocity_touristic (float): Touristic period velocity
+                - velocity_event (float): Event period velocity
+                - stock_securite (float): Recommended safety stock
+                - ratio_touristic (float): Touristic period ratio
+                - ratio_event (float): Event period ratio
+                - peak_hour (int): Peak sales hour
+                - ratio_pic_percent (float): Percentage sold at peak hour
+                - alerte_replissage_avant (str): Recommended restocking time
             
-            - hourly_distribution (list): Distribution horaire, chaque élément contient:
-                - hour (int): Heure
-                - heure_label (str): Heure formatée "HHh"
-                - global_qte_per_hour (float): Quantité totale cette heure
-                - per_product (list): Top produits cette heure, chaque élément contient:
-                    - article (str): Nom du produit
-                    - qte_this_hour (float): Quantité cette heure
+            - hourly_distribution (list): Hourly distribution, each element contains:
+                - hour (int): Hour
+                - heure_label (str): Formatted hour "HHh"
+                - global_qte_per_hour (float): Total quantity this hour
+                - per_product (list): Top products this hour, each element contains:
+                    - article (str): Product name
+                    - qte_this_hour (float): Quantity this hour
     
     Example:
         >>> get_sales_velocity()
@@ -155,40 +155,40 @@ def get_sales_velocity() -> dict:
 
 def get_ticket_contribution() -> dict:
     """
-    Récupère les données de contribution des produits au ticket moyen.
+    Retrieves product contribution data to average ticket.
     
-    La contribution indique quel pourcentage du CA d'un ticket multi-produits
-    est représenté par un produit donné. Utile pour identifier les produits
-    "ancre" qui structurent le panier.
+    Contribution indicates what percentage of a multi-product ticket's revenue
+    is represented by a given product. Useful to identify "anchor" products
+    that structure the basket.
     
     Args:
-        Aucun paramètre (vue globale).
+        No parameters (global view).
     
     Returns:
-        dict: Dictionnaire contenant:
-            - stats (dict): Statistiques globales:
-                - nb_produits_analysables (int): Nombre de produits analysés
-                - ca_total_multi (float): CA total des tickets multi-produits
-                - distribution_par_statut (dict): Distribution par statut de contribution
-                - nb_multi (int): Nombre de tickets multi-produits
-                - nb_mono (int): Nombre de tickets mono-produit
-                - nb_total (int): Nombre total de tickets
-                - pct_multi (float): Pourcentage de tickets multi-produits
+        dict: Dictionary containing:
+            - stats (dict): Global statistics:
+                - nb_produits_analysables (int): Number of analyzed products
+                - ca_total_multi (float): Total revenue of multi-product tickets
+                - distribution_par_statut (dict): Distribution by contribution status
+                - nb_multi (int): Number of multi-product tickets
+                - nb_mono (int): Number of single-product tickets
+                - nb_total (int): Total number of tickets
+                - pct_multi (float): Percentage of multi-product tickets
             
-            - top20 (list): Top 20 produits par contribution, chaque élément contient:
-                - article (str): Nom du produit
-                - contribution_med (float): Contribution médiane au ticket en %
-                - contribution_moy (float): Contribution moyenne au ticket en %
-                - nb_tickets_multi (int): Nombre de tickets multi-produits
-                - statut_contribution (str): Statut ("Ancre", "Moteur", "Complement", "Micro")
-                - ca_total_multi (float): CA total en tickets multi-produits
-                - frequence_multi_pct (float): Fréquence en tickets multi-produits en %
+            - top20 (list): Top 20 products by contribution, each element contains:
+                - article (str): Product name
+                - contribution_med (float): Median contribution to ticket in %
+                - contribution_moy (float): Average contribution to ticket in %
+                - nb_tickets_multi (int): Number of multi-product tickets
+                - statut_contribution (str): Status ("Ancre", "Moteur", "Complement", "Micro")
+                - ca_total_multi (float): Total revenue in multi-product tickets
+                - frequence_multi_pct (float): Frequency in multi-product tickets in %
             
-            - bcg_quadrants (dict): Quadrants BCG:
-                - etoiles (list): Produits stars (haute contribution, haute fréquence)
-                - moteurs (list): Produits moteurs (haute contribution)
-                - opportunites (list): Produits opportunités (haute fréquence)
-                - a_reevaluer (list): Produits à réévaluer
+            - bcg_quadrants (dict): BCG quadrants:
+                - etoiles (list): Star products (high contribution, high frequency)
+                - moteurs (list): Driver products (high contribution)
+                - opportunites (list): Opportunity products (high frequency)
+                - a_reevaluer (list): Products to reevaluate
     
     Example:
         >>> get_ticket_contribution()
@@ -208,27 +208,27 @@ def get_ticket_contribution() -> dict:
 
 def get_repurchase_frequency() -> dict:
     """
-    Récupère les données de fréquence de rachat des produits.
+    Retrieves product repurchase frequency data.
     
-    La fréquence de rachat indique combien de semaines un produit est vendu
-    sur la période totale. C'est un indicateur de régularité de la demande.
+    Repurchase frequency indicates how many weeks a product is sold
+    over the total period. It's an indicator of demand regularity.
     
     Args:
-        Aucun paramètre (vue globale).
+        No parameters (global view).
     
     Returns:
-        dict: Dictionnaire contenant:
-            - total_sem (int): Nombre total de semaines dans la période
-            - nb_produits (int): Nombre de produits analysés
-            - status_distribution (dict): Distribution par statut de fréquence
-            - items (list): Liste des produits, chaque élément contient:
-                - article (str): Nom du produit
-                - category (str): Catégorie du produit
-                - semaines_actives (int): Nombre de semaines avec ventes
-                - repurchase_freq_pct (float): Fréquence de rachat en %
-                - statut_frequence (str): Statut ("Quotidien", "Regulier", "Cyclique", "Sporadique")
-                - ca_total (float): CA total
-                - ca_par_sem_active (float): CA par semaine active
+        dict: Dictionary containing:
+            - total_sem (int): Total number of weeks in period
+            - nb_produits (int): Number of analyzed products
+            - status_distribution (dict): Distribution by frequency status
+            - items (list): List of products, each element contains:
+                - article (str): Product name
+                - category (str): Product category
+                - semaines_actives (int): Number of weeks with sales
+                - repurchase_freq_pct (float): Repurchase frequency in %
+                - statut_frequence (str): Status ("Quotidien", "Regulier", "Cyclique", "Sporadique")
+                - ca_total (float): Total revenue
+                - ca_par_sem_active (float): Revenue per active week
     
     Example:
         >>> get_repurchase_frequency()
@@ -249,27 +249,27 @@ def get_repurchase_frequency() -> dict:
 
 def get_associations(sort_by: str = "Lift ↓", top_n: int = 20) -> dict:
     """
-    Récupère les règles d'association de produits (Apriori).
+    Retrieves product association rules (Apriori).
     
-    Les règles d'association identifient les produits qui sont souvent achetés
-    ensemble. Le lift mesure la force de l'association (>1 = association forte).
+    Association rules identify products that are often bought together.
+    Lift measures the strength of association (>1 = strong association).
     
     Args:
-        sort_by (str): Critère de tri. Options: "Lift ↓", "Confiance ↓", "Support ↓".
-            Défaut: "Lift ↓"
+        sort_by (str): Sort criteria. Options: "Lift ↓", "Confiance ↓", "Support ↓".
+            Default: "Lift ↓"
         
-        top_n (int): Nombre de règles à retourner.
-            Défaut: 20
+        top_n (int): Number of rules to return.
+            Default: 20
     
     Returns:
-        dict: Dictionnaire contenant:
-            - nb_total_regles (int): Nombre total de règles disponibles
-            - rules (list): Liste des règles, chaque élément contient:
-                - antecedent (str): Produit antécédent (si A est acheté)
-                - consequent (str): Produit conséquent (alors B est acheté)
-                - support (float): Support en % (fréquence de la combinaison)
-                - confidence (float): Confiance en % (probabilité que B soit acheté si A est acheté)
-                - lift (float): Lift (force de l'association, >1 = forte)
+        dict: Dictionary containing:
+            - nb_total_regles (int): Total number of available rules
+            - rules (list): List of rules, each element contains:
+                - antecedent (str): Antecedent product (if A is bought)
+                - consequent (str): Consequent product (then B is bought)
+                - support (float): Support in % (frequency of combination)
+                - confidence (float): Confidence in % (probability B is bought if A is bought)
+                - lift (float): Lift (association strength, >1 = strong)
     
     Example:
         >>> get_associations(sort_by="Lift ↓", top_n=10)

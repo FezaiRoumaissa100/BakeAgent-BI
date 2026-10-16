@@ -4,18 +4,18 @@ import logging
 from typing import Optional, List
 from datetime import date
 
-from db import is_pg_available
-from db_data_engine import calculate_daily_kpis_pg
-from db_commercial_engine import calculate_commercial_performance_pg
-from db_products_engine import (
+from db.db import is_pg_available, sql_value
+from engines.data_engine import calculate_daily_kpis_pg
+from engines.commercial_engine import calculate_commercial_performance_pg
+from engines.products_engine import (
     get_penetration_data_pg,
     get_sales_velocity_data_pg,
     get_ticket_contribution_data_pg,
     get_repurchase_frequency_data_pg,
     get_associations_data_pg
 )
-from db_forecast_engine import get_forecast_data_pg
-from db_alerts_engine import get_alerts_data_pg
+from engines.forecast_engine import get_forecast_data_pg
+from engines.alerts_engine import get_alerts_data_pg
 
 logger = logging.getLogger("main")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -38,7 +38,6 @@ app.add_middleware(
 
 @app.get("/api/daily-kpis")
 def get_daily_kpis():
-    from db import sql_value
     last_date_raw = sql_value("SELECT MAX(date_id) FROM daily_aggregates")
     if not last_date_raw:
         return {"error": "Aucune donnee disponible dans daily_aggregates"}
@@ -112,3 +111,8 @@ def get_forecast(
 @app.get("/api/alerts")
 def get_alerts(mois: str = "Tout"):
     return get_alerts_data_pg(mois)
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)

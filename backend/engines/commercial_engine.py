@@ -1,6 +1,6 @@
 import math
 from datetime import datetime
-from db import sql_fetch_all, sql_fetch_one, sql_value, is_pg_available
+from db.db import sql_fetch_all, sql_fetch_one, sql_value, is_pg_available
 
 def safe_num(v, default=0.0):
     if v is None or (isinstance(v, float) and math.isnan(v)):

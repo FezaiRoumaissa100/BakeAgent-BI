@@ -1,6 +1,6 @@
 """
 Agent Tools - Forecast Module
-Fonctions tools pour l'agent ADK - Prévisions
+ADK agent tools - Forecasts
 """
 
 import sys
@@ -8,7 +8,7 @@ import os
 
 # Add backend to path to import engines
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
-from db_forecast_engine import get_forecast_data_pg
+from engines.forecast_engine import get_forecast_data_pg
 
 
 def get_forecast(
@@ -21,96 +21,96 @@ def get_forecast(
     history_period: str = "all"
 ) -> dict:
     """
-    Récupère les prévisions de demande (Prophet).
+    Retrieves demand forecasts (Prophet).
     
-    Cette fonction retourne les prévisions de demande pour un horizon donné,
-    basées sur le modèle Prophet. Elle inclut l'historique, les métriques de
-    précision, et les prévisions saisonnières.
+    This function returns demand forecasts for a given horizon,
+    based on the Prophet model. It includes history, accuracy metrics,
+    and seasonal forecasts.
     
     Args:
-        horizon (int): Horizon de prévision en jours. Options: 7, 14, 30.
-            Défaut: 14
+        horizon (int): Forecast horizon in days. Options: 7, 14, 30.
+            Default: 14
         
-        forecast_type (str): Type de prévision. Options: "articles", "ca".
-            Défaut: "articles"
+        forecast_type (str): Forecast type. Options: "articles", "ca".
+            Default: "articles"
         
-        product (str, optional): Produit spécifique pour la prévision.
-            Si None, prévision globale.
-            Exemples: "TRADITIONAL BAGUETTE", "BUCHE 6PERS"
-            Défaut: None
+        product (str, optional): Specific product for forecast.
+            If None, global forecast.
+            Examples: "TRADITIONAL BAGUETTE", "BUCHE 6PERS"
+            Default: None
         
-        category (str, optional): Catégorie spécifique pour la prévision.
-            Si None, prévision globale.
-            Exemples: "Patisseries", "Pains"
-            Défaut: None
+        category (str, optional): Specific category for forecast.
+            If None, global forecast.
+            Examples: "Patisseries", "Pains"
+            Default: None
         
-        season (str, optional): Saison spécifique pour la prévision.
-            Exemples: "Printemps", "Ete"
-            Défaut: None
+        season (str, optional): Specific season for forecast.
+            Examples: "Printemps", "Ete"
+            Default: None
         
-        event (str, optional): Événement spécifique pour la prévision.
-            Exemples: "Fêtes", "Vacances"
-            Défaut: None
+        event (str, optional): Specific event for forecast.
+            Examples: "Fêtes", "Vacances"
+            Default: None
         
-        history_period (str): Période historique utilisée pour l'entraînement.
+        history_period (str): Historical period used for training.
             Options: "all", "30d", "90d", "180d"
-            Défaut: "all"
+            Default: "all"
     
     Returns:
-        dict: Dictionnaire contenant:
-            - forecast_info (dict): Informations sur la prévision:
-                - type (str): Type de prévision
-                - label (str): Label lisible
-                - unit (str): Unité (€ ou unités)
-                - horizon (int): Horizon en jours
-                - history_period (str): Période historique
+        dict: Dictionary containing:
+            - forecast_info (dict): Forecast information:
+                - type (str): Forecast type
+                - label (str): Readable label
+                - unit (str): Unit (€ or units)
+                - horizon (int): Horizon in days
+                - history_period (str): Historical period
             
-            - metrics (dict): Métriques de performance:
-                - mdape_cv (float): MDAPE (erreur médiane absolue en %)
-                - moy_jour_historique (float): Moyenne journalière historique
-                - total_prevision (float): Total prévu sur l'horizon
-                - horizon_jours (int): Nombre de jours de l'horizon
+            - metrics (dict): Performance metrics:
+                - mdape_cv (float): MDAPE (median absolute percentage error)
+                - moy_jour_historique (float): Historical daily average
+                - total_prevision (float): Total forecast over horizon
+                - horizon_jours (int): Number of horizon days
             
-            - prophet_metrics (dict): Métriques détaillées Prophet:
+            - prophet_metrics (dict): Detailed Prophet metrics:
                 - mdape_cv (float): MDAPE validation
-                - train_error (float): Erreur d'entraînement
-                - validation_error (float): Erreur de validation
-                - mape_by_horizon (list): MAPE par horizon
+                - train_error (float): Training error
+                - validation_error (float): Validation error
+                - mape_by_horizon (list): MAPE by horizon
             
-            - model_comparison (list): Comparaison de modèles:
-                - model (str): Nom du modèle
-                - mape (float): MAPE du modèle
-                - status (str): Statut du modèle
+            - model_comparison (list): Model comparison:
+                - model (str): Model name
+                - mape (float): Model MAPE
+                - status (str): Model status
             
-            - history (list): Historique, chaque élément contient:
+            - history (list): History, each element contains:
                 - ds (str): Date
-                - label (str): Label court
-                - y (float): Valeur historique
+                - label (str): Short label
+                - y (float): Historical value
             
-            - forecast (list): Prévisions, chaque élément contient:
+            - forecast (list): Forecasts, each element contains:
                 - horizon (str): Label "J+X"
                 - ds (str): Date
-                - date_fr (str): Date formatée FR
-                - jour_semaine (str): Jour de la semaine
-                - yhat (int): Valeur prédite
-                - yhat_lower (int): Borne inférieure
-                - yhat_upper (int): Borne supérieure
-                - is_ferme (int): 1 si jour fermé, 0 sinon
+                - date_fr (str): Formatted FR date
+                - jour_semaine (str): Day of the week
+                - yhat (int): Predicted value
+                - yhat_lower (int): Lower bound
+                - yhat_upper (int): Upper bound
+                - is_ferme (int): 1 if closed day, 0 otherwise
             
-            - forecast_season (list): Prévisions saisonnières, chaque élément contient:
+            - forecast_season (list): Seasonal forecasts, each element contains:
                 - ds (str): Date
-                - label (str): Label court
-                - yhat (int): Valeur prédite
-                - yhat_lower (int): Borne inférieure
-                - yhat_upper (int): Borne supérieure
+                - label (str): Short label
+                - yhat (int): Predicted value
+                - yhat_lower (int): Lower bound
+                - yhat_upper (int): Upper bound
             
-            - available_filters (dict): Filtres disponibles:
-                - horizons (list): Horizons disponibles
-                - forecast_types (list): Types disponibles
-                - products (list): Produits disponibles
-                - categories (list): Catégories disponibles
-                - seasons (list): Saisons disponibles
-                - events (list): Événements disponibles
+            - available_filters (dict): Available filters:
+                - horizons (list): Available horizons
+                - forecast_types (list): Available types
+                - products (list): Available products
+                - categories (list): Available categories
+                - seasons (list): Available seasons
+                - events (list): Available events
     
     Example:
         >>> get_forecast(horizon=14, forecast_type="articles")
