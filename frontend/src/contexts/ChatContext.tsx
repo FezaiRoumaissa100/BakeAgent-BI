@@ -15,7 +15,7 @@ interface ChatContextType {
   messages: Message[];
   openChat: (message: string, metadata: Record<string, any>) => void;
   closeChat: () => void;
-  setMessages: (messages: Message[]) => void;
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   addMessage: (message: Message) => void;
 }
 

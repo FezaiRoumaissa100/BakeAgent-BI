@@ -1860,7 +1860,7 @@ function AssocScatter({ rules, height = 440 }: { rules: any[]; height?: number }
 /* ─── Fiche produit : un clic sur un nom de produit (classement, bulle, tableau, recherche, association)
    ouvre ce panneau avec tout ce que le tableau de bord sait du produit. ─── */
 const ProductCtx = createContext<(name: string) => void>(() => {});
-export function useOpenProduct() { return useContext(ProductCtx); }
+function useOpenProduct() { return useContext(ProductCtx); }
 
 /** Nom de produit cliquable */
 function ProdName({ name, style }: { name: string; style?: React.CSSProperties }) {
