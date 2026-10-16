@@ -12,6 +12,8 @@ import {
   IconBar, IconPin, IconSparkline, IconScale, IconBarsGrouped,
   ink, muted, stroke, strokeAlt
 } from "@/components/Icons";
+import { ChartAssistantButton } from "@/components/ChartAssistantButton";
+import { useChat } from "@/contexts/ChatContext";
 
 /* ════════════════════════════════════════════════
    PALETTE (identique Vue du Jour + tons chauds)
@@ -650,6 +652,8 @@ function CatHBar({ data, field, labelFn }: {
 type TabId = "evolution" | "top" | "saison" | "categories";
 
 export default function PerformancePage() {
+  // Assistant IA : bouton « poser une question sur ce graphique » sur chaque carte
+  const { openChat } = useChat();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -913,6 +917,8 @@ export default function PerformancePage() {
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start",
                           marginBottom:"12px", flexWrap:"wrap", gap:"10px" }}>
               <div>
+                <ChartAssistantButton chartType="evolution_ca" chartData={{ series: monthly.series, moyenne: monthly.moyenne, ecartType: monthly.ecart_type, caMax: monthly.ca_max, caMin: monthly.ca_min }} chartName="EvolutionLineChart"
+                  userQuestion="Explique ce graphique d'évolution du chiffre d'affaires" position="top-right" onOpenChat={openChat} />
                 <div className="ct">{tr("Chiffre d'affaires mois par mois", "Revenue month by month")}</div>
                 <div className="cs">{tr("Moyenne mensuelle :", "Monthly average:")} {fmt(monthly.moyenne)} € · {tr("fourchette habituelle :", "usual range:")} {fmt(Math.max(0, monthly.moyenne - monthly.ecart_type))} – {fmt(monthly.moyenne + monthly.ecart_type)} €</div>
               </div>
@@ -964,6 +970,8 @@ export default function PerformancePage() {
                 <IconBarsGrouped size={16} /> {tr(`Comparaison ${monthly.comp_annees.prec} vs ${monthly.comp_annees.der} — Mois par Mois`, `${monthly.comp_annees.prec} vs ${monthly.comp_annees.der} Comparison — Month by Month`)}
               </div>
               <div className="cc" style={{ padding:"20px 24px" }}>
+                <ChartAssistantButton chartType="comparison_2024_2025" chartData={{ data: monthly.comp_24_25, annees: monthly.comp_annees }} chartName="Comp2425BarChart"
+                  userQuestion="Explique ce graphique comparant le CA des deux années" position="top-right" onOpenChat={openChat} />
                 <div className="ct">{tr("Évolution année N vs N−1", "Year N vs year N−1")}</div>
                 <div className="cs">{tr("Barres groupées par mois — 12 mois alignés", "Bars grouped by month — 12 months side by side")}</div>
                 <div style={{ height:"400px", width:"100%", marginTop:"20px" }}>
@@ -1022,6 +1030,8 @@ export default function PerformancePage() {
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px" }}>
             <div className="cc" style={{ padding:"20px 24px" }}>
+              <ChartAssistantButton chartType="top_products_revenue" chartData={{ items: (topProds.by_ca || []).slice(0, topN), n: topN }} chartName="TopNHBar"
+                userQuestion="Explique ce graphique des top produits par revenu" position="top-right" onOpenChat={openChat} />
               <div className="ct">{tr(`Les ${topN} produits qui rapportent le plus`, `The ${topN} top-earning products`)}</div>
               <div className="cs">{tr("Chiffre d'affaires de chaque produit (axe en euros, à partir de 0) et sa part du total", "Each product's revenue (axis in euros, from 0) and its share of the total")}</div>
               <div style={{ marginTop:"8px" }}>
@@ -1050,6 +1060,8 @@ export default function PerformancePage() {
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px" }}>
             <div className="cc" style={{ padding:"20px 24px" }}>
+              <ChartAssistantButton chartType="day_of_week_bars" chartData={{ days: seasonality.days, mode: "moyen" }} chartName="DayOfWeekBars"
+                userQuestion="Explique ce graphique du CA moyen par jour de la semaine" position="top-right" onOpenChat={openChat} />
               <div className="ct">{tr("Chiffre d'affaires moyen par jour d'ouverture", "Average revenue per opening day")}</div>
               <div className="cs">{tr("Certains jours sont fermés une partie de l'année : la moyenne par jour ouvert permet de comparer les jours entre eux",
                                       "Some days are closed part of the year: the average per open day makes the days comparable")}</div>
@@ -1075,6 +1087,8 @@ export default function PerformancePage() {
                 <IconClock size={16} /> {tr("Distribution Horaire des Ventes", "Hourly Sales Distribution")}
               </div>
               <div className="cc" style={{ padding:"20px 24px" }}>
+                <ChartAssistantButton chartType="hourly_dual" chartData={{ data: seasonality.hourly }} chartName="HourlyDual"
+                  userQuestion="Explique ce graphique du CA et des tickets par heure" position="top-right" onOpenChat={openChat} />
                 <div className="ct">{tr("Chiffre d'affaires et tickets par heure", "Revenue and transactions by hour")}</div>
                 <div className="cs">{tr("Une seule échelle : chiffre d'affaires par heure ; le nombre de tickets est indiqué au-dessus de chaque barre", "One scale: revenue by hour; the number of transactions is shown above each bar")}</div>
                 <div style={{ height:"320px", width:"100%", marginTop:"12px" }}>
@@ -1113,6 +1127,8 @@ export default function PerformancePage() {
           {categories.length > 0 && (
             <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"32px", marginBottom:"40px" }}>
               <div className="cc" style={{ padding:"28px 32px" }}>
+                <ChartAssistantButton chartType="category_performance_hbar" chartData={{ data: categories, field: "ca" }} chartName="CategoryPerformanceHBar"
+                  userQuestion="Explique la répartition du chiffre d'affaires par catégorie" position="top-right" onOpenChat={openChat} />
                 <div className="ct">{tr("Chiffre d'affaires par catégorie", "Revenue by category")}</div>
                 <div className="cs">{tr("Montant et part du total", "Amount and share of total")}</div>
                 <div style={{ marginTop:"20px" }}>
@@ -1137,6 +1153,8 @@ export default function PerformancePage() {
                 <IconBarsGrouped size={16} /> {tr("Tableau Récapitulatif des Catégories", "Category Summary Table")}
               </div>
               <div className="cc" style={{ padding:"20px 32px 32px", marginTop:"14px" }}>
+                <ChartAssistantButton chartType="category_summary_table" chartData={{ categories }} chartName="CategorySummaryTable"
+                  userQuestion="Explique le tableau récapitulatif des catégories" position="top-right" onOpenChat={openChat} />
                 <div style={{ overflowX:"auto" }}>
                   <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:0, marginTop:"8px" }}>
                     <thead>

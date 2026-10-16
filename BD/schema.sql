@@ -192,26 +192,3 @@ CREATE TABLE IF NOT EXISTS daily_aggregates (
     ref_actives INT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_dailyagg_tickets ON daily_aggregates(nb_tickets DESC);
-
--- ══════════════════════════════════════════════════════════════
---  ANNEXE : Vues matérialisées — à créer APRÈS l'import initial
--- ══════════════════════════════════════════════════════════════
--- REFRESH MATERIALIZED VIEW mv_daily_aggregates;
---
--- CREATE MATERIALIZED VIEW mv_daily_aggregates AS
---   SELECT f.date_id,
---          COUNT(DISTINCT (f.date_id, f.ticket_number)) AS nb_tickets,
---          SUM(f.quantity)        AS nb_articles,
---          SUM(f.total_revenue)   AS ca_jour,
---          COUNT(DISTINCT f.product_id) AS ref_actives
---   FROM fact_ticket_lines f GROUP BY 1;
---
--- CREATE MATERIALIZED VIEW mv_monthly_ca AS
---   SELECT d.year, d.month, DATE_TRUNC('month', d.date_id)::DATE AS month_start,
---          SUM(f.total_revenue) AS total_revenue
---   FROM fact_ticket_lines f JOIN dim_dates d ON d.date_id = f.date_id GROUP BY 1,2,3;
---
--- CREATE MATERIALIZED VIEW mv_weekly_tickets AS
---   SELECT d.week_iso,
---          COUNT(DISTINCT (f.date_id, f.ticket_number)) AS nb_tickets_semaine
---   FROM fact_ticket_lines f JOIN dim_dates d ON d.date_id = f.date_id GROUP BY 1;

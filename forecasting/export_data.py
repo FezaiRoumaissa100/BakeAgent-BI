@@ -15,7 +15,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend"))
-from db import sql_fetch_all  # même connexion que le backend (variables DB_HOST, DB_PASS…)
+from db.db import sql_fetch_all  # même connexion que le backend (variables DB_HOST, DB_PASS…)
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 os.makedirs(OUT, exist_ok=True)

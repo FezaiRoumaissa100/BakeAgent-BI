@@ -135,3 +135,229 @@ export async function fetchProductAlerts(days = 14): Promise<any> {
   if (!res.ok) throw new Error("Erreur API alerts/products");
   return res.json();
 }
+
+const AGENT_API_BASE = "http://127.0.0.1:8001";
+export const AGENT_APP_NAME = "agent";
+export const AGENT_USER_ID = "web_user";
+
+/**
+ * Timeout controller : abandonne la requête après le délai indiqué.
+ */
+function withTimeout(ms: number) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(new Error("TIMEOUT")), ms);
+  return { signal: ctrl.signal, clear: () => clearTimeout(timer) };
+}
+
+/**
+ * Crée une nouvelle session sur le serveur ADK et retourne son identifiant.
+ * À appeler avant /run si le session_id n'existe pas (sinon 404).
+ */
+export async function createAgentSession(customSessionId?: string): Promise<string> {
+  const timeoutMs = 30_000;
+  const { signal, clear } = withTimeout(timeoutMs);
+  try {
+    const session_id =
+      customSessionId ??
+      "session_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36);
+
+    const url = `${AGENT_API_BASE}/apps/${encodeURIComponent(AGENT_APP_NAME)}/users/${encodeURIComponent(AGENT_USER_ID)}/sessions`;
+
+    // ADK /sessions accepte un POST avec le session_id dans le corps (ou vide)
+    // La spec ADK: POST /apps/{app}/users/{uid}/sessions, body: { session_id?: string }
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal,
+      body: JSON.stringify({ session_id }),
+    });
+
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const j = await res.json();
+        detail = j?.detail ?? j?.message ?? JSON.stringify(j);
+      } catch {
+        try { detail = await res.text(); } catch { /* ignore */ }
+      }
+      throw new Error(`Création session agent échouée (${res.status}): ${detail || "inconnu"}`);
+    }
+
+    // L'API renvoie souvent { session_id } ou l'objet de session créé.
+    let newSid: string | undefined;
+    try {
+      const j = await res.json();
+      newSid = j?.session_id;
+    } catch {
+      /* non-JSON ok */
+    }
+    return newSid ?? session_id;
+  } catch (err: any) {
+    if (err?.name === "AbortError" || err?.message === "TIMEOUT") {
+      const to = new Error("Délai dépassé lors de la création de la session agent.");
+      to.name = "TimeoutError";
+      throw to;
+    }
+    if (typeof err === "object" && err !== null && !err.name) {
+      const net = new Error(
+        "Connexion impossible au serveur agent (création de session). Vérifiez http://127.0.0.1:8001 (" +
+          (err?.message || "erreur réseau") +
+          ")"
+      );
+      net.name = "NetworkError";
+      throw net;
+    }
+    throw err;
+  } finally {
+    clear();
+  }
+}
+
+/**
+ * Garantit qu'une session existe (la crée en cas de 404 Session not found) puis
+ * exécute la requête /run avec le même session_id.
+ */
+async function runWithSessionGuarantee(
+  sessionId: string,
+  payload: any,
+  timeoutMs: number,
+  retryOnMissing = 2
+): Promise<any> {
+  const { signal, clear } = withTimeout(timeoutMs);
+  try {
+    const res = await fetch(`${AGENT_API_BASE}/run`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal,
+      body: JSON.stringify(payload),
+    });
+
+    if (res.status === 404 && retryOnMissing > 0) {
+      let detail = "";
+      try {
+        const j = await res.json();
+        detail = (j?.detail || "").toString();
+      } catch { /* ignore */ }
+      // Si 404 pour session non trouvée OU erreur de session, recréer et réessayer
+      if (detail.toLowerCase().includes("session not found") || detail.toLowerCase().includes("session")) {
+        console.log("Session ADK perdue ou invalide, recréation...");
+        // Session inconnue : la créer puis retenter.
+        await createAgentSession(sessionId);
+        return runWithSessionGuarantee(sessionId, payload, timeoutMs, retryOnMissing - 1);
+      }
+    }
+
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const errJson = await res.json();
+        detail = errJson?.detail || errJson?.message || JSON.stringify(errJson);
+      } catch {
+        try { detail = await res.text(); } catch { /* ignore */ }
+      }
+
+      if (res.status === 429) {
+        const err = new Error("Quota dépassé : " + (detail || "trop de requêtes. Réessayez dans quelques instants."));
+        err.name = "QuotaExceededError";
+        throw err;
+      }
+      if (res.status === 503) {
+        const err = new Error("Service indisponible : " + (detail || "le modèle Gemini est surchargé. Réessayez dans quelques instants."));
+        err.name = "ServiceUnavailableError";
+        throw err;
+      }
+      if (res.status === 401 || res.status === 403) {
+        const err = new Error("Erreur d'authentification agent : " + (detail || "clé API invalide"));
+        err.name = "AuthError";
+        throw err;
+      }
+      if (res.status === 404) {
+        const err = new Error(`Session agent introuvable (${res.status}): ${detail || "session inexistante"}`);
+        err.name = "AgentHttpError";
+        throw err;
+      }
+      const err = new Error(`Erreur agent (${res.status}): ${detail || "appel échoué"}`);
+      err.name = "AgentHttpError";
+      throw err;
+    }
+
+    return await res.json();
+  } finally {
+    clear();
+  }
+}
+
+export async function queryAgentWithMetadata(
+  userMessage: string,
+  customMetadata?: Record<string, any>,
+  opts?: { sessionId?: string; timeoutMs?: number }
+): Promise<string> {
+  const timeoutMs = opts?.timeoutMs ?? 180_000; // Augmenté à 3 minutes
+  const sessionId = opts?.sessionId ?? defaultAgentSessionId();
+
+  const payload = {
+    app_name: AGENT_APP_NAME,
+    user_id: AGENT_USER_ID,
+    session_id: sessionId,
+    new_message: {
+      role: "user" as const,
+      parts: [{ text: userMessage }],
+    },
+    custom_metadata: customMetadata,
+  };
+
+  try {
+    const data = await runWithSessionGuarantee(sessionId, payload, timeoutMs);
+
+    // Extraire la réponse de l'assistant
+    const assistantContent = Array.isArray(data)
+      ? data
+          .filter((event: any) => event.content?.parts?.[0]?.text)
+          .map((event: any) => event.content.parts[0].text)
+          .join("")
+      : typeof data === "string"
+      ? data
+      : "";
+
+    return assistantContent || "Désolé, je n'ai pas pu répondre.";
+  } catch (err: any) {
+    if (err?.name === "AbortError" || err?.message === "TIMEOUT") {
+      const to = new Error("Le délai de réponse de l'agent a été dépassé. Réessayez.");
+      to.name = "TimeoutError";
+      throw to;
+    }
+    if (typeof err === "object" && err !== null && !err.name) {
+      // TypeError: Failed to fetch ou équivalent => erreur de connexion
+      const net = new Error(
+        "Connexion impossible au serveur agent. Vérifiez que le serveur ADK démarre bien sur http://127.0.0.1:8001 (" +
+          (err?.message || "erreur réseau") +
+          ")"
+      );
+      net.name = "NetworkError";
+      throw net;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Génère / récupère un identifiant de session unique pour le chat courant.
+ * Stocké en sessionStorage pour survivre au HMR, mais distinct par onglet.
+ */
+export function defaultAgentSessionId(): string {
+  if (typeof window === "undefined") return "session_server";
+  const KEY = "visshop_agent_session_id";
+  let sid = window.sessionStorage.getItem(KEY);
+  if (!sid) {
+    sid = "session_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36);
+    window.sessionStorage.setItem(KEY, sid);
+  }
+  return sid;
+}
+
+export const AGENT_ENDPOINTS = {
+  BASE: AGENT_API_BASE,
+  RUN: `${AGENT_API_BASE}/run`,
+  DOCS: `${AGENT_API_BASE}/docs`,
+  SESSIONS: `${AGENT_API_BASE}/apps/${AGENT_APP_NAME}/users/${AGENT_USER_ID}/sessions`,
+};

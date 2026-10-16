@@ -67,7 +67,7 @@ def load(source):
         c = pd.read_csv(os.path.join(DATA, "calendar.csv"))
     else:
         sys.path.insert(0, os.path.join(HERE, "..", "backend"))
-        from db import sql_fetch_all
+        from db.db import sql_fetch_all
         s = pd.DataFrame(sql_fetch_all(SQL_SALES))
         p = pd.DataFrame(sql_fetch_all(SQL_PRODUCTS))
         c = pd.DataFrame(sql_fetch_all(SQL_CALENDAR))
@@ -1591,7 +1591,7 @@ def write(source, run, M, F, checks, S=None):
         log(f"Résultats écrits dans {DATA} (out_*.csv)")
         return
     sys.path.insert(0, os.path.join(HERE, "..", "backend"))
-    from db import get_connection
+    from db.db import get_connection
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(DDL)

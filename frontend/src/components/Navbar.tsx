@@ -10,6 +10,7 @@ import { LangToggle } from "./LangToggle";
 import { toggleSidebar } from "./Sidebar";
 import { fetchAlerts, fetchDataPeriod } from "@/lib/api";
 import { ExpertBadge } from "./Expert";
+import { useChat } from "@/contexts/ChatContext";
 
 // Nom de la page affiché à gauche de la barre du haut (fil d'Ariane)
 const pageName = (path: string) => {
@@ -22,6 +23,8 @@ const pageName = (path: string) => {
 
 export function Navbar() {
   const pathname = usePathname() || "/";
+  // Assistant IA : ouvre le panneau de discussion (rendu une seule fois dans layout.tsx)
+  const { openChat } = useChat();
 
   // Compteur de la cloche : nombre réel de jours en « risque de manque » (page Alertes & Stock)
   const [alertCount, setAlertCount] = useState<number | null>(null);
@@ -62,13 +65,13 @@ export function Navbar() {
           {tr("Données", "Data")} {t.header.from} <b>{period.d1}</b> {t.header.to} <b>{period.d2}</b>
         </span>
         <ExpertBadge />
-        <a className="ask-btn" href={siteConfig.agentUrl} target="_blank" rel="noreferrer"
+        <button type="button" className="ask-btn" onClick={() => openChat("", {})}
            title={tr("Poser une question sur le tableau de bord à l'assistant IA", "Ask the AI assistant about the dashboard")}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z" />
           </svg>
           <span className="hidden md:inline">{tr("Demander à l'assistant", "Ask the assistant")}</span>
-        </a>
+        </button>
         <LangToggle />
         <ThemeToggle />
         <a className="icon-chip" href="/alertes"

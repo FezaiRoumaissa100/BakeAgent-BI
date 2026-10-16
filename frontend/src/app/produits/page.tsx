@@ -49,6 +49,8 @@ import {
   IconSearchCircle,
   IconCart,
 } from "@/components/Icons";
+import { ChartAssistantButton } from "@/components/ChartAssistantButton";
+import { useChat } from "@/contexts/ChatContext";
 import { tr, trData, locale } from "@/lib/i18n";
 
 /* ──────────── Palette & helpers (couleurs FONCÉES, DISTINCTES & saturées) ──────────── */
@@ -2100,6 +2102,7 @@ function ProductSearch({ value, onChange, onSubmit, names, active, onPick }: {
 }
 
 export default function ProduitsPage() {
+  const { openChat } = useChat();
   const [tab, setTab] = useState<"matrix" | "pen" | "vel" | "ticket" | "freq" | "assoc">("matrix");
 
   // ── RECHERCHE produit commune à tous les onglets ──
@@ -2386,6 +2389,8 @@ export default function ProduitsPage() {
             <div className="sw">
               <div className="grid-main">
                 <div className="cc hero-card">
+                  <ChartAssistantButton chartType="product_decision_matrix" chartData={{ items: matrixData.items, quadrants: matrixData.quadrants, seuils: matrixData.seuils }} chartName="MatrixGrid"
+                    userQuestion="Explique cette matrice de décision des produits" position="top-right" onOpenChat={openChat} />
                   <CardHeader
                     title={tr("Matrice de décision", "Decision matrix")}
                     sub={tr("Chaque produit est classé selon sa présence dans les tickets (horizontal) et ce qu'il vend par jour de vente (vertical). Cliquez sur une case pour filtrer la fiche, ou sur une bulle pour ouvrir la fiche du produit.", "Each product is placed by its presence in transactions (horizontal) and what it sells per selling day (vertical). Click a box to filter the sheet, or a bubble to open the product sheet.")}
@@ -2640,6 +2645,8 @@ export default function ProduitsPage() {
           <div className="sw">
             <div className="grid-main">
               <div className="cc hero-card">
+                <ChartAssistantButton chartType="penetration_scatter_ca" chartData={{ items: penData.items?.slice(0, 120) || [], filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationScatterCA"
+                  userQuestion="Explique ce graphique de présence × chiffre d'affaires" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Présence × Chiffre d'affaires : où investir ?", "Presence × Revenue: where to invest?")}
                   sub={tr("Chaque point est un produit. À droite : présent dans beaucoup de tickets ; en haut : rapporte beaucoup. Survolez un point pour ses chiffres.", "Each dot is a product. Right: in many transactions; top: high revenue. Hover a dot for its figures.")}
@@ -2674,6 +2681,8 @@ export default function ProduitsPage() {
               </div>
               <div className="side-col">
               <div className="cc">
+                <ChartAssistantButton chartType="penetration_ranking" chartData={{ items: penData.items, filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationRanking"
+                  userQuestion="Explique le classement selon le taux de pénétration" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Produits les plus présents dans les tickets", "Products most present in transactions")}
                   sub={tr("Les 8 références les plus présentes · cliquez pour la fiche", "The 8 most present products · click for the sheet")}
@@ -2722,6 +2731,8 @@ export default function ProduitsPage() {
                       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 0.55fr) minmax(0, 1.45fr)", gap: 12, marginBottom: 14 }}>
                         {!isSearchActive && penStatuts.length === 0 && (
                           <div className="cc">
+                            <ChartAssistantButton chartType="penetration_status_distribution" chartData={{ status_counts: penData.kpis?.status_counts, filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationStatusDistribution"
+                              userQuestion="Explique la répartition des produits par statut" position="top-right" onOpenChat={openChat} />
                             <CardHeader
                               title={tr("Part des produits par statut", "Share of products by status")}
                               sub={tr("Classement des produits selon leur présence dans les tickets", "Products classified by their presence in transactions")}
@@ -2751,6 +2762,8 @@ export default function ProduitsPage() {
                           </div>
                         )}
                         <div className="cc" style={{ gridColumn: isSearchActive || penStatuts.length > 0 ? "1 / -1" : undefined }}>
+                          <ChartAssistantButton chartType="penetration_weekly_trend" chartData={{ weekly_trend: penData.weekly_trend, filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationWeeklyTrend"
+                            userQuestion="Explique l'évolution hebdomadaire du taux de pénétration" position="top-right" onOpenChat={openChat} />
                           <CardHeader
                             title={tr("Présence dans les tickets, semaine par semaine", "Presence in transactions, week by week")}
                             sub={isFiltered ? tr("Les 5 produits les plus présents de toute la boutique (filtres non appliqués). Survolez un point pour la valeur exacte.", "The shop's 5 most present products (filters not applied). Hover a point for the exact value.") : tr("Les 5 produits les plus présents. Survolez un point pour voir la date et la valeur exacte.", "The 5 most present products. Hover over a point to see the date and exact value.")}
@@ -2785,6 +2798,8 @@ export default function ProduitsPage() {
                     <div>
                       <div className="g2">
                         <div className="cc">
+                          <ChartAssistantButton chartType="penetration_category_avg" chartData={{ category_summary: penData.category_summary, filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationCategoryAvg"
+                            userQuestion="Explique le taux de pénétration moyen par catégorie" position="top-right" onOpenChat={openChat} />
                           <CardHeader
                             title={tr("Présence de chaque famille dans les tickets", "Presence of each family in transactions")}
                             sub={(penCats.length || penStatuts.length) ? tr("Toute la boutique (filtres non appliqués) : part des tickets avec au moins un produit de la famille", "Whole shop (filters not applied): share of transactions with at least one product of the family") : tr("Part des tickets contenant au moins un produit de la famille", "Share of transactions with at least one product of the family")}
@@ -2801,6 +2816,8 @@ export default function ProduitsPage() {
                           )}
                         </div>
                         <div className="cc">
+                          <ChartAssistantButton chartType="category_revenue_share" chartData={{ category_summary: penData.category_summary }} chartName="CategoryRevenueShare"
+                            userQuestion="Explique la part du chiffre d'affaires par catégorie" position="top-right" onOpenChat={openChat} />
                           <CardHeader
                             title={tr("Part du chiffre d'affaires par catégorie", "Share of revenue by category")}
                             sub={(penCats.length || penStatuts.length) ? tr("Toute la boutique (filtres non appliqués)", "Whole shop (filters not applied)") : tr("Pourcentage du chiffre d'affaires total", "Percentage of total revenue")}
@@ -2841,6 +2858,8 @@ export default function ProduitsPage() {
             <Details label={tr("Voir le détail : évolution d'un produit et que faire selon la présence", "See details: one product's trend and what to do by presence")}>
             <div className="g2">
               <div className="cc">
+                <ChartAssistantButton chartType="penetration_product_trend" chartData={{ items: penData.items, selected: penSelected, weekly_trend: (penData.weekly_trend || []).filter((w: any) => w.article === penSelected) }} chartName="PenetrationProductTrend"
+                  userQuestion="Explique l'évolution de pénétration du produit sélectionné" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Évolution de la présence — produit sélectionné", "Presence trend — selected product")}
                   sub={tr("Choisissez un produit ci-dessous pour voir son évolution", "Pick a product below to see its trend")}
@@ -2900,6 +2919,8 @@ export default function ProduitsPage() {
                 )}
               </div>
               <div className="cc">
+                <ChartAssistantButton chartType="penetration_recommendations" chartData={{ kpis: penData.kpis, status_counts: penData.kpis?.status_counts, filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationRecommendations"
+                  userQuestion="Explique les recommandations basées sur la pénétration" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Que faire selon la présence dans les tickets", "What to do based on presence in transactions")}
                   sub={tr("Actions opérationnelles suggérées", "Suggested operational actions")}
@@ -2945,6 +2966,8 @@ export default function ProduitsPage() {
           <div className="sw">
             <div className="grid-2 stretch">
               <div className="cc hero-card">
+                <ChartAssistantButton chartType="velocity_dow" chartData={{ dow_velocity: velData.dow_velocity }} chartName="VelocityDOW"
+                  userQuestion="Explique la vitesse de vente par jour de la semaine" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Articles vendus selon le jour de la semaine", "Items sold by day of the week")}
                   sub={tr("Moyenne par jour d'ouverture", "Average per opening day")}
@@ -2971,6 +2994,8 @@ export default function ProduitsPage() {
                 <div className="cs" style={{ marginTop: 6 }}>{tr("Articles vendus en moyenne par jour d'ouverture.", "Average items sold per opening day.")}</div>
               </div>
               <div className="cc">
+                <ChartAssistantButton chartType="velocity_hourly_distribution" chartData={{ hourly_distribution: velData.hourly_distribution }} chartName="VelocityHourlyDistribution"
+                  userQuestion="Explique la distribution horaire de la vitesse" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Articles vendus à chaque heure", "Items sold at each hour")}
                   sub={tr(`Total sur ${periodLabel}, toutes les journées`, `Total over ${periodLabel}, all days`)}
@@ -2997,6 +3022,8 @@ export default function ProduitsPage() {
           <div className="sw">
             <div className="grid-main">
               <div className="cc">
+                <ChartAssistantButton chartType="velocity_hourly_concentration" chartData={{ macro_items: velItems, seuil_pic_horaire_pct: velData.seuil_pic_horaire_pct }} chartName="VelocityHourlyConcentration"
+                  userQuestion="Explique les produits concentrés sur une plage horaire" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Produits fortement concentrés sur une plage horaire", "Products heavily concentrated in one time slot")}
                   sub={tr(`Heure de pointe ≥ ${velData.seuil_pic_horaire_pct ?? 40} % des ventes du produit (cahier des charges)`, `Peak hour ≥ ${velData.seuil_pic_horaire_pct ?? 40}% of the product's sales (specification)`)}
@@ -3032,6 +3059,8 @@ export default function ProduitsPage() {
             </div>
             <Details label={tr("Voir le détail : vitesse et heure de pointe de chaque produit", "See details: velocity and peak hour of each product")}>
               <div className="cc">
+                <ChartAssistantButton chartType="velocity_hourly_monitoring" chartData={{ macro_items: velItems }} chartName="VelocityHourlyMonitoring"
+                  userQuestion="Explique le tableau de surveillance horaire" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Vitesse et heure de pointe par produit", "Velocity and peak hour by product")}
                   sub={tr("Les 12 produits les plus vendus par jour", "The 12 best-selling products per day")}
@@ -3127,6 +3156,8 @@ export default function ProduitsPage() {
           <div className="sw">
             <div className="grid-main">
               <div className="cc hero-card">
+                <ChartAssistantButton chartType="ticket_contribution_top20" chartData={{ top20: ticketTop, stats: ticketData.stats }} chartName="TicketContributionTop20"
+                  userQuestion="Explique les produits qui contribuent le plus au ticket" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Rôle de chaque produit dans le panier", "Each product's role in the basket")}
                   sub={tr("Tickets à plusieurs produits : part habituelle du produit dans la valeur du ticket, fréquence et chiffre d'affaires. Cliquez sur un nom pour la fiche.", "Multi-product transactions: the product's typical share of basket value, frequency and revenue. Click a name for the sheet.")}
@@ -3167,6 +3198,8 @@ export default function ProduitsPage() {
                   ];
                   return (
                     <div className="cc">
+                      <ChartAssistantButton chartType="ticket_role_distribution" chartData={{ distribution: ticketData.stats?.distribution_par_statut, nb_produits: ticketData.stats?.nb_produits_analysables }} chartName="TicketRoles"
+                        userQuestion="Explique la répartition des produits entre les deux rôles dans le panier" position="top-right" onOpenChat={openChat} />
                       <div className="ct">{tr("Deux rôles dans le panier", "Two roles in the basket")}</div>
                       <div className="cs">{tr(`Sur les ${fmt(ticketData.stats?.nb_produits_analysables || ticketAll.length)} produits présents dans au moins 10 tickets à plusieurs produits (règle du cahier des charges)`, `Out of the ${fmt(ticketData.stats?.nb_produits_analysables || ticketAll.length)} products in at least 10 multi-product transactions (specification rule)`)}</div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -3440,6 +3473,8 @@ export default function ProduitsPage() {
           <div className="sw">
             <div className="grid-main stretch">
               <div className="cc hero-card" style={{ minHeight: 440 }}>
+                <ChartAssistantButton chartType="association_scatter" chartData={{ rules: assocRules }} chartName="AssociationScatter"
+                  userQuestion="Explique ce graphique des associations à promouvoir" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Paires à promouvoir en priorité", "Pairs to promote first")}
                   sub={tr("Chaque bulle est une paire de produits. En haut à droite : paires fréquentes et probables, à proposer en offre groupée. Survolez une bulle pour le détail.", "Each bubble is a product pair. Top right: frequent and likely pairs, to offer as a bundle. Hover a bubble for details.")}
@@ -3448,6 +3483,8 @@ export default function ProduitsPage() {
                 <AssocScatter rules={assocRules} height={460} />
               </div>
               <div className="cc" style={{ minHeight: 440 }}>
+                <ChartAssistantButton chartType="association_top12" chartData={{ rules: assocRules.slice(0, 10) }} chartName="AssociationTop12"
+                  userQuestion="Explique les 10 liens les plus forts" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Les 10 paires les plus fortes", "The 10 strongest pairs")}
                   sub={tr(`Sur ${fmt(assocData.nb_total_regles)} groupes de produits associés`, `Out of ${fmt(assocData.nb_total_regles)} associated product groups`)}
@@ -3494,6 +3531,8 @@ export default function ProduitsPage() {
           <div className="sw">
             <div>
               <div className="cc">
+                <ChartAssistantButton chartType="associations_table" chartData={{ rules: assocRules, nb_total_regles: assocData.nb_total_regles }} chartName="AssociationsRecommendations"
+                  userQuestion="Explique quoi faire de ces associations" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Que faire de ces associations ?", "What to do with these associations?")}
                   sub={tr("Suggestions basées sur les associations détectées", "Suggestions based on the detected associations")}

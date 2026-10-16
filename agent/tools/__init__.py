@@ -14,6 +14,11 @@ from agent.tools.product_tools import (
 )
 from agent.tools.forecast_tools import get_forecast
 from agent.tools.alert_tools import get_alerts
+from agent.tools.rag_tools import (
+    get_available_knowledge_themes,
+    search_knowledge_by_theme,
+    semantic_search_knowledge
+)
 
 __all__ = [
     get_daily_kpis,
@@ -24,5 +29,8 @@ __all__ = [
     get_repurchase_frequency,
     get_associations,
     get_forecast,
-    get_alerts
+    get_alerts,
+    get_available_knowledge_themes,
+    search_knowledge_by_theme,
+    semantic_search_knowledge
 ]

@@ -1,6 +1,6 @@
 import math
 from datetime import datetime, date
-from db import sql_fetch_all, sql_fetch_one, sql_value, is_pg_available
+from db.db import sql_fetch_all, sql_fetch_one, sql_value, is_pg_available
 from config import RISQUE_SEUIL_ELEVE, RISQUE_SEUIL_VIGILANCE, RISQUE_SEUIL_FAIBLE
 
 def safe_num(v, default=0.0):
@@ -81,7 +81,7 @@ def get_alerts_data_pg(mois_filter="Tout"):
 
     # Prévision de saison du pipeline (forecasting/pipeline.py, vérifiée) si disponible ;
     # sinon dernier modèle de saison du notebook (ex. « saison_2026 »).
-    from db_forecast_engine import shop_source
+    from engines.forecast_engine import shop_source
     src = shop_source()
     if src:
         forecast_raw = sql_fetch_all("""

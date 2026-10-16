@@ -1,6 +1,6 @@
 """
 Agent Tools - Daily Data Module
-Fonctions tools pour l'agent ADK - Données journalières
+ADK agent tools - Daily data
 """
 
 import sys
@@ -8,67 +8,67 @@ import os
 
 # Add backend to path to import engines
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
-from db_data_engine import calculate_daily_kpis_pg
+from engines.data_engine import calculate_daily_kpis_pg
 from datetime import date
 
 
 def get_daily_kpis(target_date: str = None) -> dict:
     """
-    Récupère les KPIs journaliers pour une date spécifique.
+    Retrieves daily KPIs for a specific date.
     
-    Cette fonction retourne toutes les métriques clés d'une journée : chiffre d'affaires,
-    nombre de tickets, panier moyen, vitesse des ventes, top produits, top combinaisons,
-    données horaires, catégories, etc.
+    This function returns all key metrics for a day: revenue,
+    number of tickets, average basket, sales velocity, top products, top combinations,
+    hourly data, categories, etc.
     
     Args:
-        target_date (str, optional): Date cible au format 'YYYY-MM-DD'.
-            Si None, utilise la date du jour.
-            Exemples: "2025-10-02", "2025-09-15"
-            Défaut: None (date du jour)
+        target_date (str, optional): Target date in 'YYYY-MM-DD' format.
+            If None, uses today's date.
+            Examples: "2025-10-02", "2025-09-15"
+            Default: None (today's date)
     
     Returns:
-        dict: Dictionnaire contenant:
-            - ca_jour (float): Chiffre d'affaires du jour en EUR
-            - tickets (int): Nombre de tickets transactions
-            - panier (float): Panier moyen en EUR
-            - qte_jour (int): Quantité totale d'articles vendus
-            - hourly_data (list): Liste des données horaires, chaque élément contient:
-                - hour (int): Heure de la journée (0-23)
-                - ca (float): CA de cette heure
-                - tkt (int): Nombre de tickets cette heure
-                - qte (float): Quantité vendue cette heure
-                - panier_h (float): Panier moyen cette heure
-                - heure (str): Heure formatée "HHh"
-                - ca_cum (float): CA cumulé jusqu'à cette heure
-            - heures_act (int): Nombre d'heures avec ventes
-            - vitesse (float): Vitesse des ventes (articles/heure)
-            - peak_h (int): Heure de pointe
-            - peak_qte_h (float): Quantité vendue à l'heure de pointe
-            - ca_moy_global (float): CA moyen global
-            - delta_vs_moy (float): Écart en % vs moyenne
-            - top_qte (list): Top produits par quantité, chaque élément contient:
-                - article (str): Nom du produit
-                - quantity (float): Quantité vendue
-            - top_ca (list): Top produits par CA, chaque élément contient:
-                - article (str): Nom du produit
-                - total_revenue (float): CA total
-            - top_tkt (list): Top produits par nombre de tickets, chaque élément contient:
-                - article (str): Nom du produit
-                - nb_tkt (int): Nombre de tickets
-            - categories (list): Liste des catégories, chaque élément contient:
-                - category (str): Nom de la catégorie
-                - total_revenue (float): CA de la catégorie
-            - top_pairs (list): Top combinaisons de produits, chaque élément contient:
-                - pa (str): Premier produit de la paire
-                - pb (str): Deuxième produit de la paire
-                - cnt (int): Nombre d'occurrences de cette combinaison
-            - nb_multi (int): Nombre de tickets multi-produits
-            - nb_mono (int): Nombre de tickets mono-produit
-            - pct_m (float): Pourcentage de tickets multi-produits
-            - alerts_count (int): Nombre d'alertes
-            - date_str (str): Date formatée
-            - jour_str (str): Jour de la semaine
-            - total_lignes (int): Nombre total de lignes
+        dict: Dictionary containing:
+            - ca_jour (float): Daily revenue in EUR
+            - tickets (int): Number of ticket transactions
+            - panier (float): Average basket in EUR
+            - qte_jour (int): Total quantity of items sold
+            - hourly_data (list): List of hourly data, each element contains:
+                - hour (int): Hour of the day (0-23)
+                - ca (float): Revenue for this hour
+                - tkt (int): Number of tickets this hour
+                - qte (float): Quantity sold this hour
+                - panier_h (float): Average basket this hour
+                - heure (str): Formatted hour "HHh"
+                - ca_cum (float): Cumulative revenue up to this hour
+            - heures_act (int): Number of hours with sales
+            - vitesse (float): Sales velocity (items/hour)
+            - peak_h (int): Peak hour
+            - peak_qte_h (float): Quantity sold at peak hour
+            - ca_moy_global (float): Global average revenue
+            - delta_vs_moy (float): Percentage difference vs average
+            - top_qte (list): Top products by quantity, each element contains:
+                - article (str): Product name
+                - quantity (float): Quantity sold
+            - top_ca (list): Top products by revenue, each element contains:
+                - article (str): Product name
+                - total_revenue (float): Total revenue
+            - top_tkt (list): Top products by ticket count, each element contains:
+                - article (str): Product name
+                - nb_tkt (int): Number of tickets
+            - categories (list): List of categories, each element contains:
+                - category (str): Category name
+                - total_revenue (float): Category revenue
+            - top_pairs (list): Top product combinations, each element contains:
+                - pa (str): First product in the pair
+                - pb (str): Second product in the pair
+                - cnt (int): Number of occurrences of this combination
+            - nb_multi (int): Number of multi-product tickets
+            - nb_mono (int): Number of single-product tickets
+            - pct_m (float): Percentage of multi-product tickets
+            - alerts_count (int): Number of alerts
+            - date_str (str): Formatted date
+            - jour_str (str): Day of the week
+            - total_lignes (int): Total number of lines
     
     Example:
         >>> get_daily_kpis("2025-10-02")

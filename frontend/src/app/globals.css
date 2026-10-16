@@ -287,6 +287,7 @@ html[data-theme="dark"] .border-stone-100\/80 { border-color: var(--dk-line); }
 .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
 .g2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px; }
 .cc {
+  position: relative; /* bouton assistant IA ancré en haut à droite */
   background: var(--dk-surface);
   border-radius: 20px;
   padding: 20px 22px 16px;
@@ -632,6 +633,7 @@ html[data-nav="hidden"] .nav-float-logo { display: flex; }
   cursor: pointer;
   white-space: nowrap;
   text-decoration: none;
+  font-family: inherit;
   transition: background .2s ease, transform .2s ease;
 }
 .ask-btn:hover { background: #256B42; transform: translateY(-1px); }

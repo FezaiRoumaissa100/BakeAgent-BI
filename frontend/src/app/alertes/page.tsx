@@ -6,6 +6,8 @@ import { ExpertNote } from "@/components/Expert";
 import { ProductRiskCard } from "@/components/ProductRisk";
 import { fetchAlerts } from "@/lib/api";
 import { tr, trData, locale } from "@/lib/i18n";
+import { ChartAssistantButton } from "@/components/ChartAssistantButton";
+import { ChatProvider, useChat } from "@/contexts/ChatContext";
 import {
   IconPackage,
   IconShoppingCart,
@@ -50,6 +52,7 @@ export default function AlertesPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mois, setMois] = useState("Tout");
+  const { openChat } = useChat();
 
   useEffect(() => {
     setLoading(true);
@@ -71,7 +74,8 @@ export default function AlertesPage() {
   const plage = moisDispo.length ? `${moisDispo[0].toLowerCase()}–${moisDispo[moisDispo.length - 1].toLowerCase()}` : "";
 
   return (
-    <div style={{ paddingBottom: "40px" }}>
+    <ChatProvider>
+      <div style={{ paddingBottom: "40px" }}>
       {/* ── TITRE + DESCRIPTION ── */}
       <div style={{ marginBottom: "16px", padding: "0 28px" }}>
         <h1 style={{ fontSize:"1.8rem", fontWeight:800, color:INK,
@@ -200,7 +204,22 @@ export default function AlertesPage() {
         {tr("Demande Prévue & Niveaux de Risque", "Forecast demand & risk levels")}
       </div>
       <div className="sw">
-        <div className="cc">
+        <div className="cc" style={{ position: "relative" }}>
+          <ChartAssistantButton
+            chartType="alerts_demande_risque"
+            chartData={{
+              days,
+              statuts,
+              kpis,
+              filters: {
+                mois: mois
+              }
+            }}
+            chartName="AlertsDemandeRisque"
+            userQuestion="Explique la demande prévue et les niveaux de risque"
+            position="top-right"
+            onOpenChat={openChat}
+          />
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
             <div>
               <div className="ct">{tr("Demande Prévue et Niveaux d'Alerte", "Forecast demand and alert levels")}</div>
@@ -247,7 +266,22 @@ export default function AlertesPage() {
         {tr("Détail Opérationnel", "Operational detail")}
       </div>
       <div className="sw">
-        <div className="cc">
+        <div className="cc" style={{ position: "relative" }}>
+          <ChartAssistantButton
+            chartType="alerts_detail_operationnel"
+            chartData={{
+              days,
+              statuts,
+              kpis,
+              filters: {
+                mois: mois
+              }
+            }}
+            chartName="AlertsDetailOperationnel"
+            userQuestion="Explique le détail opérationnel des alertes"
+            position="top-right"
+            onOpenChat={openChat}
+          />
           <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "8px" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--dk-line, #ECEDE7)", color: MUTED, fontSize: "0.7rem", textTransform: "uppercase", textAlign: "right" }}>
@@ -313,5 +347,6 @@ export default function AlertesPage() {
       {/* ── NOUVEAU : risque par produit (prévision par produit), en plus des alertes globales ── */}
       <ProductRiskCard />
     </div>
+    </ChatProvider>
   );
 }

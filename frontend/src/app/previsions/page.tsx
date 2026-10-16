@@ -27,6 +27,8 @@ import {
   IconSparkline,
   IconSearch,
 } from "@/components/Icons";
+import { ChartAssistantButton } from "@/components/ChartAssistantButton";
+import { useChat } from "@/contexts/ChatContext";
 
 /* ──────────── Palette & helpers ──────────── */
 const ORANGE = colors.accentDeep;
@@ -48,6 +50,7 @@ function fmt(n: number, dec = 0) {
 }
 
 export default function PrevisionsPage() {
+  const { openChat } = useChat();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
@@ -331,12 +334,14 @@ export default function PrevisionsPage() {
       </div>
       <div className="sw">
         <div className="cc" style={{ minHeight: "900px" }}>
+          <ChartAssistantButton chartType="forecast" chartData={{ history, forecast, showObserved, showPredicted, showConfidence, horizon }} chartName="ForecastChart"
+            userQuestion="Explique cette prévision de demande" position="top-right" onOpenChat={openChat} />
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
             <div>
               <div className="ct">{tr("Historique Récent et Prévision", "Recent history and forecast")}</div>
               <div className="cs">{tr("Ventes réelles des derniers jours, puis prévision jour par jour avec sa fourchette", "Actual sales over recent days, then the day-by-day forecast with its range")}</div>
             </div>
-            <div style={{ display: "flex", gap: "16px", fontSize: "0.7rem", fontWeight: 700 }}>
+            <div style={{ display: "flex", gap: "16px", fontSize: "0.7rem", fontWeight: 700, paddingRight: "28px" }}>
               {showObserved && <span style={{ display: "flex", alignItems: "center", gap: "6px", color: INK }}><div style={{ width: "8px", height: "8px", borderRadius: "50%", background: INK }} />{tr("Historique", "History")}</span>}
               {showPredicted && <span style={{ display: "flex", alignItems: "center", gap: "6px", color: ORANGE }}><div style={{ width: "8px", height: "8px", borderRadius: "50%", background: ORANGE }} />{tr("Prévision", "Forecast")}</span>}
             </div>
@@ -399,6 +404,8 @@ export default function PrevisionsPage() {
           </div>
           <div className="sw">
             <div className="cc">
+              <ChartAssistantButton chartType="seasonal" chartData={{ data: forecastSeason }} chartName="SeasonalChart"
+                userQuestion="Explique cette saisonnalité" position="top-right" onOpenChat={openChat} />
               <div className="ct">{tr("Prévision des ventes pour la prochaine saison", "Sales forecast for the next season")}</div>
               <div className="cs">{tr(`Articles par jour, ${seasonLabel}, avec la fourchette basse – haute. × = jour prévu fermé (d'après les habitudes de la boutique l'an dernier), à confirmer avec la boutique.`, `Items per day, ${seasonLabel}, with the low – high range. × = day expected closed (based on the shop's habits last year), to be confirmed with the shop.`)}</div>
               <div style={{ height: "350px", width: "100%", marginTop: "16px" }}>

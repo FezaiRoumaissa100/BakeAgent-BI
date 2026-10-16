@@ -6,6 +6,7 @@ import { fetchDailyKPIs } from "@/lib/api";
 import { Hero, AnalyticsSections } from "@/components/Dashboard";
 import { IconAlert } from "@/components/Icons";
 import { tr } from "@/lib/i18n";
+import { useChat } from "@/contexts/ChatContext";
 
 export default function Page() {
   const [kpis, setKpis] = useState<DailyKPIs | null>(null);

@@ -3,13 +3,13 @@ Prévision PAR PRODUIT : lecture des résultats du pipeline forecasting/pipeline
 Ne remplace rien : la prévision globale (prophet_forecasts) reste servie par db_forecast_engine.py.
 """
 from datetime import timedelta
-from db import sql_fetch_all, sql_fetch_one, sql_value
+from db.db import sql_fetch_all, sql_fetch_one, sql_value
 from config import RISQUE_SEUIL_ELEVE, RISQUE_SEUIL_VIGILANCE, RISQUE_SEUIL_FAIBLE
 
 import json, os
 # Seuils de fiabilité : lus dans forecasting/config.json (un seul endroit pour les régler)
 try:
-    _cfg = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "forecasting", "config.json"), encoding="utf-8"))
+    _cfg = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "forecasting", "config.json"), encoding="utf-8"))
 except Exception:
     _cfg = {}
 FIAB_BONNE = float(_cfg.get("fiabilite_bonne_wape_max", 0.35))

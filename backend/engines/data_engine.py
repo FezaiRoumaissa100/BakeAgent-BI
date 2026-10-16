@@ -1,6 +1,6 @@
 import math
 from datetime import datetime, date
-from db import sql_fetch_all, sql_fetch_one, sql_value, is_pg_available
+from db.db import sql_fetch_all, sql_fetch_one, sql_value, is_pg_available
 
 def safe_float(v):
     if v is None or (isinstance(v, float) and math.isnan(v)):
@@ -248,7 +248,7 @@ def calculate_daily_kpis_pg(sel_date: date):
     
     # Nombre de jours en « risque de manque » sur la prévision estivale (page Alertes)
     try:
-        from db_alerts_engine import get_alerts_data_pg
+        from engines.alerts_engine import get_alerts_data_pg
         alerts_count = int((get_alerts_data_pg("Tout").get("kpis") or {}).get("statuts", {}).get("RUPTURE", 0))
     except Exception:
         alerts_count = 0

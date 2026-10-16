@@ -1,6 +1,6 @@
 """
-Test de l'agent Retail Intelligence
-Script pour tester l'agent avec ADK
+Retail Intelligence Agent Test
+Script to test the agent with ADK
 """
 
 from google.adk.runners import InMemoryRunner
@@ -8,6 +8,20 @@ from google.genai import types
 import asyncio
 import sys
 import os
+import logging
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configure console logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# Capture message content
+os.environ["OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT"] = "true"
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'agent'))
@@ -28,7 +42,7 @@ async def create_session():
 def test_agent():
     asyncio.run(create_session())
 
-    question1 = "Quelles sont les produits que je dois concentrer a vendre et pourquoi simplement ?"
+    question1 = "Quelles sont les produits importants dans ma boulangerie ?"
     message = types.Content(role="user", parts=[types.Part(text=question1)])
 
     try:
@@ -40,13 +54,13 @@ def test_agent():
             if event.content and event.content.parts:
                 for part in event.content.parts:
                     if part.text:
-                        print(f"Réponse : {part.text}")
+                        print(f"Response: {part.text}")
 
             if event.is_final_response():
                 break
 
     except Exception as e:
-        print(f"Erreur : {e}")
+        print(f"Error: {e}")
 
 
 if __name__ == "__main__":

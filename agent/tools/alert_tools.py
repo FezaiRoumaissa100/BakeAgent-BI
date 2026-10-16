@@ -1,6 +1,6 @@
 """
 Agent Tools - Alert Module
-Fonctions tools pour l'agent ADK - Alertes stock
+ADK agent tools - Stock alerts
 """
 
 import sys
@@ -8,52 +8,52 @@ import os
 
 # Add backend to path to import engines
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'backend'))
-from db_alerts_engine import get_alerts_data_pg
+from engines.alerts_engine import get_alerts_data_pg
 
 
 def get_alerts(mois_filter: str = "Tout") -> dict:
     """
-    Récupère les alertes de stock basées sur les prévisions saisonnières.
+    Retrieves stock alerts based on seasonal forecasts.
     
-    Cette fonction analyse les prévisions de demande et génère des alertes
-    de stock (rupture, vigilance, normal, surstock) pour chaque jour.
+    This function analyzes demand forecasts and generates stock alerts
+    (stockout, warning, normal, overstock) for each day.
     
     Args:
-        mois_filter (str): Filtre de mois pour les alertes.
+        mois_filter (str): Month filter for alerts.
             Options: "Tout", "Juin", "Juillet", "Août", "Septembre"
-            Défaut: "Tout"
+            Default: "Tout"
     
     Returns:
-        dict: Dictionnaire contenant:
-            - kpis (dict): KPIs globaux des alertes:
-                - total_articles (int): Total d'articles prévus
-                - ca_total_prevu (float): CA total prévu
-                - marge_totale (float): Marge totale prévue
-                - ca_risque (float): CA à risque (jours en rupture)
-                - pic_val (int): Valeur du pic
-                - pic_date (str): Date du pic
-                - statuts (dict): Compte par statut:
-                    - RUPTURE (int): Nombre de jours en rupture
-                    - VIGILANCE (int): Nombre de jours en vigilance
-                    - NORMAL (int): Nombre de jours normaux
-                    - SURSTOCK (int): Nombre de jours en surstock
-                    - FERMÉ (int): Nombre de jours fermés
+        dict: Dictionary containing:
+            - kpis (dict): Global alert KPIs:
+                - total_articles (int): Total forecasted items
+                - ca_total_prevu (float): Total forecasted revenue
+                - marge_totale (float): Total forecasted margin
+                - ca_risque (float): Revenue at risk (stockout days)
+                - pic_val (int): Peak value
+                - pic_date (str): Peak date
+                - statuts (dict): Count by status:
+                    - RUPTURE (int): Number of stockout days
+                    - VIGILANCE (int): Number of warning days
+                    - NORMAL (int): Number of normal days
+                    - SURSTOCK (int): Number of overstock days
+                    - FERMÉ (int): Number of closed days
             
-            - days (list): Liste des jours avec alertes, chaque élément contient:
+            - days (list): List of days with alerts, each element contains:
                 - ds (str): Date
-                - date_fr (str): Date formatée FR
-                - jour_semaine (str): Jour de la semaine
-                - yhat (int): Prévision de demande
-                - yhat_lower (int): Borne inférieure
-                - yhat_upper (int): Borne supérieure
-                - ca_prevu (float): CA prévu
-                - marge_prevue (float): Marge prévue
-                - ratio_pct (float): Ratio stock/prévision en %
-                - commande_recommandee (int): Commande recommandée
-                - statut (str): Statut ("RUPTURE", "VIGILANCE", "NORMAL", "SURSTOCK", "FERMÉ")
-                - bar_color (str): Code couleur hex pour l'affichage
+                - date_fr (str): Formatted FR date
+                - jour_semaine (str): Day of the week
+                - yhat (int): Demand forecast
+                - yhat_lower (int): Lower bound
+                - yhat_upper (int): Upper bound
+                - ca_prevu (float): Forecasted revenue
+                - marge_prevue (float): Forecasted margin
+                - ratio_pct (float): Stock/forecast ratio in %
+                - commande_recommandee (int): Recommended order
+                - statut (str): Status ("RUPTURE", "VIGILANCE", "NORMAL", "SURSTOCK", "FERMÉ")
+                - bar_color (str): Hex color code for display
             
-            - available_mois (list): Mois disponibles pour le filtre
+            - available_mois (list): Available months for filter
     
     Example:
         >>> get_alerts(mois_filter="Juillet")

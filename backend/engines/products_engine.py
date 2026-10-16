@@ -1,5 +1,5 @@
 import math
-from db import sql_fetch_all, sql_fetch_one, sql_value, is_pg_available
+from db.db import sql_fetch_all, sql_fetch_one, sql_value, is_pg_available
 from config import (PENETRATION_STATUTS, statut_penetration, PIC_HORAIRE_SEUIL_PCT,
                     CONTRIBUTION_GENERATEUR_SEUIL_PCT, FREQUENCE_STATUTS, statut_frequence)
 

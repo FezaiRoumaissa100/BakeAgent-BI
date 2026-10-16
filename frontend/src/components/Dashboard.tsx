@@ -4,6 +4,8 @@ import { DailyKPIs, HourlyData } from "@/types/kpis";
 import { colors } from "@/lib/theme";
 import React from "react";
 import { IconSparkline } from "./Icons";
+import { ChartAssistantButton } from "@/components/ChartAssistantButton";
+import { useChat } from "@/contexts/ChatContext";
 import { siteConfig } from "@/lib/siteConfig";
 import { ExpertNote } from "@/components/Expert";
 import { RetainProvider, RetainCard, Takeaway } from "@/components/Ui";
@@ -473,6 +475,7 @@ function ProdRows({
 
 /* Cadence de vente : articles par heure d'activité, comparée aux mêmes jours précédents */
 function CadenceCard({ kpis }: { kpis: DailyKPIs }) {
+  const { openChat } = useChat();
   const v = Number(kpis.vitesse || 0);
   const v_ref = Number(kpis.vitesse_ref || 0);
   const ratio = v_ref > 0 ? v / v_ref : 1;
@@ -482,7 +485,9 @@ function CadenceCard({ kpis }: { kpis: DailyKPIs }) {
   const mx = Math.max(v, v_ref, 1);
   return (
     <div className="cc">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <ChartAssistantButton chartType="vitesse_gauge" chartData={{ vitesse: v, vitesse_ref: v_ref, heures_act: kpis.heures_act }} chartName="VitesseGauge"
+        userQuestion="Explique cette cadence de vente" position="top-right" onOpenChat={openChat} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingRight: 26 }}>
         <div className="ct">{tr("Cadence de vente", "Sales pace")}</div>
         <span className="pp-tag" style={{ background: "var(--dk-accent-wash)", color: col }}>{label}</span>
       </div>
@@ -512,10 +517,13 @@ function CadenceCard({ kpis }: { kpis: DailyKPIs }) {
 
 /* Produits achetés ensemble ce jour-là (paires les plus fréquentes) */
 function PairsCard({ kpis }: { kpis: DailyKPIs }) {
+  const { openChat } = useChat();
   const pairs = kpis.top_pairs.slice(0, 5);
   const mx = pairs[0]?.cnt || 1;
   return (
     <div className="cc">
+      <ChartAssistantButton chartType="day_pairs" chartData={{ pairs }} chartName="PairsCard"
+        userQuestion="Explique les produits achetés ensemble ce jour-là" position="top-right" onOpenChat={openChat} />
       <div className="ct">{tr("Achetés ensemble ce jour-là", "Bought together that day")}</div>
       <div className="cs">{tr("Paires de produits dans le même ticket", "Product pairs in the same transaction")}</div>
       {pairs.length === 0 && <div className="cs">{tr("Aucune paire ce jour-là.", "No pair that day.")}</div>}
@@ -539,6 +547,7 @@ function PairsCard({ kpis }: { kpis: DailyKPIs }) {
 }
 
 export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
+  const { openChat } = useChat();
   const catTotal = kpis.categories.reduce((s, c) => s + c.total_revenue, 0) || 1;
   const nb_total = Math.max(kpis.tickets, 1);
 
@@ -550,6 +559,8 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
       <div className="sw">
         <div className="grid-main stretch">
           <div className="cc hero-card" style={{ display: "flex", flexDirection: "column" }}>
+            <ChartAssistantButton chartType="hourly_bar" chartData={{ data: kpis.hourly_data, valueKey: "ca", unit: "€" }} chartName="PlotlyBarChart"
+              userQuestion="Explique ce graphique horaire du chiffre d'affaires" position="top-right" onOpenChat={openChat} />
             <div className="ct">{tr("Chiffre d'affaires par heure", "Revenue by hour")}</div>
             <div className="cs">{tr("Survolez une barre pour le montant exact. Pic d'activité : ", "Hover a bar for the exact amount. Peak activity: ")}{String(kpis.peak_h).padStart(2, "0")}h</div>
             <div style={{ flex: 1, minHeight: 290, display: "flex", flexDirection: "column" }}>
@@ -576,6 +587,8 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
       <div className="sw">
         <div className="grid-2 stretch">
           <div className="cc">
+            <ChartAssistantButton chartType="prod_rows_top_ca" chartData={{ list: kpis.top_ca.slice(0, 8), col: "total_revenue" }} chartName="TopProductsCA"
+              userQuestion="Explique ce classement des top produits par chiffre d'affaires" position="top-right" onOpenChat={openChat} />
             <div className="ct">{tr("Produits qui rapportent le plus", "Highest-earning products")}</div>
             <div className="cs">{tr("Chiffre d'affaires du jour (€)", "Today's revenue (€)")}</div>
             <ProdRows products={kpis.top_ca} col="total_revenue" />
@@ -597,6 +610,8 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
       <div className="sw">
         <div className="grid-2 stretch">
           <div className="cc">
+            <ChartAssistantButton chartType="category_revenue_distribution" chartData={{ categories: kpis.categories, total: catTotal }} chartName="CategoryRevenue"
+              userQuestion="Explique la répartition du chiffre d'affaires par catégorie" position="top-right" onOpenChat={openChat} />
             <div className="ct">{tr("Répartition par catégorie", "Breakdown by category")}</div>
             <div className="cs">{tr("CA par famille de produits", "Revenue by product family")}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
@@ -651,6 +666,8 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
           </div>
 
           <div className="cc">
+            <ChartAssistantButton chartType="basket_composition" chartData={{ total_tickets: kpis.tickets, nb_multi: kpis.nb_multi, nb_mono: kpis.nb_mono, pct_multi: (kpis.nb_multi / nb_total) * 100, pct_mono: (kpis.nb_mono / nb_total) * 100 }} chartName="BasketComposition"
+              userQuestion="Explique la composition des paniers d'aujourd'hui" position="top-right" onOpenChat={openChat} />
             <div className="ct">{tr("Composition des paniers", "Basket composition")}</div>
             <div className="cs">{tr("Tickets à plusieurs articles ou à un seul article", "Multi-item vs single-item transactions")}</div>
             {/* Barre corrigée : elle mélangeait le CA (en €) et des nombres de tickets, avec des tailles fixes.
