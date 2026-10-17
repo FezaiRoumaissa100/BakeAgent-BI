@@ -368,7 +368,7 @@ select { cursor: pointer; }
    L'état est lu sur <html data-nav="rail|hidden" data-nav-open="0|1"> (voir lib/navMode.ts). */
 .side {
   --side-closed: 78px;
-  --side-open: 264px;
+  --side-open: 300px;
   --side-ease: cubic-bezier(.2,.7,.2,1);
   position: sticky;
   top: 0;
@@ -457,7 +457,7 @@ html[data-nav-open="1"] .side { width: var(--side-open); }
   color: var(--side-text);
   transition: color .2s ease, background .2s ease;
 }
-.side-txt { display: flex; flex-direction: column; min-width: 0; }
+.side-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .side-label {
   font-size: 0.92rem;
   font-weight: 600;
@@ -473,6 +473,10 @@ html[data-nav-open="1"] .side { width: var(--side-open); }
   opacity: 0;
   transition: opacity .2s ease;
 }
+/* Libellés toujours contenus dans leur case (points de suspension si l'écran est étroit) */
+.side-label, .side-sub { overflow: hidden; text-overflow: ellipsis; }
+/* Menu déplié : cases arrondies (pas en pilule) pour bien entourer les deux lignes de texte */
+html[data-nav-open="1"] .side-item, html[data-nav="hidden"] .side-item { border-radius: 16px; padding: 9px 12px 9px 10px; }
 .side-item:hover { background: var(--side-hover); }
 .side-item:hover .side-ic { color: var(--side-ink); }
 .side-item.active { background: var(--side-active); }
