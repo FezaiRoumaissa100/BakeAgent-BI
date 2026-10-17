@@ -485,7 +485,7 @@ function CadenceCard({ kpis }: { kpis: DailyKPIs }) {
   const mx = Math.max(v, v_ref, 1);
   return (
     <div className="cc">
-      <ChartAssistantButton chartType="vitesse_gauge" chartData={{ vitesse: v, vitesse_ref: v_ref, heures_act: kpis.heures_act }} chartName="VitesseGauge"
+      <ChartAssistantButton chartType="vitesse_gauge" chartData={{ vitesse: v, vitesse_ref: v_ref, heures_act: kpis.heures_act, journee: kpis.date_fr || kpis.date, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)" }} chartName="VitesseGauge"
         userQuestion="Explique cette cadence de vente" position="top-right" onOpenChat={openChat} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingRight: 26 }}>
         <div className="ct">{tr("Cadence de vente", "Sales pace")}</div>
@@ -522,7 +522,7 @@ function PairsCard({ kpis }: { kpis: DailyKPIs }) {
   const mx = pairs[0]?.cnt || 1;
   return (
     <div className="cc">
-      <ChartAssistantButton chartType="day_pairs" chartData={{ pairs }} chartName="PairsCard"
+      <ChartAssistantButton chartType="day_pairs" chartData={{ pairs, journee: kpis.date_fr || kpis.date, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)" }} chartName="PairsCard"
         userQuestion="Explique les produits achetés ensemble ce jour-là" position="top-right" onOpenChat={openChat} />
       <div className="ct">{tr("Achetés ensemble ce jour-là", "Bought together that day")}</div>
       <div className="cs">{tr("Paires de produits dans le même ticket", "Product pairs in the same transaction")}</div>
@@ -559,7 +559,7 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
       <div className="sw">
         <div className="grid-main stretch">
           <div className="cc hero-card" style={{ display: "flex", flexDirection: "column" }}>
-            <ChartAssistantButton chartType="hourly_bar" chartData={{ data: kpis.hourly_data, valueKey: "ca", unit: "€" }} chartName="PlotlyBarChart"
+            <ChartAssistantButton chartType="hourly_bar" chartData={{ data: kpis.hourly_data, valueKey: "ca", unit: "€", journee: kpis.date_fr || kpis.date, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)" }} chartName="PlotlyBarChart"
               userQuestion="Explique ce graphique horaire du chiffre d'affaires" position="top-right" onOpenChat={openChat} />
             <div className="ct">{tr("Chiffre d'affaires par heure", "Revenue by hour")}</div>
             <div className="cs">{tr("Survolez une barre pour le montant exact. Pic d'activité : ", "Hover a bar for the exact amount. Peak activity: ")}{String(kpis.peak_h).padStart(2, "0")}h</div>
@@ -587,7 +587,7 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
       <div className="sw">
         <div className="grid-2 stretch">
           <div className="cc">
-            <ChartAssistantButton chartType="prod_rows_top_ca" chartData={{ list: kpis.top_ca.slice(0, 8), col: "total_revenue" }} chartName="TopProductsCA"
+            <ChartAssistantButton chartType="prod_rows_top_ca" chartData={{ list: kpis.top_ca.slice(0, 8), col: "total_revenue", journee: kpis.date_fr || kpis.date, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)" }} chartName="TopProductsCA"
               userQuestion="Explique ce classement des top produits par chiffre d'affaires" position="top-right" onOpenChat={openChat} />
             <div className="ct">{tr("Produits qui rapportent le plus", "Highest-earning products")}</div>
             <div className="cs">{tr("Chiffre d'affaires du jour (€)", "Today's revenue (€)")}</div>
@@ -610,7 +610,7 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
       <div className="sw">
         <div className="grid-2 stretch">
           <div className="cc">
-            <ChartAssistantButton chartType="category_revenue_distribution" chartData={{ categories: kpis.categories, total: catTotal }} chartName="CategoryRevenue"
+            <ChartAssistantButton chartType="category_revenue_distribution" chartData={{ categories: kpis.categories, total: catTotal, journee: kpis.date_fr || kpis.date, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)" }} chartName="CategoryRevenue"
               userQuestion="Explique la répartition du chiffre d'affaires par catégorie" position="top-right" onOpenChat={openChat} />
             <div className="ct">{tr("Répartition par catégorie", "Breakdown by category")}</div>
             <div className="cs">{tr("CA par famille de produits", "Revenue by product family")}</div>
@@ -666,7 +666,7 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
           </div>
 
           <div className="cc">
-            <ChartAssistantButton chartType="basket_composition" chartData={{ total_tickets: kpis.tickets, nb_multi: kpis.nb_multi, nb_mono: kpis.nb_mono, pct_multi: (kpis.nb_multi / nb_total) * 100, pct_mono: (kpis.nb_mono / nb_total) * 100 }} chartName="BasketComposition"
+            <ChartAssistantButton chartType="basket_composition" chartData={{ total_tickets: kpis.tickets, nb_multi: kpis.nb_multi, nb_mono: kpis.nb_mono, pct_multi: (kpis.nb_multi / nb_total) * 100, pct_mono: (kpis.nb_mono / nb_total) * 100, journee: kpis.date_fr || kpis.date, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)" }} chartName="BasketComposition"
               userQuestion="Explique la composition des paniers d'aujourd'hui" position="top-right" onOpenChat={openChat} />
             <div className="ct">{tr("Composition des paniers", "Basket composition")}</div>
             <div className="cs">{tr("Tickets à plusieurs articles ou à un seul article", "Multi-item vs single-item transactions")}</div>

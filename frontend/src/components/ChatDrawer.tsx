@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import ReactMarkdown from 'react-markdown';
 import { queryAgentWithMetadata } from "@/lib/api";
 import { useChat } from "@/contexts/ChatContext";
+import { tr } from "@/lib/i18n";
 
 interface Message {
   role: "user" | "assistant";
@@ -127,358 +128,109 @@ export function ChatDrawer({ isOpen, onClose, initialMessage, initialMetadata, u
 
   if (!isOpen) return null;
 
-  return (
-    <>
-      {/* Backdrop semi-transparent */}
-      {/* Commenté temporairement pour tester */}
-      {/* <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "rgba(0, 0, 0, 0.3)",
-          zIndex: 998,
-        }}
-        onClick={onClose}
-      /> */}
+  const suggestions = [
+    tr("Comment s'est passée cette journée ?", "How did this day go?"),
+    tr("Quels produits rapportent le plus ?", "Which products earn the most?"),
+    tr("Que prévoit-on pour les 7 prochains jours ?", "What is forecast for the next 7 days?"),
+  ];
 
-      {/* Drawer */}
-      <div
-        ref={drawerRef}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          width: "450px",
-          height: "100vh",
-          background: "var(--dk-chrome-bg, #FFFFFF)",
-          boxShadow: "-4px 0 20px rgba(0, 0, 0, 0.15)",
-          zIndex: 999,
-          display: "flex",
-          flexDirection: "column",
-          animation: "slideIn 0.3s ease-out",
-        }}
-      >
-        {/* Header */}
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            padding: "20px 24px",
-            borderBottom: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            background: "var(--dk-chrome-bg, #FFFFFF)",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: "1.1rem",
-                fontWeight: 700,
-                color: "var(--dk-chrome-ink, #1C1410)",
-              }}
-            >
-              Ask Your baker AI assistant
+  return (
+    <div ref={drawerRef} onClick={(e) => e.stopPropagation()} className="chat-panel" role="dialog"
+      aria-label={tr("Assistant IA", "AI Assistant")}>
+      {/* En-tête : même style de titre en deux couleurs que les pages */}
+      <div className="chat-head">
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <div className="chat-head-ic">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+            </svg>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div className="chat-title">{tr("Assistant ", "AI ")}<span>{tr("IA", "Assistant")}</span></div>
+            <div className="chat-sub">{tr("Posez une question sur vos chiffres", "Ask a question about your numbers")}</div>
+          </div>
+        </div>
+        <button type="button" className="chat-close" onClick={onClose} aria-label={tr("Fermer", "Close")}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Messages */}
+      <div className="chat-body">
+        {messages.length === 0 && !isThinking && (
+          <div className="chat-empty">
+            <div className="chat-empty-ic">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            <b>{tr("Que voulez-vous savoir ?", "What would you like to know?")}</b>
+            <p>{tr("Ou cliquez sur ✦ en haut d'un graphique pour le faire expliquer.", "Or click ✦ at the top of a chart to have it explained.")}</p>
+            <div className="chat-suggest">
+              {suggestions.map((q) => (
+                <button key={q} type="button" onClick={() => setInputValue(q)}>{q}</button>
+              ))}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "8px",
-              border: "none",
-              background: "var(--dk-chrome-chip, #FBF6F0)",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "background 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--dk-chrome-hover, #F3E9DE)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "var(--dk-chrome-chip, #FBF6F0)";
-            }}
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ color: "var(--dk-chrome-ink, #1C1410)" }}
-            >
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
+        )}
+
+        {messages.map((message, index) => (
+          <div key={index} className={`chat-msg ${message.role === "user" ? "user" : "bot"}`}>
+            <div className="chat-bubble">
+              {message.role === "assistant" ? (
+                <ReactMarkdown>{message.content}</ReactMarkdown>
+              ) : (
+                message.content
+              )}
+            </div>
+            <div className="chat-time">
+              {new Date(message.timestamp).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+            </div>
+          </div>
+        ))}
+
+        {isThinking && (
+          <div className="chat-msg bot">
+            <div className="chat-bubble chat-thinking">
+              <span style={{ display: "flex", gap: 4 }}>
+                <span className="chat-dot" /><span className="chat-dot" /><span className="chat-dot" />
+              </span>
+              {tr("L'assistant réfléchit…", "The assistant is thinking…")}
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Saisie */}
+      <div className="chat-foot">
+        <div className="chat-input-wrap">
+          <textarea
+            className="chat-input"
+            rows={1}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyPress}
+            placeholder={tr("Posez votre question…", "Ask your question…")}
+            disabled={isLoading}
+          />
+          <button type="button" className="chat-send" onClick={handleSendMessage}
+            disabled={!inputValue.trim() || isLoading} aria-label={tr("Envoyer", "Send")}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
             </svg>
           </button>
         </div>
-
-        {/* Messages */}
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "20px 24px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "16px",
-          }}
-        >
-          {messages.length === 0 && (
-            <div
-              style={{
-                textAlign: "center",
-                color: "var(--dk-chrome-muted, #9a8070)",
-                marginTop: "60px",
-              }}
-            >
-              <div style={{ fontSize: "3rem", marginBottom: "16px" }}>💬</div>
-              <div style={{ fontSize: "0.9rem", fontWeight: 500 }}>
-                Ask a question about your data
-              </div>
-              <div style={{ fontSize: "0.8rem", marginTop: "8px" }}>
-                Ex: "What is the penetration rate?"
-              </div>
-            </div>
-          )}
-
-          {messages.map((message, index) => (
-            <div
-              key={index}
-              style={{
-                maxWidth: "85%",
-                alignSelf: message.role === "user" ? "flex-end" : "flex-start",
-              }}
-            >
-              <div
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: "12px",
-                  background:
-                    message.role === "user"
-                      ? "#E8734A"
-                      : "var(--dk-chrome-chip, #FBF6F0)",
-                  color: message.role === "user" ? "white" : "var(--dk-chrome-ink, #1C1410)",
-                  fontSize: "0.9rem",
-                  lineHeight: "1.5",
-                  wordBreak: "break-word",
-                }}
-              >
-                {message.role === "assistant" ? (
-                  <ReactMarkdown
-                    components={{
-                      p: ({ children }) => <div style={{ marginBottom: "8px" }}>{children}</div>,
-                      strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
-                      em: ({ children }) => <em style={{ fontStyle: "italic" }}>{children}</em>,
-                      ul: ({ children }) => <ul style={{ margin: "8px 0", paddingLeft: "20px" }}>{children}</ul>,
-                      ol: ({ children }) => <ol style={{ margin: "8px 0", paddingLeft: "20px" }}>{children}</ol>,
-                      li: ({ children }) => <li style={{ marginBottom: "4px" }}>{children}</li>,
-                      code: ({ children }) => (
-                        <code style={{
-                          background: "rgba(0,0,0,0.05)",
-                          padding: "2px 6px",
-                          borderRadius: "4px",
-                          fontFamily: "monospace",
-                          fontSize: "0.85em"
-                        }}>{children}</code>
-                      ),
-                      h1: ({ children }) => <h1 style={{ fontSize: "1.2em", fontWeight: 700, marginBottom: "8px" }}>{children}</h1>,
-                      h2: ({ children }) => <h2 style={{ fontSize: "1.1em", fontWeight: 700, marginBottom: "6px" }}>{children}</h2>,
-                      h3: ({ children }) => <h3 style={{ fontSize: "1em", fontWeight: 700, marginBottom: "4px" }}>{children}</h3>,
-                    }}
-                  >
-                    {message.content}
-                  </ReactMarkdown>
-                ) : (
-                  <div style={{ whiteSpace: "pre-wrap" }}>{message.content}</div>
-                )}
-              </div>
-              <div
-                style={{
-                  fontSize: "0.7rem",
-                  color: "var(--dk-chrome-muted, #9a8070)",
-                  marginTop: "4px",
-                  textAlign: message.role === "user" ? "right" : "left",
-                }}
-              >
-                {message.timestamp.toLocaleTimeString("fr-FR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </div>
-            </div>
-          ))}
-
-          {isThinking && (
-            <div
-              style={{
-                maxWidth: "85%",
-                alignSelf: "flex-start",
-              }}
-            >
-              <div
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: "12px",
-                  background: "var(--dk-chrome-chip, #FBF6F0)",
-                  color: "var(--dk-chrome-muted, #9a8070)",
-                  fontSize: "0.9rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "4px",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      background: "#E8734A",
-                      animation: "bounce 1.4s infinite ease-in-out both",
-                    }}
-                  />
-                  <div
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      background: "#E8734A",
-                      animation: "bounce 1.4s infinite ease-in-out both 0.2s",
-                    }}
-                  />
-                  <div
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
-                      background: "#E8734A",
-                      animation: "bounce 1.4s infinite ease-in-out both 0.4s",
-                    }}
-                  />
-                </div>
-                Thinking...
-              </div>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input */}
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            padding: "20px 24px",
-            borderTop: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
-            background: "var(--dk-chrome-bg, #FFFFFF)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              gap: "12px",
-              alignItems: "flex-end",
-            }}
-          >
-            <textarea
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyPress}
-              placeholder="Ask your question..."
-              disabled={isLoading}
-              style={{
-                flex: 1,
-                padding: "12px 16px",
-                borderRadius: "12px",
-                border: "1px solid var(--dk-chrome-chip-line, #EADFD3)",
-                background: "var(--dk-chrome-chip, #FBF6F0)",
-                color: "var(--dk-chrome-ink, #1C1410)",
-                fontSize: "0.9rem",
-                resize: "none",
-                minHeight: "48px",
-                maxHeight: "120px",
-                outline: "none",
-                transition: "border-color 0.2s",
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "#E8734A";
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = "var(--dk-chrome-chip-line, #EADFD3)";
-              }}
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={!inputValue.trim() || isLoading}
-              style={{
-                width: "48px",
-                height: "48px",
-                borderRadius: "12px",
-                border: "none",
-                background: inputValue.trim() && !isLoading ? "#E8734A" : "var(--dk-chrome-muted, #9a8070)",
-                color: "white",
-                cursor: inputValue.trim() && !isLoading ? "pointer" : "not-allowed",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "background 0.2s",
-              }}
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="m22 2-7 20-4-9-9-4Z" />
-                <path d="M22 2 11 13" />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <div className="chat-hint">{tr("Entrée pour envoyer · Maj + Entrée pour aller à la ligne", "Enter to send · Shift + Enter for a new line")}</div>
       </div>
-
-      <style jsx>{`
-        @keyframes slideIn {
-          from {
-            transform: translateX(100%);
-          }
-          to {
-            transform: translateX(0);
-          }
-        }
-
-        @keyframes bounce {
-          0%, 80%, 100% {
-            transform: scale(0);
-          }
-          40% {
-            transform: scale(1);
-          }
-        }
-      `}</style>
-    </>
+    </div>
   );
 }
 

@@ -2389,7 +2389,14 @@ export default function ProduitsPage() {
             <div className="sw">
               <div className="grid-main">
                 <div className="cc hero-card">
-                  <ChartAssistantButton chartType="product_decision_matrix" chartData={{ items: matrixData.items, quadrants: matrixData.quadrants, seuils: matrixData.seuils }} chartName="MatrixGrid"
+                  <ChartAssistantButton chartType="product_decision_matrix" chartData={{
+                    nb_produits: (matrixData.items || []).length,
+                    quadrants: matrixData.quadrants, seuils: matrixData.seuils,
+                    // Résumé par case : les 10 premiers produits de chaque case (par chiffre d'affaires), pour que l'assistant voie toute la matrice
+                    produits_par_case: Object.fromEntries(["Star", "Niche", "Trafic", "Dormant"].map((k) => [k,
+                      (matrixData.items || []).filter((i: any) => i.quadrant === k).sort((a: any, b: any) => (b.ca_total || 0) - (a.ca_total || 0)).slice(0, 10)
+                        .map((i: any) => ({ article: i.article, categorie: i.category, presence_pct: i.penetration_rate, articles_par_jour: i.daily_velocity, ca: i.ca_total }))])),
+                    filtre_case: matrixQuad }} chartName="MatrixGrid"
                     userQuestion="Explique cette matrice de décision des produits" position="top-right" onOpenChat={openChat} />
                   <CardHeader
                     title={tr("Matrice de décision", "Decision matrix")}
@@ -2415,6 +2422,8 @@ export default function ProduitsPage() {
                 <div className="side-col">
                   {/* Les Stars et leur action : ce qu'il ne faut jamais manquer */}
                   <div className="cc">
+                    <ChartAssistantButton chartType="matrix_stars" chartData={{ stars: stars.slice(0, 20) }} chartName="MatrixStars"
+                      userQuestion="Explique la liste des produits Stars" position="top-right" onOpenChat={openChat} />
                     <div className="ct" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ width: 26, height: 26, borderRadius: "50%", background: Q1, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><IconStar size={14} color="#fff" /></span>
                       {tr("Les Stars à ne jamais manquer", "Stars never to run out of")}
@@ -2460,6 +2469,8 @@ export default function ProduitsPage() {
             </div>
             <div>
               <div className="cc">
+                <ChartAssistantButton chartType="matrix_stars_hourly" chartData={{ stars: stars.filter((x: any) => x.alerte_horaire) }} chartName="MatrixStarsHourly"
+                  userQuestion="Explique les Stars concentrées sur une heure" position="top-right" onOpenChat={openChat} />
                 <div className="cs" style={{ marginBottom: 8 }}>
                   {tr(
                     `${stars.filter((s: any) => s.alerte_horaire).length} Star(s) concentrent leurs ventes sur une heure (≥ ${fmt(seuils.pic_horaire_pct || 40)} % des ventes du produit) : remplir le rayon avant l'heure indiquée.`,
@@ -3274,6 +3285,8 @@ export default function ProduitsPage() {
           <div className="sw">
             <div className="g2">
               <div className="cc">
+                <ChartAssistantButton chartType="frequency_top20" chartData={{ items: freqItems.slice(0, 20), total_sem: freqData.total_sem }} chartName="FrequencyTop20"
+                  userQuestion="Explique les produits vendus le plus régulièrement" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Produits vendus le plus régulièrement", "Most regularly sold products")}
                   sub={tr("Top 20 : part des semaines avec au moins une vente", "Top 20: share of weeks with at least one sale")}
@@ -3297,6 +3310,8 @@ export default function ProduitsPage() {
                 </ExpertNote>
               </div>
               <div className="cc">
+                <ChartAssistantButton chartType="frequency_distribution" chartData={{ status_distribution: freqData.status_distribution, nb_produits: freqData.nb_produits }} chartName="FrequencyDistribution"
+                  userQuestion="Explique la répartition des produits selon leur régularité" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Répartition des produits selon leur régularité de vente", "Products by sales regularity")}
                   sub={tr("Classes de régularité", "Regularity classes")}
@@ -3336,6 +3351,8 @@ export default function ProduitsPage() {
           <div className="sw">
             <div>
               <div className="cc">
+                <ChartAssistantButton chartType="frequency_by_category" chartData={{ items: freqItems }} chartName="FrequencyByCategory"
+                  userQuestion="Explique la régularité de vente moyenne par catégorie" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Régularité de vente moyenne par catégorie", "Average sales regularity by category")}
                   sub={tr("Comparatif des familles", "Family comparison")}

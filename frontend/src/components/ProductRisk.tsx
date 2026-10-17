@@ -11,6 +11,8 @@ import { fetchProductAlerts } from "@/lib/api";
 import { tr, trData, locale } from "@/lib/i18n";
 import { ExpertNote } from "@/components/Expert";
 import { Takeaway } from "@/components/Ui";
+import { ChartAssistantButton } from "@/components/ChartAssistantButton";
+import { useChat } from "@/contexts/ChatContext";
 
 const fmt = (n: number, d = 0) => Number(n || 0).toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d });
 const ST: Record<string, { fr: string; en: string; c: string; bg: string }> = {
@@ -23,6 +25,7 @@ const ST: Record<string, { fr: string; en: string; c: string; bg: string }> = {
 const J = ["di", "lu", "ma", "me", "je", "ve", "sa"], JE = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 export function ProductRiskCard() {
+  const { openChat } = useChat();
   const [data, setData] = useState<any>(null);
   const [fam, setFam] = useState("Toutes");
   const [onlyRisk, setOnlyRisk] = useState(true);
@@ -56,7 +59,13 @@ export function ProductRiskCard() {
       <div className="sec-title">{tr("Risque par produit", "Risk by product")}</div>
       <div className="sw">
         <div className="cc hero-card" style={{ marginBottom: 16 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+          <ChartAssistantButton chartType="product_risk_grid" chartData={{
+            dates, famille: fam, seulement_produits_a_risque: onlyRisk, nb_produits: rows.length,
+            // Pour chaque produit : seulement les jours qui ne sont pas « normaux », pour rester lisible
+            produits: rows.slice(0, 30).map((i: any) => ({ article: i.article, categorie: i.category, jours_risque: i.nb_risque, jours_vigilance: i.nb_vigilance,
+              jours: (i.days || []).filter((d: any) => d.statut !== "NORMAL" && d.statut !== "FERMÉ").map((d: any) => ({ date: d.ds, statut: d.statut, prevu: d.yhat, habituel: d.usual, conseille: d.conseille })) })) }} chartName="ProductRiskGrid"
+            userQuestion="Explique quels produits risquent de manquer et quels jours" position="top-right" onOpenChat={openChat} />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", paddingRight: 34 }}>
             <div>
               <div className="ct">{tr("Quels produits risquent de manquer, et quel jour ?", "Which products may run short, and on which day?")}</div>
               <div className="cs">{tr("Chaque case compare la prévision du produit à ce qu'il vend d'habitude ce jour de la semaine (début de saison compris : une galette en janvier apparaît en rouge, il faut en préparer plus). Cliquez sur une case pour la quantité à préparer, sur un produit pour sa prévision.", "Each cell compares the product's forecast with what it usually sells on that weekday. Click a cell for the quantity to prepare, a product for its forecast.")}</div>

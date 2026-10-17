@@ -146,7 +146,9 @@ export default function AlertesPage() {
         {tr("Jours par niveau d'alerte", "Days by alert level")}
       </div>
       <div className="sw">
-        <div className="cc">
+        <div className="cc" style={{ paddingRight: 46 }}>
+          <ChartAssistantButton chartType="alert_status_summary" chartData={{ statuts, filtres_page: { mois } }} chartName="AlertStatusSummary"
+            userQuestion="Explique la répartition des jours par niveau d'alerte" position="top-right" onOpenChat={openChat} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "12px" }}>
             {Object.keys(STATUS_CONFIG).map((key) => {
               const cfg = STATUS_CONFIG[key];
@@ -327,6 +329,8 @@ export default function AlertesPage() {
       </div>
       <div className="sw">
         <div className="cc">
+          <ChartAssistantButton chartType="days_to_watch" chartData={{ jours: data?.jours_a_surveiller || [], filtres_page: { mois } }} chartName="DaysToWatch"
+            userQuestion="Explique les jours à surveiller" position="top-right" onOpenChat={openChat} />
           {(data?.jours_a_surveiller || []).length === 0 ? (
             <div style={{ fontSize: "0.8rem", color: MUTED }}>{tr("Aucun jour nettement plus chargé qu'un jour type sur cette période.", "No day clearly busier than a typical day in this period.")}</div>
           ) : (

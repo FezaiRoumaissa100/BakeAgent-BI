@@ -11,6 +11,8 @@ import { fetchProductForecasts, fetchProductForecast } from "@/lib/api";
 import { tr, trData, locale } from "@/lib/i18n";
 import { ExpertNote } from "@/components/Expert";
 import { Takeaway } from "@/components/Ui";
+import { ChartAssistantButton } from "@/components/ChartAssistantButton";
+import { useChat } from "@/contexts/ChatContext";
 
 const GREEN = "#2E7D4F", LIGHTG = "#8DC05A", INK = "var(--dk-ink)", MUTED = "var(--dk-muted)";
 const fmt = (n: number, d = 0) => Number(n || 0).toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -107,6 +109,7 @@ function ProductChart({ history, forecast, sel, onSel }: any) {
 }
 
 export function ProductForecastSection() {
+  const { openChat } = useChat();
   const [list, setList] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -198,6 +201,8 @@ export function ProductForecastSection() {
       {toPrepare.length > 0 && (
         <div className="sw">
           <div className="cc" style={{ marginBottom: 16 }}>
+            <ChartAssistantButton chartType="product_forecast_to_prepare" chartData={{ items: toPrepare }} chartName="ProductForecastToPrepare"
+              userQuestion="Explique quels produits préparer en plus cette semaine" position="top-right" onOpenChat={openChat} />
             <div className="ct">{tr("À préparer en plus cette semaine", "Prepare more of this week")}</div>
             <div className="cs">{tr("Produits dont la prévision des 7 prochains jours dépasse nettement l'habitude · cliquez pour le détail", "Products whose next-7-day forecast is clearly above usual · click for details")}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10 }}>
@@ -221,6 +226,8 @@ export function ProductForecastSection() {
         <div className="grid-main" style={{ gridTemplateColumns: "minmax(280px, 1fr) minmax(0, 2.2fr)" }}>
           {/* ── Liste des produits ── */}
           <div className="cc" style={{ display: "flex", flexDirection: "column", padding: "16px 14px" }}>
+            <ChartAssistantButton chartType="product_forecast_list" chartData={{ items: filtered.slice(0, 40).map((i: any) => ({ article: i.article, next7: i.next7, usual7: i.usual7, change_pct: i.change_pct, fiabilite: i.fiabilite })), nb_total: items.length }} chartName="ProductForecastList"
+              userQuestion="Explique la liste des prévisions par produit" position="top-right" onOpenChat={openChat} />
             <div className="ct" style={{ padding: "0 6px" }}>{tr(`${items.length} produits prévus`, `${items.length} forecast products`)}</div>
             <div className="cs" style={{ padding: "0 6px" }}>{tr(`Prévision des 7 prochains jours · ${list.non_prevus?.inactif || 0} inactifs et ${list.non_prevus?.insuffisant || 0} sans historique suffisant ne sont pas prévus`, `Next 7 days · ${list.non_prevus?.inactif || 0} inactive and ${list.non_prevus?.insuffisant || 0} with too little history are not forecast`)}</div>
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Chercher un produit…", "Search a product…")}
@@ -257,9 +264,13 @@ export function ProductForecastSection() {
 
           {/* ── Détail du produit choisi ── */}
           <div className="cc hero-card">
+            {sel && detail && (
+              <ChartAssistantButton chartType="product_forecast_detail" chartData={{ product: sel, detail, horizon: h }} chartName="ProductForecastChart"
+                userQuestion={`Explique la prévision du produit ${sel.article}`} position="top-right" onOpenChat={openChat} />
+            )}
             {!sel || !detail ? <div className="cs">{tr("Chargement…", "Loading…")}</div> : (
               <>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", paddingRight: 34 }}>
                   <div>
                     <div style={{ fontSize: ".74rem", color: MUTED, fontWeight: 600 }}>{trData(sel.category)}</div>
                     <div style={{ fontSize: "1.3rem", fontWeight: 800, color: INK, letterSpacing: "-0.02em" }}>{sel.article}</div>
@@ -294,7 +305,7 @@ export function ProductForecastSection() {
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 12, height: 10, borderRadius: 3, background: "#B9C7B0" }} />{tr("ventes réelles", "actual sales")}</span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 3, background: GREEN }} />{tr("prévision", "forecast")}</span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 10, background: GREEN, opacity: 0.18, borderRadius: 3 }} />{tr("fourchette basse – haute", "low – high range")}</span>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 99, border: "1.6px solid #D4A52A" }} />{tr("même jour l'an dernier", "same day last year")}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 99, border: "1.6px solid #D4A52A" }} />{tr("même jour de la semaine, il y a 52 semaines", "same weekday, 52 weeks earlier")}</span>
                   <span>· {tr("cliquez sur un jour prévu pour le détail", "click a forecast day for details")}</span>
                 </div>
 
@@ -304,7 +315,7 @@ export function ProductForecastSection() {
                     <div><div style={{ fontSize: ".72rem", color: MUTED }}>{tr("Prévu", "Forecast")}</div><div className="num" style={{ fontWeight: 800, color: GREEN }}>{fmt(dsel.yhat, 1)}</div></div>
                     <div><div style={{ fontSize: ".72rem", color: MUTED }}>{tr("Fourchette", "Range")}</div><div className="num" style={{ fontWeight: 700, color: INK }}>{fmt(dsel.yhat_lower)} – {fmt(dsel.yhat_upper)}</div></div>
                     <div><div style={{ fontSize: ".72rem", color: MUTED }}>{tr("À préparer", "To prepare")}</div><div className="num" style={{ fontWeight: 800, color: INK }}>{fmt(Math.ceil(dsel.yhat_upper))}</div></div>
-                    <div><div style={{ fontSize: ".72rem", color: MUTED }}>{tr("L'an dernier", "Last year")}</div><div className="num" style={{ fontWeight: 700, color: INK }}>{dsel.last_year != null ? fmt(dsel.last_year) : "—"}</div></div>
+                    <div><div style={{ fontSize: ".72rem", color: MUTED }}><span title={tr("Même jour de la semaine, 52 semaines plus tôt (pas la même date)", "Same weekday, 52 weeks earlier (not the same date)")}>{tr("Il y a 52 semaines", "52 weeks earlier")}</span></div><div className="num" style={{ fontWeight: 700, color: INK }}>{dsel.last_year != null ? fmt(dsel.last_year) : "—"}</div></div>
                   </div>
                 )}
 

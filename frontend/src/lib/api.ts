@@ -287,6 +287,42 @@ async function runWithSessionGuarantee(
   }
 }
 
+/* Données du graphique, compactées pour le modèle : nombres arrondis, listes longues raccourcies,
+   champs graphiques inutiles retirés, taille plafonnée. */
+const CHART_DROP_KEYS = new Set(["spark", "color", "colors", "icon", "Icon", "c", "bg"]);
+function compactForModel(v: any, depth = 0): any {
+  if (v == null) return v;
+  if (typeof v === "number") return Number.isFinite(v) ? Math.round(v * 100) / 100 : null;
+  if (typeof v === "string") return v.length > 300 ? v.slice(0, 300) + "…" : v;
+  if (typeof v === "boolean") return v;
+  if (depth > 6) return undefined;
+  if (Array.isArray(v)) {
+    const max = 60;
+    const arr = v.slice(0, max).map((x) => compactForModel(x, depth + 1));
+    if (v.length > max) arr.push(`… ${v.length - max} éléments de plus non affichés`);
+    return arr;
+  }
+  if (typeof v === "object") {
+    const o: Record<string, any> = {};
+    for (const [k, x] of Object.entries(v)) {
+      if (CHART_DROP_KEYS.has(k) || typeof x === "function") continue;
+      const c = compactForModel(x, depth + 1);
+      if (c !== undefined) o[k] = c;
+    }
+    return o;
+  }
+  return undefined;
+}
+export function buildChartContext(meta?: Record<string, any>): string {
+  if (!meta || !meta.chart_data) return "";
+  let json = "";
+  try { json = JSON.stringify(compactForModel(meta.chart_data)); } catch { return ""; }
+  const LIMIT = 14000;
+  if (json.length > LIMIT) json = json.slice(0, LIMIT) + " …(tronqué)";
+  return `[DONNÉES DU GRAPHIQUE AFFICHÉ — graphique « ${meta.chart_name || ""} » (${meta.chart_type || ""}). ` +
+    `Ce sont exactement les données visibles à l'écran : utilise-les en priorité et décris cette période-là.]\n${json}`;
+}
+
 export async function queryAgentWithMetadata(
   userMessage: string,
   customMetadata?: Record<string, any>,
@@ -295,13 +331,16 @@ export async function queryAgentWithMetadata(
   const timeoutMs = opts?.timeoutMs ?? 180_000; // Augmenté à 3 minutes
   const sessionId = opts?.sessionId ?? defaultAgentSessionId();
 
+  // Les données du graphique sont ajoutées au texte envoyé à Gemini : sans cela, le modèle ne les voit pas
+  // (custom_metadata est seulement rangé dans la session). La bulle du chat, elle, n'affiche que la question.
+  const chartBlock = buildChartContext(customMetadata);
   const payload = {
     app_name: AGENT_APP_NAME,
     user_id: AGENT_USER_ID,
     session_id: sessionId,
     new_message: {
       role: "user" as const,
-      parts: [{ text: userMessage }],
+      parts: [{ text: chartBlock ? `${userMessage}\n\n${chartBlock}` : userMessage }],
     },
     custom_metadata: customMetadata,
   };

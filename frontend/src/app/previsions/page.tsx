@@ -158,13 +158,12 @@ export default function PrevisionsPage() {
           borderRadius: "0 12px 12px 0", 
           fontSize: "0.75rem", 
           color: "var(--dk-ink2, #2F3A32)", 
-          marginBottom: "8px" 
+          marginBottom: "8px",
+          display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap"
         }}>
-          <strong style={{ display: "block", marginBottom: "4px" }}>
-            <IconAlert size={14} color="#6F9A64" />
-            {tr("À savoir :", "Good to know:")}
-          </strong>
-          {tr("Les prévisions représentent les valeurs estimées par le modèle à partir des données historiques. Elles ne constituent pas une mesure du stock réel ou des invendus physiques.", "Forecasts are values estimated by the model from historical data. They do not measure actual stock or physical unsold items.")}
+          <IconAlert size={14} color="#6F9A64" />
+          <strong>{tr("À savoir :", "Good to know:")}</strong>
+          <span style={{ flex: "1 1 320px", minWidth: 0 }}>{tr("Les prévisions représentent les valeurs estimées par le modèle à partir des données historiques. Elles ne constituent pas une mesure du stock réel ou des invendus physiques.", "Forecasts are values estimated by the model from historical data. They do not measure actual stock or physical unsold items.")}</span>
         </div>
       </div>
 
@@ -282,7 +281,9 @@ export default function PrevisionsPage() {
         {tr("Calendrier des Prévisions", "Forecast calendar")}
       </div>
       <div className="sw">
-        <div className="cc">
+        <div className="cc" style={{ paddingRight: 46 }}>
+          <ChartAssistantButton chartType="forecast_daily_cards" chartData={{ forecast, horizon, filtres_page: { horizon, type: forecastType, produit: product, categorie: category, saison: season, evenement: event } }} chartName="ForecastDailyCards"
+            userQuestion="Explique la prévision jour par jour" position="top-right" onOpenChat={openChat} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "12px", paddingTop: "8px" }}>
             {forecast.map((day: any, i: number) => {
               const isFerme = day.is_ferme === 1;
@@ -334,7 +335,7 @@ export default function PrevisionsPage() {
       </div>
       <div className="sw">
         <div className="cc" style={{ minHeight: "900px" }}>
-          <ChartAssistantButton chartType="forecast" chartData={{ history, forecast, showObserved, showPredicted, showConfidence, horizon }} chartName="ForecastChart"
+          <ChartAssistantButton chartType="forecast" chartData={{ history, forecast, showObserved, showPredicted, showConfidence, horizon, filtres_page: { horizon, type: forecastType, produit: product, categorie: category, saison: season, evenement: event } }} chartName="ForecastChart"
             userQuestion="Explique cette prévision de demande" position="top-right" onOpenChat={openChat} />
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
             <div>
@@ -404,7 +405,7 @@ export default function PrevisionsPage() {
           </div>
           <div className="sw">
             <div className="cc">
-              <ChartAssistantButton chartType="seasonal" chartData={{ data: forecastSeason }} chartName="SeasonalChart"
+              <ChartAssistantButton chartType="seasonal" chartData={{ data: forecastSeason, filtres_page: { horizon, type: forecastType, produit: product, categorie: category, saison: season, evenement: event } }} chartName="SeasonalChart"
                 userQuestion="Explique cette saisonnalité" position="top-right" onOpenChat={openChat} />
               <div className="ct">{tr("Prévision des ventes pour la prochaine saison", "Sales forecast for the next season")}</div>
               <div className="cs">{tr(`Articles par jour, ${seasonLabel}, avec la fourchette basse – haute. × = jour prévu fermé (d'après les habitudes de la boutique l'an dernier), à confirmer avec la boutique.`, `Items per day, ${seasonLabel}, with the low – high range. × = day expected closed (based on the shop's habits last year), to be confirmed with the shop.`)}</div>
@@ -467,6 +468,8 @@ export default function PrevisionsPage() {
           </div>
           <div className="sw">
             <div className="cc">
+              <ChartAssistantButton chartType="forecast_decomposition" chartData={{ decomposition, filtres_page: { horizon, type: forecastType, produit: product, categorie: category, saison: season, evenement: event } }} chartName="ForecastDecomposition"
+                userQuestion="Explique la décomposition de la prévision (tendance, saisonnalité, événements)" position="top-right" onOpenChat={openChat} />
               <div className="ct">{tr("Décomposition des prévisions", "Forecast breakdown")}</div>
               <div className="cs">{tr("Tendance, saisonnalité et événements", "Trend, seasonality and events")}</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px", marginTop: "16px" }}>

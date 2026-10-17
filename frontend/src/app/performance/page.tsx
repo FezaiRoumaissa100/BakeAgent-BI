@@ -24,7 +24,8 @@ const LIGHT = colors.accentPale;
 const INK = ink;                       // "#1E2420"
 const MUTED = muted;                   // "#6E756F"
 const C1 = colors.beige;                  // beige foncé
-const C2 = colors.gold;                  // doré
+const C2 = colors.gold;
+const AVG = "#B8860B";                   // ligne de moyenne : ambre, distincte de la courbe verte                  // doré
 const C3 = colors.amberLight;                  // ambre
 const PANIER = colors.green;
 const TICKETS = colors.blue;
@@ -59,9 +60,10 @@ function EvolutionLineChart({
   caMax: { date_str: string; val: number };
   caMin: { date_str: string; val: number };
 }) {
-  const W = 1100, H = 480, padL = 64, padR = 40, padT = 52, padB = 80;
+  const W = 1100, H = 480, padL = 64, padR = 40, padT = 56, padB = 56;
   const vals = series.map((s) => s.ca);
-  const max = Math.max(...vals, moyenne + ecartType) * 1.08;
+  // marge en haut pour l'étiquette MAX
+  const max = Math.max(...vals, moyenne + ecartType) * 1.18;
   const min = 0;
   const xW = W - padL - padR, yH = H - padT - padB;
   const n = Math.max(series.length - 1, 1);
@@ -205,9 +207,7 @@ function EvolutionLineChart({
         <line x1={padL} x2={W - padR} y1={getY(moyenne - ecartType)} y2={getY(moyenne - ecartType)}
               stroke={C1} strokeWidth="1.2" strokeDasharray="4 4" opacity="0.8"/>
         <line x1={padL} x2={W - padR} y1={getY(moyenne)} y2={getY(moyenne)}
-              stroke={ORANGE} strokeWidth="2" strokeDasharray="8 5" opacity="0.95"/>
-        <text x={W - padR - 10} y={getY(moyenne) - 8} textAnchor="end"
-              fontSize="13" fill={ORANGE} fontWeight="800">{tr("Moyenne", "Average")} {fmt(moyenne)} €</text>
+              stroke={AVG} strokeWidth="2" strokeDasharray="8 5" opacity="0.95"/>
         <line x1={padL} x2={W - padR} y1={getY(moyenne + ecartType)} y2={getY(moyenne + ecartType)}
               stroke={C1} strokeWidth="1.2" strokeDasharray="4 4" opacity="0.8"/>
         {yTicks.map((v, i) => (
@@ -215,22 +215,45 @@ function EvolutionLineChart({
             <line x1={padL} x2={W - padR} y1={getY(v)} y2={getY(v)} stroke="var(--dk-line, #ECEDE7)" strokeWidth="1"/>
             <text x={padL - 12} y={getY(v) + 4} textAnchor="end"
                   fontSize="13" fill={MUTED} fontWeight="700">
-              {fmt(v / 1000, v > 10000 ? 0 : 1)}k€
+              {v === 0 ? "0 €" : `${fmt(v / 1000, 0)}k€`}
             </text>
           </g>
         ))}
         {area && <path d={area} fill="url(#ev_area2)" />}
         {path && <path d={path} fill="none" stroke={ORANGE} strokeWidth="3.6" strokeLinecap="round"/>}
+        {/* Mois sous l'axe (l'année sous janvier et sous le premier mois affiché) */}
+        {pts.map(({ x, s, i }, k) => {
+          const [m, y] = String(s.label || "").split(" ");
+          const showYear = k === 0 || (m || "").startsWith("Jan");
+          return (
+            <g key={`xl${i}`}>
+              <text x={x} y={padT + yH + 20} textAnchor="middle" fontSize="11.5" fill={MUTED} fontWeight="600">{m}</text>
+              {showYear && <text x={x} y={padT + yH + 36} textAnchor="middle" fontSize="11" fill="var(--dk-ink2, #4A524C)" fontWeight="800">{y}</text>}
+            </g>
+          );
+        })}
+        {/* Étiquette de la moyenne, sur fond de carte pour rester lisible quand la courbe passe dessous */}
+        {(() => {
+          const label = `${tr("Moyenne", "Average")} ${fmt(moyenne)} €`;
+          const w = label.length * 7.4 + 18;
+          const x2 = padL + 8, y2 = getY(moyenne);
+          return (
+            <g pointerEvents="none">
+              <rect x={x2} y={y2 - 12} width={w} height={24} rx={12} fill="var(--dk-surface, #fff)" stroke={AVG} strokeWidth="1.3" />
+              <text x={x2 + w / 2} y={y2 + 4.5} textAnchor="middle" fontSize="12.5" fill={AVG} fontWeight="800">{label}</text>
+            </g>
+          );
+        })()}
         {iMaxVisible >= 0 && (() => {
           const pt = pts.find(p => p.i === iMaxVisible);
           if (!pt) return null;
           const s = series[iMaxVisible];
           return (
             <g>
-              <line x1={pt.x} x2={pt.x} y1={pt.y} y2={pt.y - 56} stroke={ORANGE} strokeWidth="1.4" strokeDasharray="3 3"/>
-              <rect x={pt.x - 62} y={pt.y - 88} width="124" height="30" rx="8"
+              <line x1={pt.x} x2={pt.x} y1={pt.y} y2={Math.max(36, pt.y - 40)} stroke={ORANGE} strokeWidth="1.4" strokeDasharray="3 3"/>
+              <rect x={Math.min(W - padR - 124, Math.max(padL, pt.x - 62))} y={Math.max(6, pt.y - 70)} width="124" height="30" rx="8"
                     fill="var(--dk-surface, #fff)" stroke={ORANGE} strokeWidth="1.3" style={{ filter: "drop-shadow(0 4px 8px rgba(46,125,79,0.18))" }}/>
-              <text x={pt.x} y={pt.y - 68} textAnchor="middle" fontSize="12" fill={ORANGE} fontWeight="800">
+              <text x={Math.min(W - padR - 124, Math.max(padL, pt.x - 62)) + 62} y={Math.max(6, pt.y - 70) + 20} textAnchor="middle" fontSize="12" fill={ORANGE} fontWeight="800">
                 MAX · {fmt(s.ca)} €
               </text>
             </g>
@@ -242,10 +265,10 @@ function EvolutionLineChart({
           const s = series[iMinVisible];
           return (
             <g>
-              <line x1={pt.x} x2={pt.x} y1={pt.y} y2={pt.y + 42} stroke={C1} strokeWidth="1.4" strokeDasharray="3 3"/>
-              <rect x={pt.x - 62} y={pt.y + 48} width="124" height="30" rx="8"
-                    fill="var(--dk-surface, #fff)" stroke={C1} strokeWidth="1.3" style={{ filter: "drop-shadow(0 4px 8px var(--dk-line, rgba(140,160,140,0.18)))" }}/>
-              <text x={pt.x} y={pt.y + 68} textAnchor="middle" fontSize="12" fill={C1} fontWeight="800">
+              <line x1={pt.x} x2={pt.x} y1={pt.y} y2={Math.min(pt.y + 14, padT + yH - 34)} stroke="var(--dk-ink2, #4A524C)" strokeWidth="1.2" strokeDasharray="3 3" opacity="0.6"/>
+              <rect x={Math.min(W - padR - 124, Math.max(padL + 6, pt.x - 62))} y={Math.min(pt.y + 14, padT + yH - 34)} width="124" height="28" rx="8"
+                    fill="var(--dk-surface, #fff)" stroke="var(--dk-line, #E3E4DD)" strokeWidth="1.3"/>
+              <text x={Math.min(W - padR - 124, Math.max(padL + 6, pt.x - 62)) + 62} y={Math.min(pt.y + 14, padT + yH - 34) + 18.5} textAnchor="middle" fontSize="12" fill="var(--dk-ink2, #4A524C)" fontWeight="800">
                 MIN · {fmt(s.ca)} €
               </text>
             </g>
@@ -917,15 +940,15 @@ export default function PerformancePage() {
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start",
                           marginBottom:"12px", flexWrap:"wrap", gap:"10px" }}>
               <div>
-                <ChartAssistantButton chartType="evolution_ca" chartData={{ series: monthly.series, moyenne: monthly.moyenne, ecartType: monthly.ecart_type, caMax: monthly.ca_max, caMin: monthly.ca_min }} chartName="EvolutionLineChart"
+                <ChartAssistantButton chartType="evolution_ca" chartData={{ series: monthly.series, moyenne: monthly.moyenne, ecartType: monthly.ecart_type, caMax: monthly.ca_max, caMin: monthly.ca_min, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="EvolutionLineChart"
                   userQuestion="Explique ce graphique d'évolution du chiffre d'affaires" position="top-right" onOpenChat={openChat} />
                 <div className="ct">{tr("Chiffre d'affaires mois par mois", "Revenue month by month")}</div>
                 <div className="cs">{tr("Moyenne mensuelle :", "Monthly average:")} {fmt(monthly.moyenne)} € · {tr("fourchette habituelle :", "usual range:")} {fmt(Math.max(0, monthly.moyenne - monthly.ecart_type))} – {fmt(monthly.moyenne + monthly.ecart_type)} €</div>
               </div>
-              <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
-                <LegendPill color={ORANGE} label={tr("Moyenne", "Average")}/>
+              <div style={{ display:"flex", gap:"8px", flexWrap:"wrap", paddingRight:"34px" }}>
+                <LegendPill color={ORANGE} label={tr("CA mensuel", "Monthly revenue")}/>
+                <LegendPill color={AVG} label={tr("Moyenne", "Average")}/>
                 <LegendPill color={PEACH} label={tr("Fourchette habituelle", "Usual range")}/>
-                <LegendPill color={C2} label={tr("CA mensuel", "Monthly revenue")}/>
               </div>
             </div>
             <div style={{ height:"520px", width:"100%", marginTop:"20px" }}>
@@ -970,7 +993,7 @@ export default function PerformancePage() {
                 <IconBarsGrouped size={16} /> {tr(`Comparaison ${monthly.comp_annees.prec} vs ${monthly.comp_annees.der} — Mois par Mois`, `${monthly.comp_annees.prec} vs ${monthly.comp_annees.der} Comparison — Month by Month`)}
               </div>
               <div className="cc" style={{ padding:"20px 24px" }}>
-                <ChartAssistantButton chartType="comparison_2024_2025" chartData={{ data: monthly.comp_24_25, annees: monthly.comp_annees }} chartName="Comp2425BarChart"
+                <ChartAssistantButton chartType="comparison_2024_2025" chartData={{ data: monthly.comp_24_25, annees: monthly.comp_annees, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="Comp2425BarChart"
                   userQuestion="Explique ce graphique comparant le CA des deux années" position="top-right" onOpenChat={openChat} />
                 <div className="ct">{tr("Évolution année N vs N−1", "Year N vs year N−1")}</div>
                 <div className="cs">{tr("Barres groupées par mois — 12 mois alignés", "Bars grouped by month — 12 months side by side")}</div>
@@ -1030,7 +1053,7 @@ export default function PerformancePage() {
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px" }}>
             <div className="cc" style={{ padding:"20px 24px" }}>
-              <ChartAssistantButton chartType="top_products_revenue" chartData={{ items: (topProds.by_ca || []).slice(0, topN), n: topN }} chartName="TopNHBar"
+              <ChartAssistantButton chartType="top_products_revenue" chartData={{ items: (topProds.by_ca || []).slice(0, topN), n: topN, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="TopNHBar"
                 userQuestion="Explique ce graphique des top produits par revenu" position="top-right" onOpenChat={openChat} />
               <div className="ct">{tr(`Les ${topN} produits qui rapportent le plus`, `The ${topN} top-earning products`)}</div>
               <div className="cs">{tr("Chiffre d'affaires de chaque produit (axe en euros, à partir de 0) et sa part du total", "Each product's revenue (axis in euros, from 0) and its share of the total")}</div>
@@ -1060,7 +1083,7 @@ export default function PerformancePage() {
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px" }}>
             <div className="cc" style={{ padding:"20px 24px" }}>
-              <ChartAssistantButton chartType="day_of_week_bars" chartData={{ days: seasonality.days, mode: "moyen" }} chartName="DayOfWeekBars"
+              <ChartAssistantButton chartType="day_of_week_bars" chartData={{ days: seasonality.days, mode: "moyen", filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="DayOfWeekBars"
                 userQuestion="Explique ce graphique du CA moyen par jour de la semaine" position="top-right" onOpenChat={openChat} />
               <div className="ct">{tr("Chiffre d'affaires moyen par jour d'ouverture", "Average revenue per opening day")}</div>
               <div className="cs">{tr("Certains jours sont fermés une partie de l'année : la moyenne par jour ouvert permet de comparer les jours entre eux",
@@ -1087,7 +1110,7 @@ export default function PerformancePage() {
                 <IconClock size={16} /> {tr("Distribution Horaire des Ventes", "Hourly Sales Distribution")}
               </div>
               <div className="cc" style={{ padding:"20px 24px" }}>
-                <ChartAssistantButton chartType="hourly_dual" chartData={{ data: seasonality.hourly }} chartName="HourlyDual"
+                <ChartAssistantButton chartType="hourly_dual" chartData={{ data: seasonality.hourly, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="HourlyDual"
                   userQuestion="Explique ce graphique du CA et des tickets par heure" position="top-right" onOpenChat={openChat} />
                 <div className="ct">{tr("Chiffre d'affaires et tickets par heure", "Revenue and transactions by hour")}</div>
                 <div className="cs">{tr("Une seule échelle : chiffre d'affaires par heure ; le nombre de tickets est indiqué au-dessus de chaque barre", "One scale: revenue by hour; the number of transactions is shown above each bar")}</div>
@@ -1127,7 +1150,7 @@ export default function PerformancePage() {
           {categories.length > 0 && (
             <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"32px", marginBottom:"40px" }}>
               <div className="cc" style={{ padding:"28px 32px" }}>
-                <ChartAssistantButton chartType="category_performance_hbar" chartData={{ data: categories, field: "ca" }} chartName="CategoryPerformanceHBar"
+                <ChartAssistantButton chartType="category_performance_hbar" chartData={{ data: categories, field: "ca", filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="CategoryPerformanceHBar"
                   userQuestion="Explique la répartition du chiffre d'affaires par catégorie" position="top-right" onOpenChat={openChat} />
                 <div className="ct">{tr("Chiffre d'affaires par catégorie", "Revenue by category")}</div>
                 <div className="cs">{tr("Montant et part du total", "Amount and share of total")}</div>
@@ -1153,7 +1176,7 @@ export default function PerformancePage() {
                 <IconBarsGrouped size={16} /> {tr("Tableau Récapitulatif des Catégories", "Category Summary Table")}
               </div>
               <div className="cc" style={{ padding:"20px 32px 32px", marginTop:"14px" }}>
-                <ChartAssistantButton chartType="category_summary_table" chartData={{ categories }} chartName="CategorySummaryTable"
+                <ChartAssistantButton chartType="category_summary_table" chartData={{ categories, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="CategorySummaryTable"
                   userQuestion="Explique le tableau récapitulatif des catégories" position="top-right" onOpenChat={openChat} />
                 <div style={{ overflowX:"auto" }}>
                   <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:0, marginTop:"8px" }}>
