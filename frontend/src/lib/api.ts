@@ -313,6 +313,25 @@ function compactForModel(v: any, depth = 0): any {
   }
   return undefined;
 }
+
+/**
+ * Détecte si le texte contient des formats internes Gemini (tool_code leak)
+ * Ne détecte PAS les citations de source normales comme "source: daily data"
+ */
+function containsToolCodeLeak(text: string): boolean {
+  // Patterns spécifiques aux formats internes Gemini (pas les citations normales)
+  const internalGeminiPatterns = [
+    /```tool_code\n/,           // Bloc tool_code (format interne)
+    /```tool_outputs\n/,        // Bloc tool_outputs (format interne)
+    /default_api\.\w+\(/,       // default_api.function() (format interne)
+    /tool_code\s+print\(/,      // tool_code print( (format interne)
+    /```tool_code/,             // Bloc tool_code sans saut de ligne
+  ];
+  
+  // Vérifier si le texte contient ces patterns spécifiques
+  return internalGeminiPatterns.some(pattern => pattern.test(text));
+}
+
 export function buildChartContext(meta?: Record<string, any>): string {
   if (!meta || !meta.chart_data) return "";
   let json = "";
@@ -330,6 +349,7 @@ export async function queryAgentWithMetadata(
 ): Promise<string> {
   const timeoutMs = opts?.timeoutMs ?? 180_000; // Augmenté à 3 minutes
   const sessionId = opts?.sessionId ?? defaultAgentSessionId();
+  const maxRetries = 2; // Maximum 2 retries pour tool_code leak
 
   // Les données du graphique sont ajoutées au texte envoyé à Gemini : sans cela, le modèle ne les voit pas
   // (custom_metadata est seulement rangé dans la session). La bulle du chat, elle, n'affiche que la question.
@@ -345,38 +365,60 @@ export async function queryAgentWithMetadata(
     custom_metadata: customMetadata,
   };
 
-  try {
-    const data = await runWithSessionGuarantee(sessionId, payload, timeoutMs);
+  // Boucle de retry pour gérer les tool_code leaks
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const data = await runWithSessionGuarantee(sessionId, payload, timeoutMs);
 
-    // Extraire la réponse de l'assistant
-    const assistantContent = Array.isArray(data)
-      ? data
-          .filter((event: any) => event.content?.parts?.[0]?.text)
-          .map((event: any) => event.content.parts[0].text)
-          .join("")
-      : typeof data === "string"
-      ? data
-      : "";
+      // Extraire la réponse de l'assistant
+      const assistantContent = Array.isArray(data)
+        ? data
+            .filter((event: any) => event.content?.parts?.[0]?.text)
+            .map((event: any) => event.content.parts[0].text)
+            .join("")
+        : typeof data === "string"
+        ? data
+        : "";
 
-    return assistantContent || "Désolé, je n'ai pas pu répondre.";
-  } catch (err: any) {
-    if (err?.name === "AbortError" || err?.message === "TIMEOUT") {
-      const to = new Error("Le délai de réponse de l'agent a été dépassé. Réessayez.");
-      to.name = "TimeoutError";
-      throw to;
+      // Vérifier si la réponse contient un tool_code leak (format interne Gemini)
+      // Ne détecte PAS les citations de source normales comme "source: daily data"
+      if (containsToolCodeLeak(assistantContent)) {
+        console.warn(`Tool code leak detected in agent response (attempt ${attempt + 1}/${maxRetries + 1}), retrying...`);
+        
+        if (attempt < maxRetries) {
+          continue; // Retry immédiat
+        } else {
+          console.error("Tool code leak persisted after all retries");
+          return "Désolé, une erreur technique est survenue. Veuillez réessayer.";
+        }
+      }
+
+      // Réponse normale (avec ou sans citations de source) → retourner tel quel
+      return assistantContent || "Désolé, je n'ai pas pu répondre.";
+    } catch (err: any) {
+      // Gestion d'erreur existante
+      if (err?.name === "AbortError" || err?.message === "TIMEOUT") {
+        const to = new Error("Le délai de réponse de l'agent a été dépassé. Réessayez.");
+        to.name = "TimeoutError";
+        throw to;
+      }
+      if (typeof err === "object" && err !== null && !err.name) {
+        // TypeError: Failed to fetch ou équivalent => erreur de connexion
+        const net = new Error(
+          "Connexion impossible au serveur agent. Vérifiez que le serveur ADK démarre bien sur http://127.0.0.1:8001 (" +
+            (err?.message || "erreur réseau") +
+            ")"
+        );
+        net.name = "NetworkError";
+        throw net;
+      }
+      
+      // Si c'est la dernière tentative, relancer l'erreur
+      if (attempt === maxRetries) throw err;
     }
-    if (typeof err === "object" && err !== null && !err.name) {
-      // TypeError: Failed to fetch ou équivalent => erreur de connexion
-      const net = new Error(
-        "Connexion impossible au serveur agent. Vérifiez que le serveur ADK démarre bien sur http://127.0.0.1:8001 (" +
-          (err?.message || "erreur réseau") +
-          ")"
-      );
-      net.name = "NetworkError";
-      throw net;
-    }
-    throw err;
   }
+
+  return "Désolé, je n'ai pas pu répondre.";
 }
 
 /**
