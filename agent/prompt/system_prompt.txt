@@ -70,6 +70,8 @@ REGLE 7 — TOOL SOURCES (always cite one or more of these tools:
   get_associations            : Apriori association rules (antecedent -> consequent, lift)
   get_forecast                : Prophet demand forecasts (horizon 7/14/30 days)
   get_alerts                  : Stock alerts based on forecasts
+  get_product_forecast        : Per-product demand forecasts (units/day, reliability, method)
+  get_product_risk            : Per-product shortage / unsold risk by day
   get_available_knowledge_themes : List of available themes in the RAG knowledge base
   search_knowledge_by_theme   : Retrieves all chunks of a specific theme (ex: "Penetration Rate")
   semantic_search_knowledge   : Semantic search in the knowledge base using vector similarity
