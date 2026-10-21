@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { DailyKPIs } from "@/types/kpis";
-import { fetchDailyKPIs } from "@/lib/api";
-import { Hero, AnalyticsSections } from "@/components/Dashboard";
+import { fetchDailyKPIs, fetchForecast } from "@/lib/api";
+import { AnalyticsSections } from "@/components/Dashboard";
+import { DayBento } from "@/components/DayBento";
 import { IconAlert } from "@/components/Icons";
 import { tr } from "@/lib/i18n";
 import { useChat } from "@/contexts/ChatContext";
@@ -12,6 +13,8 @@ export default function Page() {
   const [kpis, setKpis] = useState<DailyKPIs | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Prévision boutique (7 prochains jours) pour l'en-tête ; chargée à part pour ne pas retarder la page
+  const [forecast, setForecast] = useState<any | null>(null);
 
   useEffect(() => {
     fetchDailyKPIs()
@@ -23,13 +26,16 @@ export default function Page() {
         setError(tr("Impossible de contacter le backend Python (http://127.0.0.1:8000).", "Cannot reach the Python backend (http://127.0.0.1:8000)."));
         setLoading(false);
       });
+    fetchForecast({ horizon: 7, forecast_type: "articles", history_period: "all" })
+      .then(setForecast)
+      .catch(() => setForecast({ forecast: [] }));
   }, []);
 
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center" style={{ background: "var(--dk-page, #F1F1EC)" }}>
-        <div className="flex items-center gap-3 text-base font-bold" style={{ color: "#2E7D4F" }}>
-          <div className="w-5 h-5 rounded-full border-2 border-[#2E7D4F] border-t-transparent animate-spin" />
+        <div className="flex items-center gap-3 text-base font-bold" style={{ color: "var(--ch-1)" }}>
+          <div className="w-5 h-5 rounded-full border-2 border-[color:var(--ch-1)] border-t-transparent animate-spin" />
           {tr("Chargement du tableau de bord…", "Loading dashboard…")}
         </div>
       </main>
@@ -61,7 +67,7 @@ export default function Page() {
             type="button"
             onClick={() => window.location.reload()}
             className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow"
-            style={{ background: "#2E7D4F" }}
+            style={{ background: "var(--ch-1)" }}
           >
             {tr("Réessayer", "Retry")}
           </button>
@@ -72,8 +78,8 @@ export default function Page() {
 
   return (
     <main className="min-h-screen" style={{ background: "var(--dk-page, #F1F1EC)" }}>
-      {/* Hero simplifié sans image "Le Croisic" */}
-      <Hero kpis={kpis} />
+      {/* En-tête bento : chiffre d'affaires du jour, l'essentiel, produits, 7 prochains jours, demain */}
+      <DayBento kpis={kpis} forecast={forecast} />
 
       {/* Sections analytiques : Rythme de la journée, CA Horaire, Top produits, Mix et catégories */}
       <AnalyticsSections kpis={kpis} />

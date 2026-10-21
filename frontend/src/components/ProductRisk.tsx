@@ -13,11 +13,12 @@ import { ExpertNote } from "@/components/Expert";
 import { Takeaway } from "@/components/Ui";
 import { ChartAssistantButton } from "@/components/ChartAssistantButton";
 import { useChat } from "@/contexts/ChatContext";
+import { raisonText } from "@/components/PrepList";
 
 const fmt = (n: number, d = 0) => Number(n || 0).toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d });
 const ST: Record<string, { fr: string; en: string; c: string; bg: string }> = {
-  RUPTURE: { fr: "Risque de manque", en: "Shortage risk", c: "#fff", bg: "#C0392B" },
-  VIGILANCE: { fr: "À surveiller", en: "Watch", c: "#1E2420", bg: "#E9C46A" },
+  RUPTURE: { fr: "Risque de manque", en: "Shortage risk", c: "#fff", bg: "var(--dk-alert)" },
+  VIGILANCE: { fr: "À surveiller", en: "Watch", c: "#1E2A22", bg: "#E9C46A" },
   NORMAL: { fr: "Normal", en: "Normal", c: "var(--dk-ink2)", bg: "var(--dk-soft)" },
   SURSTOCK: { fr: "Risque d'invendus", en: "Unsold risk", c: "#fff", bg: "#7FA3C8" },
   "FERMÉ": { fr: "Fermé", en: "Closed", c: "var(--dk-muted)", bg: "transparent" },
@@ -53,10 +54,16 @@ export function ProductRiskCard() {
   const dates: string[] = data.dates || [];
   const nbProdRisk = items.filter((i) => i.nb_risque > 0).length;
   const top = items[0];
+  const eurManque = items.reduce((s, i) => s + (i.euros_manque || 0), 0);
+  const eurInvendus = items.reduce((s, i) => s + (i.euros_invendus || 0), 0);
 
   return (
     <>
-      <div className="sec-title">{tr("Risque par produit", "Risk by product")}</div>
+      <div className="alert-part">
+        <div className="alert-part-k">{tr("Par produit", "By product")}</div>
+        <h2 className="alert-part-t">{tr("Les 14 prochains", "The next 14")} <span style={{ color: "var(--dk-accent)" }}>{tr("jours", "days")}</span></h2>
+        <p className="alert-part-d">{tr("Le plus utile au quotidien : quels produits risquent de manquer ou de rester invendus, et quel jour.", "Most useful day to day: which products may run short or stay unsold, and on which day.")}</p>
+      </div>
       <div className="sw">
         <div className="cc hero-card" style={{ marginBottom: 16 }}>
           <ChartAssistantButton chartType="product_risk_grid" chartData={{
@@ -127,10 +134,16 @@ export function ProductRiskCard() {
             <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 16, background: "var(--dk-accent-wash)", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10 }}>
               <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("Produit", "Product")}</div><div style={{ fontWeight: 800 }}>{cell.p.article}</div></div>
               <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("Jour", "Day")}</div><div style={{ fontWeight: 700 }}>{cell.d.ds.slice(8, 10)}/{cell.d.ds.slice(5, 7)}/{cell.d.ds.slice(0, 4)}</div></div>
-              <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("Prévu", "Forecast")}</div><div className="num" style={{ fontWeight: 800, color: "#2E7D4F" }}>{fmt(cell.d.yhat, 1)}</div></div>
+              <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("Prévu", "Forecast")}</div><div className="num" style={{ fontWeight: 800, color: "var(--ch-1)" }}>{fmt(cell.d.yhat, 1)}</div></div>
               <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("D'habitude ce jour-là", "Usually that weekday")}</div><div className="num" style={{ fontWeight: 700 }}>{fmt(cell.d.usual, 1)}</div></div>
               <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("Quantité conseillée", "Suggested quantity")}</div><div className="num" style={{ fontWeight: 800 }}>{fmt(Math.ceil(cell.d.conseille || 0))}</div></div>
               <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("Statut", "Status")}</div><div style={{ fontWeight: 800 }}>{tr(ST[cell.d.statut]?.fr, ST[cell.d.statut]?.en)}</div></div>
+              {cell.d.euros > 0 && (
+                <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{cell.d.statut === "SURSTOCK" ? tr("Invendus évitables", "Avoidable unsold") : tr("Ventes à ne pas manquer", "Sales not to miss")}</div><div className="num" style={{ fontWeight: 800 }}>≈ {fmt(cell.d.euros)} €</div></div>
+              )}
+              {cell.d.raison && (
+                <div style={{ gridColumn: "1 / -1" }}><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("Pourquoi", "Why")}</div><div style={{ fontWeight: 700 }}>{raisonText(cell.d.raison)}</div></div>
+              )}
             </div>
           )}
 
@@ -149,8 +162,8 @@ export function ProductRiskCard() {
           {top && top.excedent > 0 && (
             <Takeaway>
               {tr(
-                `${nbProdRisk} produit(s) risquent de manquer au moins un jour sur les ${dates.length} prochains jours. Le plus concerné : ${top.article} (environ ${fmt(top.excedent)} articles de plus que d'habitude à prévoir).`,
-                `${nbProdRisk} product(s) may run short at least one day over the next ${dates.length} days. Most affected: ${top.article} (about ${fmt(top.excedent)} more items than usual to plan).`
+                `${nbProdRisk} produit(s) risquent de manquer au moins un jour sur les ${dates.length} prochains jours. Le plus concerné : ${top.article} (environ ${fmt(top.excedent)} articles de plus que d'habitude à prévoir).${eurManque || eurInvendus ? ` En préparant comme d'habitude, environ ${fmt(eurManque)} € de ventes risquent d'être manquées et ${fmt(eurInvendus)} € de produits de rester invendus (valeur de vente).` : ""}`,
+                `${nbProdRisk} product(s) may run short at least one day over the next ${dates.length} days. Most affected: ${top.article} (about ${fmt(top.excedent)} more items than usual to plan).${eurManque || eurInvendus ? ` Preparing as usual, about €${fmt(eurManque)} of sales may be missed and €${fmt(eurInvendus)} of products left unsold (at sale price).` : ""}`
               )}
             </Takeaway>
           )}

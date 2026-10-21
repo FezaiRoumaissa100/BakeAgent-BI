@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { PageStory, StoryIcons } from "@/components/PageStory";
 import { ExpertNote } from "@/components/Expert";
-import { colors } from "@/lib/theme";
+import { colors, categoryPalette } from "@/lib/theme";
 import { fetchPerformance } from "@/lib/api";
 import { tr, trData, locale } from "@/lib/i18n";
 import {
@@ -18,20 +19,20 @@ import { useChat } from "@/contexts/ChatContext";
 /* ════════════════════════════════════════════════
    PALETTE (identique Vue du Jour + tons chauds)
    ════════════════════════════════════════════════ */
-const ORANGE = stroke;                 // "#2E7D4F"
-const PEACH = strokeAlt;               // "#8DC05A"
+const ORANGE = stroke;                 // "var(--ch-1)"
+const PEACH = strokeAlt;               // "var(--ch-soft)"
 const LIGHT = colors.accentPale;
-const INK = ink;                       // "#1E2420"
-const MUTED = muted;                   // "#6E756F"
+const INK = ink;                       // "var(--dk-ink)"
+const MUTED = muted;                   // "var(--dk-muted)"
 const C1 = colors.beige;                  // beige foncé
 const C2 = colors.gold;
-const AVG = "#B8860B";                   // ligne de moyenne : ambre, distincte de la courbe verte                  // doré
+const AVG = "var(--ch-2)";                   // ligne de moyenne : ambre, distincte de la courbe verte                  // doré
 const C3 = colors.amberLight;                  // ambre
 const PANIER = colors.green;
 const TICKETS = colors.blue;
 const PAPER = colors.paper;               // fond crème carte (opaque)
 const PAPER_2 = colors.paper2;
-const PALETTE: string[] = ["#2E7D4F", "#8DC05A", "#A0694A", "#D4A52A", "#B5527A", "#4A78A8", "#7A5AA0", "#E0A85C", "#6F9A64", "#3F7F8C", "#C0392B", "#9AA59C"];
+const PALETTE: string[] = [...categoryPalette, "var(--ch-ramp-3)", "var(--ch-ramp-7)"];  // ordre fixe : Vert, Blé doré, Bleu, Croûte, Prune, Autres…
 
 // « 2025-12-01 » → « décembre 2025 »
 function monthLabel(s?: string) {
@@ -326,7 +327,7 @@ function Comp2425BarChart({ data, yPrec, yDer }: { data: Array<{ mois: string; c
         const y24 = getY(d.ca_prec), y25 = getY(d.ca_der);
         return (
           <g key={i}>
-            <rect x={x24} y={y24} width={barW} height={getY(0) - y24} rx={3} fill={C1} fillOpacity="0.88"/>
+            <rect x={x24} y={y24} width={barW} height={getY(0) - y24} rx={3} fill={colors.amber} fillOpacity="0.88"/>
             <rect x={x25} y={y25} width={barW} height={getY(0) - y25} rx={3} fill={ORANGE} fillOpacity="0.92"/>
             <text x={gx + groupW / 2} y={H - padB + 18} textAnchor="middle"
                   fontSize="11" fill={INK} fontWeight="700">{trData(d.mois)}</text>
@@ -334,7 +335,7 @@ function Comp2425BarChart({ data, yPrec, yDer }: { data: Array<{ mois: string; c
         );
       })}
       <g transform={`translate(${W - padR - 180}, 6)`}>
-        <rect x="0" y="0" width="12" height="12" rx="3" fill={C1}/>
+        <rect x="0" y="0" width="12" height="12" rx="3" fill={colors.amber}/>
         <text x="18" y="10" fontSize="11" fill={INK} fontWeight="700">{yPrec}</text>
         <rect x="80" y="0" width="12" height="12" rx="3" fill={ORANGE}/>
         <text x="98" y="10" fontSize="11" fill={INK} fontWeight="700">{yDer}</text>
@@ -439,11 +440,15 @@ function DonutTopN({ data, n, centerLabel }: {
 }
 
 function DayOfWeekBars({ days, mode }: {
-  days: Array<{ day: string; ca_total: number; ca_moyen: number }>; mode: "total" | "moyen";
+  days: Array<{ day: string; ca_total: number; ca_moyen: number; nb_jours?: number }>; mode: "total" | "moyen";
 }) {
   const valFn = (d: any) => mode === "total" ? d.ca_total : d.ca_moyen;
   const max = Math.max(...days.map(valFn), 1);
-  const mean = days.reduce((s, d) => s + valFn(d), 0) / days.length;
+  // Jours rarement ouverts (ex. mercredi) : en gris hachuré, hors du calcul du meilleur jour et de la moyenne
+  const maxJ = Math.max(...days.map((d: any) => d.nb_jours ?? 0));
+  const regularDays = days.filter((d: any) => d.nb_jours == null || d.nb_jours >= maxJ * 0.4);
+  const maxRegular = Math.max(...regularDays.map(valFn), 1);
+  const mean = regularDays.reduce((s, d) => s + valFn(d), 0) / Math.max(regularDays.length, 1);
   const W = 560, H = 320, padL = 40, padR = 20, padT = 20, padB = 60;
   const bw = (W - padL - padR) / days.length * 0.7;
   const getY = (v: number) => padT + (H - padT - padB) * (1 - v / max);
@@ -463,11 +468,18 @@ function DayOfWeekBars({ days, mode }: {
       })}
       {days.map((d, i) => {
         const v = valFn(d);
-        const color = v === max ? ORANGE : (v >= mean ? C2 : C3);
+        const rare = (d as any).nb_jours != null && (d as any).nb_jours < maxJ * 0.4;
+        const color = rare ? "var(--ch-other)" : v === maxRegular ? ORANGE : (v >= mean ? C2 : C3);
         const gx = padL + i * ((W - padL - padR) / days.length) + ((W - padL - padR) / days.length - bw) / 2;
         return (
           <g key={i}>
-            <rect x={gx} y={getY(v)} width={bw} height={getY(0) - getY(v)} rx={4} fill={color} fillOpacity="0.9"/>
+            <rect x={gx} y={getY(v)} width={bw} height={getY(0) - getY(v)} rx={4} fill={color} fillOpacity={rare ? 0.35 : 0.9}
+                  stroke={rare ? color : "none"} strokeDasharray={rare ? "4 3" : undefined}/>
+            {rare && (
+              <text x={gx + bw / 2} y={H - padB + 34} textAnchor="middle" fontSize="9.5" fill={MUTED} fontWeight="700">
+                {tr(`rarement ouvert (${(d as any).nb_jours} j)`, `rarely open (${(d as any).nb_jours} d)`)}
+              </text>
+            )}
             <text x={gx + bw / 2} y={getY(v) - 6} textAnchor="middle"
                   fontSize="10.5" fill={color} fontWeight="800">
               {mode === "total" ? `${fmt(v / 1000, 1)}k€` : `${fmt(v)} €`}
@@ -760,14 +772,30 @@ export default function PerformancePage() {
     };
   }, [topProds, topN]);
 
+  // Jours forts / faibles : seulement parmi les jours HABITUELLEMENT ouverts.
+  // Un jour rarement ouvert (ex. le mercredi, ouvert seulement quelques jours de fête) a une moyenne trompeuse.
   const saisonInsights = useMemo(() => {
-    const days = seasonality?.days || [];
+    const all = seasonality?.days || [];
+    if (!all.length) return null;
+    const maxJ = Math.max(...all.map((d: any) => d.nb_jours ?? 0));
+    const regular = (d: any) => d.nb_jours == null || d.nb_jours >= maxJ * 0.4;
+    const days = all.filter(regular);
+    const rare = all.filter((d: any) => !regular(d));
     if (!days.length) return null;
     const best = days.reduce((a: any, b: any) => a.ca_moyen > b.ca_moyen ? a : b);
     const worst = days.reduce((a: any, b: any) => a.ca_moyen < b.ca_moyen ? a : b);
     const ratio = best.ca_moyen / Math.max(worst.ca_moyen || 1, 1);
-    return { best, worst, ratio };
+    return { best, worst, ratio, rare };
   }, [seasonality]);
+  // Phrase « fermé le mercredi (ouvert seulement 23 fois, des jours particuliers) »
+  const rareNote = (fr: boolean) => {
+    const r: any[] = saisonInsights?.rare || [];
+    if (!r.length) return "";
+    const names = r.map((d) => (fr ? d.day : trData(d.day)).toLowerCase()).join(fr ? " et le " : " and ");
+    const n = r.map((d) => d.nb_jours).join("/");
+    return fr ? ` La boutique est habituellement fermée le ${names} (ouverte seulement ${n} fois, des jours particuliers).`
+              : ` The shop is usually closed on ${names} (open only ${n} times, on special days).`;
+  };
 
   if (loading && !data) {
     return (
@@ -790,8 +818,8 @@ export default function PerformancePage() {
         </h1>
         <p style={{ color:MUTED, fontSize:"0.82rem", marginTop:"6px",
                     maxWidth:"640px", lineHeight:1.5 }}>
-          {tr("Analyse globale du chiffre d'affaires, performance des produits, saisonnalité et dynamique des catégories.",
-              "Overall analysis of revenue, product performance, seasonality and category trends.")}
+          {tr("Comment la boutique vend : l'évolution des ventes, les produits qui rapportent, les jours et heures forts, et le poids de chaque famille.",
+              "How the shop sells: the sales trend, the products that earn, the strong days and hours, and the weight of each family.")}
         </p>
       </div>
 
@@ -860,6 +888,54 @@ export default function PerformancePage() {
         })()}
       </div>
 
+      {/* ══ L'HISTOIRE EN BREF : les conclusions de la période choisie, avant les graphiques ══ */}
+      {(() => {
+        if (!kpis.total_ca) return null;
+        // Évolution sur un an (année choisie vs précédente, sinon les deux dernières années)
+        let evo: number | null = null, evoRef = "";
+        if (n1?.total_ca) { evo = (kpis.total_ca - n1.total_ca) / n1.total_ca * 100; evoRef = String(n1.annee); }
+        else if (annee === "Toutes" && y25?.total_ca && y24?.total_ca) { evo = (y25.total_ca - y24.total_ca) / y24.total_ca * 100; evoRef = `${yDerK} vs ${yPrecK}`; }
+        const monthName = (o: any) => {
+          if (!o?.date_str) return "";
+          const t = new Date(o.date_str + "T12:00:00").toLocaleDateString(tr("fr-FR", "en-GB"), { month: "long", year: "numeric" });
+          return t.charAt(0).toUpperCase() + t.slice(1);
+        };
+        const hours: any[] = seasonality?.hourly || [];
+        const totH = hours.reduce((a, h) => a + (h.ca || 0), 0);
+        const peakH = hours.length ? hours.reduce((a, b) => (b.ca > a.ca ? b : a)) : null;
+        // Les 3 heures autour du pic : part du chiffre de la journée
+        const around = peakH ? hours.filter((h) => Math.abs(h.hour - peakH.hour) <= 1).reduce((a, h) => a + (h.ca || 0), 0) : 0;
+        const top: any[] = topProds?.by_ca || [];
+        const top5 = top.slice(0, 5).reduce((a, p) => a + (p.part || 0), 0);
+        const cats = [...categories].sort((a, b) => b.ca - a.ca);
+        const sI = saisonInsights;
+        const points = [
+          monthly.ca_max?.date_str ? { icon: StoryIcons.calendar, label: tr("Les mois", "Months"),
+            text: tr(`Meilleur mois : ${monthName(monthly.ca_max)} (${fmt(monthly.ca_max.val / 1000, 1)} k€). Le plus calme : ${monthName(monthly.ca_min)}.`,
+                     `Best month: ${monthName(monthly.ca_max)} (€${fmt(monthly.ca_max.val / 1000, 1)}k). Quietest: ${monthName(monthly.ca_min)}.`) } : null,
+          sI ? { icon: StoryIcons.trend, label: tr("La semaine", "The week"),
+            text: tr(`Le ${trData(sI.best.day).toLowerCase()} rapporte ${fmt(sI.ratio, 1)} fois plus que le ${trData(sI.worst.day).toLowerCase()} (${fmt(sI.best.ca_moyen)} € contre ${fmt(sI.worst.ca_moyen)} € par jour).`,
+                     `${trData(sI.best.day)} brings in ${fmt(sI.ratio, 1)} times more than ${trData(sI.worst.day)} (€${fmt(sI.best.ca_moyen)} vs €${fmt(sI.worst.ca_moyen)} a day).`) + tr(rareNote(true), rareNote(false)) } : null,
+          peakH && totH > 0 ? { icon: StoryIcons.clock, label: tr("La journée", "The day"),
+            text: tr(`Le pic arrive vers ${peakH.hour} h : entre ${peakH.hour - 1} h et ${peakH.hour + 1} h, la boutique fait ${fmt(around / totH * 100)} % de son chiffre.`,
+                     `The peak comes around ${peakH.hour}:00: between ${peakH.hour - 1}:00 and ${peakH.hour + 1}:00 the shop makes ${fmt(around / totH * 100)}% of its revenue.`) } : null,
+          top.length ? { icon: StoryIcons.star, label: tr("Les produits", "Products"),
+            text: tr(`${top[0].article} est le produit qui rapporte le plus (${fmt(top[0].part, 1)} %) ; les 5 premiers font ${fmt(top5)} % du chiffre${cats[0] ? `, et la famille ${trData(cats[0].category)} ${fmt(cats[0].part)} %` : ""}.`,
+                     `${top[0].article} earns the most (${fmt(top[0].part, 1)}%); the top 5 make ${fmt(top5)}% of revenue${cats[0] ? `, and the ${trData(cats[0].category)} family ${fmt(cats[0].part)}%` : ""}.`) } : null,
+        ].filter(Boolean) as any[];
+        const headline = evo !== null
+          ? tr(`${fmt(kpis.total_ca / 1000, 0)} k€ de ventes sur ${fmt(kpis.nb_jours)} jours d'ouverture, ${evo >= 0 ? "en hausse" : "en baisse"} de ${fmt(Math.abs(evo), 0)} % sur un an (${evoRef}).`,
+               `€${fmt(kpis.total_ca / 1000, 0)}k of sales over ${fmt(kpis.nb_jours)} open days, ${evo >= 0 ? "up" : "down"} ${fmt(Math.abs(evo), 0)}% over a year (${evoRef}).`)
+          : tr(`${fmt(kpis.total_ca / 1000, 0)} k€ de ventes sur ${fmt(kpis.nb_jours)} jours d'ouverture, soit ${fmt(kpis.total_ca / Math.max(kpis.nb_jours, 1))} € par jour en moyenne.`,
+               `€${fmt(kpis.total_ca / 1000, 0)}k of sales over ${fmt(kpis.nb_jours)} open days, i.e. €${fmt(kpis.total_ca / Math.max(kpis.nb_jours, 1))} a day on average.`);
+        const todo = sI && peakH
+          ? tr(`Mettre le plus de fournées et de personnel le ${trData(sI.best.day).toLowerCase()} et avant ${peakH.hour} h ; le ${trData(sI.worst.day).toLowerCase()}, produire moins ou tester une offre pour faire venir des clients.`,
+               `Put the most batches and staff on ${trData(sI.best.day)} and before ${peakH.hour}:00; on ${trData(sI.worst.day)}, produce less or try an offer to bring customers in.`)
+          : undefined;
+        return <PageStory headline={headline} points={points} todo={todo}
+          links={[{ href: "/produits", label: tr("Voir les produits", "See products") }, { href: "/previsions", label: tr("Voir les prévisions", "See forecasts") }]} />;
+      })()}
+
       {/* ══════════════════════════════════════════════
           KPIs — Style Vue du Jour (cc, sw, ct, cs)
           ══════════════════════════════════════════════ */}
@@ -901,10 +977,10 @@ export default function PerformancePage() {
       <div style={{ padding:"16px 20px 0" }}>
         <div style={{ display:"flex", gap:"4px", borderBottom:"2px solid var(--dk-line, rgba(140,160,140,.22))", paddingBottom:0 }}>
           {([
-            { id:"evolution", iconSvg:<IconTrendUp size={16}/>, label:tr("Évolution du CA", "Revenue Trend") },
-            { id:"top",       iconSvg:<IconTrophy size={16}/>, label:tr("Top Produits", "Top Products") },
-            { id:"saison",    iconSvg:<IconCalendar size={16}/>, label:tr("Saisonnalité", "Seasonality") },
-            { id:"categories",iconSvg:<IconTag size={16}/>,    label:tr("Catégories", "Categories") },
+            { id:"evolution", iconSvg:<IconTrendUp size={16}/>, label:tr("Évolution des ventes", "Sales trend") },
+            { id:"top",       iconSvg:<IconTrophy size={16}/>, label:tr("Meilleurs produits", "Best products") },
+            { id:"saison",    iconSvg:<IconCalendar size={16}/>, label:tr("Jours & heures", "Days & hours") },
+            { id:"categories",iconSvg:<IconTag size={16}/>,    label:tr("Familles", "Families") },
           ] as const).map((t) => (
             <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{
               display:"inline-flex", alignItems:"center", gap:"8px",
@@ -934,7 +1010,7 @@ export default function PerformancePage() {
       {activeTab === "evolution" && (
         <div className="sw" style={{ paddingTop:"14px" }}>
           <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-            <IconTrendUp size={16} /> {tr("Évolution Mensuelle du Chiffre d'Affaires", "Monthly Revenue Trend")}
+            <IconTrendUp size={16} /> {tr("Comment les ventes évoluent, mois par mois", "How sales move, month by month")}
           </div>
           <div className="cc" style={{ padding:"20px 24px" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start",
@@ -990,7 +1066,7 @@ export default function PerformancePage() {
           {annee === "Toutes" && monthly.comp_24_25?.length > 0 && monthly.comp_annees && (
             <>
               <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-                <IconBarsGrouped size={16} /> {tr(`Comparaison ${monthly.comp_annees.prec} vs ${monthly.comp_annees.der} — Mois par Mois`, `${monthly.comp_annees.prec} vs ${monthly.comp_annees.der} Comparison — Month by Month`)}
+                <IconBarsGrouped size={16} /> {tr(`${monthly.comp_annees.der} face à ${monthly.comp_annees.prec}, mois par mois`, `${monthly.comp_annees.der} against ${monthly.comp_annees.prec}, month by month`)}
               </div>
               <div className="cc" style={{ padding:"20px 24px" }}>
                 <ChartAssistantButton chartType="comparison_2024_2025" chartData={{ data: monthly.comp_24_25, annees: monthly.comp_annees, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="Comp2425BarChart"
@@ -1031,7 +1107,7 @@ export default function PerformancePage() {
       {activeTab === "top" && (
         <div className="sw" style={{ paddingTop:"14px" }}>
           <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-            <IconTrophy size={16} /> {tr("Classement des Produits par Chiffre d'Affaires", "Product Ranking by Revenue")}
+            <IconTrophy size={16} /> {tr("Les produits qui rapportent le plus", "The products that earn the most")}
           </div>
 
           <div style={{ display:"flex", alignItems:"center", gap:"16px", margin:"0 4px 18px",
@@ -1079,7 +1155,7 @@ export default function PerformancePage() {
       {activeTab === "saison" && (
         <div className="sw" style={{ paddingTop:"14px" }}>
           <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-            <IconCalendar size={16} /> {tr("Saisonnalité — CA par Jour de la Semaine", "Seasonality — Revenue by Day of the Week")}
+            <IconCalendar size={16} /> {tr("Les jours forts de la semaine (saisonnalité)", "The strong days of the week (seasonality)")}
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"16px" }}>
             <div className="cc" style={{ padding:"20px 24px" }}>
@@ -1099,7 +1175,7 @@ export default function PerformancePage() {
               icon={<IconCalendarDays size={16} color={C1}/>} color={C1}
               title={tr(`Meilleur jour : ${saisonInsights.best.day} (${fmt(saisonInsights.best.ca_moyen)} €/j en moyenne) · Jour le plus faible : ${saisonInsights.worst.day} (${fmt(saisonInsights.worst.ca_moyen)} €/j)`,
                          `Best day: ${trData(saisonInsights.best.day)} (${fmt(saisonInsights.best.ca_moyen)} €/d on average) · Weakest day: ${trData(saisonInsights.worst.day)} (${fmt(saisonInsights.worst.ca_moyen)} €/d)`)}
-              strong={tr(`Ratio de variabilité : ${saisonInsights.ratio.toFixed(1)}×`, `Variability ratio: ${saisonInsights.ratio.toFixed(1)}×`)}
+              strong={tr(`Écart entre le meilleur et le plus faible jour : ${saisonInsights.ratio.toFixed(1)}×.${rareNote(true)}`, `Gap between the best and the weakest day: ${saisonInsights.ratio.toFixed(1)}×.${rareNote(false)}`)}
               asRow
             />
           )}
@@ -1107,7 +1183,7 @@ export default function PerformancePage() {
           {seasonality.hourly?.length > 0 && (
             <>
               <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-                <IconClock size={16} /> {tr("Distribution Horaire des Ventes", "Hourly Sales Distribution")}
+                <IconClock size={16} /> {tr("Les heures de pointe (répartition horaire)", "Peak hours (hourly distribution)")}
               </div>
               <div className="cc" style={{ padding:"20px 24px" }}>
                 <ChartAssistantButton chartType="hourly_dual" chartData={{ data: seasonality.hourly, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="HourlyDual"
@@ -1143,7 +1219,7 @@ export default function PerformancePage() {
       {activeTab === "categories" && (
         <div className="sw" style={{ paddingTop:"14px" }}>
           <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-            <IconTag size={16} /> {tr("Performance par Catégorie de Produits", "Performance by Product Category")}
+            <IconTag size={16} /> {tr("Ce que pèse chaque famille de produits", "What each product family weighs")}
           </div>
 
           {/* Treemap des catégories retiré : il répétait le graphique et le tableau ci-dessous. */}
@@ -1173,7 +1249,7 @@ export default function PerformancePage() {
           {categories.length > 0 && (
             <>
               <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-                <IconBarsGrouped size={16} /> {tr("Tableau Récapitulatif des Catégories", "Category Summary Table")}
+                <IconBarsGrouped size={16} /> {tr("Les familles en chiffres", "Families in figures")}
               </div>
               <div className="cc" style={{ padding:"20px 32px 32px", marginTop:"14px" }}>
                 <ChartAssistantButton chartType="category_summary_table" chartData={{ categories, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="CategorySummaryTable"
@@ -1205,7 +1281,7 @@ export default function PerformancePage() {
                                            display:"flex", alignItems:"center", gap:"10px" }}>
                                 <div style={{ width:"9px", height:"9px", borderRadius:"50%",
                                               background: PALETTE[i % PALETTE.length],
-                                              boxShadow:`0 0 0 2px ${PALETTE[i % PALETTE.length]}25` }}/>
+                                              boxShadow:`0 0 0 2px color-mix(in srgb, ${PALETTE[i % PALETTE.length]} 15%, transparent)` }}/>
                                 {trData(c.category)}
                               </td>
                               <td style={{ padding:"13px 8px" }}>
@@ -1227,7 +1303,7 @@ export default function PerformancePage() {
                                   <div style={{ flex:1, height:"14px", borderRadius:"4px",
                                                 background:"var(--dk-soft, #F5F6F1)", overflow:"hidden" }}>
                                     <div style={{ width:`${partPct}%`, height:"100%",
-                                                  background:`linear-gradient(90deg, ${C1}55, ${C3}aa)` }}/>
+                                                  background:`linear-gradient(90deg, color-mix(in srgb, ${C1} 33%, transparent), color-mix(in srgb, ${C3} 67%, transparent))` }}/>
                                   </div>
                                   <span style={{ fontSize:"0.78rem", fontWeight:800, color:MUTED,
                                                  whiteSpace:"nowrap", width:"42px", textAlign:"right" }}>

@@ -136,6 +136,27 @@ export async function fetchProductAlerts(days = 14): Promise<any> {
   return res.json();
 }
 
+// ── Production du jour (saisie du boulanger : préparé / restant le soir) ──
+export async function fetchProduction(date?: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/production${date ? `?date=${encodeURIComponent(date)}` : ""}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Erreur API production");
+  return res.json();
+}
+
+export async function saveProduction(date: string, rows: { product_id: number; produced: number | null; leftover: number | null }[]): Promise<any> {
+  const res = await fetch(`${API_BASE}/production`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date, rows }),
+  });
+  if (!res.ok) throw new Error("Erreur API production (enregistrement)");
+  return res.json();
+}
+
+export async function fetchProductionSummary(days = 14): Promise<any> {
+  const res = await fetch(`${API_BASE}/production/summary?days=${days}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Erreur API production/summary");
+  return res.json();
+}
+
 const AGENT_API_BASE = "http://127.0.0.1:8001";
 export const AGENT_APP_NAME = "agent";
 export const AGENT_USER_ID = "web_user";

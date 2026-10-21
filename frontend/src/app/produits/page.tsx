@@ -52,6 +52,7 @@ import {
 import { ChartAssistantButton } from "@/components/ChartAssistantButton";
 import { useChat } from "@/contexts/ChatContext";
 import { tr, trData, locale } from "@/lib/i18n";
+import { PageStory, StoryIcons } from "@/components/PageStory";
 
 /* ──────────── Palette & helpers (couleurs FONCÉES, DISTINCTES & saturées) ──────────── */
 const ORANGE = colors.accentDeep;
@@ -90,17 +91,17 @@ function kFmt(n: number) {
 }
 function pctColor(v: number) {
   if (v >= 70) return "var(--dk-accent-deep, #256B42)";
-  if (v >= 40) return "#3E8E5E";
-  if (v >= 20) return "#D4A52A";
+  if (v >= 40) return "var(--ch-1)";
+  if (v >= 20) return "var(--ch-2)";
   return "var(--dk-warn, #B7791F)";
 }
 function statutColor(s: string) {
   const x = String(s).toLowerCase();
   if (x.includes("leader") || x.includes("cœur") || x.includes("coeur") || x.includes("pha") || x.includes("dominant") || x.includes("quotidien")) return "var(--dk-accent-deep, #256B42)";
-  if (x.includes("régulier") || x.includes("regulier") || x.includes("croissance")) return "#3E8E5E";
+  if (x.includes("régulier") || x.includes("regulier") || x.includes("croissance")) return "var(--ch-1)";
   if (x.includes("cyclique") || x.includes("niche")) return "var(--dk-warn, #B7791F)";
   if (x.includes("sporadique") || x.includes("éliminer") || x.includes("mort")) return "#44403C";
-  return "#1F5E3A";
+  return "var(--ch-peak)";
 }
 
 /* ══════════════════════════════════════════════
@@ -957,9 +958,9 @@ function SimpleBar({
     <div style={{ height }} className="w-full flex flex-col justify-between pt-2">
       <div className="flex items-end gap-1.5 flex-1 w-full relative">
         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40">
-          <div className="w-full border-b border-[#E3E4DD] border-dashed" />
-          <div className="w-full border-b border-[#E3E4DD] border-dashed" />
-          <div className="w-full border-b border-[#E3E4DD]" />
+          <div className="w-full border-b border-[color:var(--dk-line)] border-dashed" />
+          <div className="w-full border-b border-[color:var(--dk-line)] border-dashed" />
+          <div className="w-full border-b border-[color:var(--dk-line)]" />
         </div>
         {rows.map((r, i) => {
           const v = vals[i];
@@ -967,7 +968,7 @@ function SimpleBar({
           const isMax = v === max;
           return (
             <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative z-10">
-              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-[#1E2420] text-white text-[9px] font-bold py-0.5 px-1.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-30 shadow">
+              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-[color:var(--dk-tip-bg)] text-white text-[9px] font-bold py-0.5 px-1.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-30 shadow">
                 {trData(r[labelKey])} : {fmt(v)} {unit}
               </div>
               <div
@@ -978,7 +979,7 @@ function SimpleBar({
           );
         })}
       </div>
-      <div className="flex justify-between mt-1.5 pt-1 border-t border-[#ECEDE7] text-[8px] font-semibold" style={{ color: MUTED }}>
+      <div className="flex justify-between mt-1.5 pt-1 border-t border-[color:var(--dk-grid)] text-[8px] font-semibold" style={{ color: MUTED }}>
         {rows.filter((_, i) => i % Math.ceil(rows.length / 4) === 0 || i === rows.length - 1).map((r, i) => (
           <span key={i}>{trData(r[labelKey])}</span>
         ))}
@@ -1012,7 +1013,7 @@ function GroupedBarsDow({
         </div>
         <div className="absolute inset-0 left-6 flex flex-col justify-between pointer-events-none opacity-40">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="w-full border-b border-[#E3E4DD] border-dashed" />
+            <div key={i} className="w-full border-b border-[color:var(--dk-line)] border-dashed" />
           ))}
         </div>
         {rows.map((r, i) => (
@@ -1033,7 +1034,7 @@ function GroupedBarsDow({
           </div>
         ))}
       </div>
-      <div className="flex justify-between mt-1.5 pt-1 border-t border-[#ECEDE7] text-[9px] font-semibold text-center" style={{ color: MUTED }}>
+      <div className="flex justify-between mt-1.5 pt-1 border-t border-[color:var(--dk-grid)] text-[9px] font-semibold text-center" style={{ color: MUTED }}>
         {rows.map((r, i) => (
           <span key={i} style={{ flex: 1 }}>{tr(r.day.slice(0, 4), trData(r.day).slice(0, 3))}</span>
         ))}
@@ -1550,8 +1551,8 @@ function MatrixGrid({ items, quadrants, seuils, active, onSelect, colors: col, l
    bandes de fond = statuts du cahier des charges (Niche < 10 %, Régulier, Cœur ≥ 30 %, Leader ≥ 50 %). */
 const STATUT_PEN = [
   { key: "Niche / À surveiller", short: "Niche", en: "Niche", from: 0, to: 10, color: "#8A7B6E" },
-  { key: "Produit Régulier", short: "Régulier", en: "Regular", from: 10, to: 30, color: "#D4A52A" },
-  { key: "Produit Cœur (Core)", short: "Cœur", en: "Core", from: 30, to: 50, color: "#3E8E5E" },
+  { key: "Produit Régulier", short: "Régulier", en: "Regular", from: 10, to: 30, color: "var(--ch-2)" },
+  { key: "Produit Cœur (Core)", short: "Cœur", en: "Core", from: 30, to: 50, color: "var(--ch-1)" },
   { key: "Leader (Indispensable)", short: "Leader", en: "Leader", from: 50, to: 100, color: "#9F1239" },
 ];
 const penStatutColor = (s: string) => (STATUT_PEN.find((x) => x.key === s) || STATUT_PEN[0]).color;
@@ -1736,21 +1737,21 @@ function ContributionRows({ rows, seuil = 50 }: { rows: any[]; seuil?: number })
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }} title={tr(`${fmt(r.contribution_med, 1)} % du ticket (moyenne ${fmt(r.contribution_moy, 1)} %)`, `${fmt(r.contribution_med, 1)}% of the basket (mean ${fmt(r.contribution_moy, 1)}%)`)}>
               <div style={{ position: "relative", flex: 1, height: 10, borderRadius: 99, background: "var(--dk-grid)" }}>
-                <div style={{ width: `${Math.min(100, r.contribution_med)}%`, height: "100%", borderRadius: 99, background: gen ? "#2E7D4F" : "#8DC05A" }} />
+                <div style={{ width: `${Math.min(100, r.contribution_med)}%`, height: "100%", borderRadius: 99, background: gen ? "var(--ch-1)" : "var(--ch-soft)" }} />
                 <div style={{ position: "absolute", left: `${seuil}%`, top: -3, bottom: -3, width: 2, background: "var(--dk-ink2)", opacity: 0.5 }} />
               </div>
               <b className="num" style={{ fontSize: ".78rem", color: INK, width: 44, textAlign: "right" }}>{fmt(r.contribution_med, 0)} %</b>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }} title={tr(`${fmt(r.nb_tickets_multi)} tickets (${fmt(r.frequence_multi_pct, 1)} % des tickets à plusieurs produits)`, `${fmt(r.nb_tickets_multi)} transactions (${fmt(r.frequence_multi_pct, 1)}% of multi-product ones)`)}>
               <div style={{ flex: 1, height: 10, borderRadius: 99, background: "var(--dk-grid)" }}>
-                <div style={{ width: `${(r.nb_tickets_multi / mxF) * 100}%`, height: "100%", borderRadius: 99, background: "#D4A52A" }} />
+                <div style={{ width: `${(r.nb_tickets_multi / mxF) * 100}%`, height: "100%", borderRadius: 99, background: "var(--ch-2)" }} />
               </div>
               <span className="num" style={{ fontSize: ".76rem", color: "var(--dk-ink2)", width: 44, textAlign: "right" }}>{fmt(r.nb_tickets_multi)}</span>
             </div>
             <div style={{ textAlign: "right" }}>
               <span className="num" style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>{fmt(r.ca_total_multi)} €</span>
               <div style={{ height: 4, borderRadius: 99, background: "var(--dk-grid)", marginTop: 4 }}>
-                <div style={{ width: `${(r.ca_total_multi / mxC) * 100}%`, height: "100%", borderRadius: 99, background: "#4A78A8", marginLeft: "auto" }} />
+                <div style={{ width: `${(r.ca_total_multi / mxC) * 100}%`, height: "100%", borderRadius: 99, background: "var(--ch-3)", marginLeft: "auto" }} />
               </div>
             </div>
           </div>
@@ -1785,7 +1786,7 @@ function AssocScatter({ rules, height = 440 }: { rules: any[]; height?: number }
   const xs = q(pts.map((d) => d.support), 0.7), ys = q(pts.map((d) => d.confidence), 0.7);
   const lMax = Math.max(...pts.map((d) => d.lift), 1);
   const rad = (l: number) => 6 + Math.sqrt(Math.max(l - 1, 0) / Math.max(lMax - 1, 0.01)) * 16;
-  const col = (l: number) => (l >= 3 ? "#1F5E3A" : l >= 2 ? "#2E7D4F" : "#8DC05A");
+  const col = (l: number) => (l >= 3 ? "var(--ch-peak)" : l >= 2 ? "var(--ch-1)" : "var(--ch-soft)");
   const zones = [
     { x1: X(xs), x2: X(xMax), y1: Y(yMax), y2: Y(ys), c: Q1, t: tr("Offre groupée", "Bundle offer"), s: tr("fréquentes et probables", "frequent and likely"), ax: "end", px: X(xMax) - 10, py: Y(yMax) + 18 },
     { x1: X(0), x2: X(xs), y1: Y(yMax), y2: Y(ys), c: Q2, t: tr("Suggestion en caisse", "Till suggestion"), s: tr("rares mais très probables", "rare but very likely"), ax: "start", px: X(0) + 10, py: Y(yMax) + 18 },
@@ -1848,7 +1849,7 @@ function AssocScatter({ rules, height = 440 }: { rules: any[]; height?: number }
         </div>
       )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 14, alignItems: "center", marginTop: 6, fontSize: ".72rem", color: MUTED }}>
-        {[{ c: "#1F5E3A", t: tr("lien très fort (× 3 et plus)", "very strong link (× 3+)") }, { c: "#2E7D4F", t: tr("fort (× 2 à 3)", "strong (× 2–3)") }, { c: "#8DC05A", t: tr("modéré (moins de × 2)", "moderate (under × 2)") }].map((l) => (
+        {[{ c: "var(--ch-peak)", t: tr("lien très fort (× 3 et plus)", "very strong link (× 3+)") }, { c: "var(--ch-1)", t: tr("fort (× 2 à 3)", "strong (× 2–3)") }, { c: "var(--ch-soft)", t: tr("modéré (moins de × 2)", "moderate (under × 2)") }].map((l) => (
           <span key={l.t} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 99, background: l.c }} />{l.t}</span>
         ))}
         <span>· {tr("taille de la bulle = force du lien · pointillés = seuil des 30 % de paires les plus fortes", "bubble size = link strength · dashed = top-30% threshold")}</span>
@@ -2117,6 +2118,17 @@ export default function ProduitsPage() {
       .catch(() => setAllNames([]));
   }, []);
 
+  // ── HISTOIRE EN BREF : la paire de produits la plus parlante (fréquente ET liée) ──
+  const [storyPair, setStoryPair] = useState<any>(null);
+  useEffect(() => {
+    fetchAssociations("Support ↓", 40)
+      .then((d) => {
+        const rules = (d?.rules || []).filter((r: any) => (r.lift || 0) >= 1.2);
+        setStoryPair(rules.sort((a: any, b: any) => (b.confidence || 0) - (a.confidence || 0))[0] || null);
+      })
+      .catch(() => setStoryPair(null));
+  }, []);
+
   // ── FICHE PRODUIT (panneau latéral) ──
   const [panelName, setPanelName] = useState<string | null>(null);
   const [panelExtra, setPanelExtra] = useState<any>({});
@@ -2227,12 +2239,12 @@ export default function ProduitsPage() {
      TABS BAR
      ───────────────────────────────────────────── */
   const TABS = [
-    { id: "matrix", label: tr("Matrice de décision", "Decision matrix"), sub: tr("Que faire de chaque produit ?", "What to do with each product?"), Icon: IconScatter, color: ORANGE },
+    { id: "matrix", label: tr("Que faire de chaque produit", "What to do with each product"), sub: tr("matrice de décision", "decision matrix"), Icon: IconScatter, color: ORANGE },
     { id: "pen", label: tr("Présence dans les tickets", "Presence in transactions"), sub: tr("Part des tickets avec le produit", "Share of transactions with the product"), Icon: IconTarget, color: ORANGE },
-    { id: "vel", label: tr("Vitesse de Vente", "Sales Velocity"), sub: tr("Cadence journalière & horaire", "Daily & hourly pace"), Icon: IconBolt, color: "var(--dk-accent-deep, #2A7148)" },
+    { id: "vel", label: tr("Rythme de vente", "Sales pace"), sub: tr("par jour et par heure (vitesse)", "per day and hour (velocity)"), Icon: IconBolt, color: "var(--dk-accent-deep, #2A7148)" },
     { id: "ticket", label: tr("Poids dans le panier", "Weight in the basket"), sub: tr("Rôle dans les paniers", "Role in baskets"), Icon: IconTicketPerc, color: PEACH },
     { id: "freq", label: tr("Régularité de vente", "Sales regularity"), sub: tr("Semaines avec vente", "Weeks with sales"), Icon: IconRepeat, color: "var(--dk-accent-deep, #3E8E5E)" },
-    { id: "assoc", label: tr("Associations", "Associations"), sub: tr("Produits achetés ensemble", "Products bought together"), Icon: IconLink2, color: "var(--dk-accent-deep, #1F5E3A)" },
+    { id: "assoc", label: tr("Achetés ensemble", "Bought together"), sub: tr("associations de produits", "product associations"), Icon: IconLink2, color: "var(--dk-accent-deep, #1F5E3A)" },
   ] as const;
 
   return (
@@ -2247,9 +2259,51 @@ export default function ProduitsPage() {
         </h1>
         <p style={{ color:MUTED, fontSize:"0.82rem", marginTop:"6px",
                     maxWidth:"640px", lineHeight:1.5 }}>
-          {tr("Présence dans les tickets, vitesse de vente, contribution au panier, régularité et produits achetés ensemble.", "Presence in transactions, sales velocity, basket contribution, regularity and products bought together.")}
+          {tr("Quels produits comptent, lesquels font venir les clients, lesquels se vendent ensemble, et lesquels revoir.", "Which products matter, which bring customers in, which sell together, and which to review.")}
         </p>
       </div>
+
+      {/* ── L'HISTOIRE EN BREF (tous les produits, toute la période) ── */}
+      {(() => {
+        if (!allItems.length) return null;
+        const caTot = allItems.reduce((a, i) => a + (i.ca_total || 0), 0) || 1;
+        const stars = allItems.filter((i) => i.quadrant === "Star").sort((a, b) => b.ca_total - a.ca_total);
+        const starShare = stars.reduce((a, i) => a + i.ca_total, 0) / caTot * 100;
+        const present = [...allItems].sort((a, b) => b.penetration_rate - a.penetration_rate)[0];
+        const dormant = allItems.filter((i) => i.dormant_strict);
+        const dorm = dormant.length ? dormant : allItems.filter((i) => i.quadrant === "Dormant");
+        const dormShare = dorm.reduce((a, i) => a + i.ca_total, 0) / caTot * 100;
+        const names = (arr: any[], n: number) => arr.slice(0, n).map((i) => i.article).join(", ");
+        const restock = stars.filter((i) => i.alerte_horaire);
+        const pair = storyPair;
+        const points = [
+          stars.length ? { icon: StoryIcons.star, label: tr("Les incontournables", "The must-haves"),
+            text: tr(`${names(stars, 3)}${stars.length > 3 ? ` et ${stars.length - 3} autres` : ""} : présents dans beaucoup de tickets et vendus en quantité.`,
+                     `${names(stars, 3)}${stars.length > 3 ? ` and ${stars.length - 3} more` : ""}: in many transactions and sold in volume.`) } : null,
+          present ? { icon: StoryIcons.basket, label: tr("Le plus acheté", "Most bought"),
+            text: tr(`${present.article} est dans ${fmt(present.penetration_rate)} % des tickets : c'est le produit qui fait venir les clients.`,
+                     `${present.article} is in ${fmt(present.penetration_rate)}% of transactions: it is what brings customers in.`) } : null,
+          pair ? { icon: StoryIcons.link, label: tr("Achetés ensemble", "Bought together"),
+            text: tr(`Quand un client prend ${pair.antecedent}, il prend aussi ${pair.consequent} ${fmt(pair.confidence / 10, 0)} fois sur 10.`,
+                     `When a customer takes ${pair.antecedent}, they also take ${pair.consequent} ${fmt(pair.confidence / 10, 0)} times out of 10.`) } : null,
+          dorm.length ? { icon: StoryIcons.down, label: tr("À revoir", "To review"),
+            text: tr(`${dorm.length} produits se vendent peu et rarement (${fmt(dormShare, 1)} % du chiffre), par exemple ${names([...dorm].sort((a, b) => a.ca_total - b.ca_total), 2)}.`,
+                     `${dorm.length} products sell little and rarely (${fmt(dormShare, 1)}% of revenue), e.g. ${names([...dorm].sort((a, b) => a.ca_total - b.ca_total), 2)}.`) } : null,
+        ].filter(Boolean) as any[];
+        const headline = stars.length
+          ? tr(`${stars.length} produits font ${fmt(starShare)} % du chiffre d'affaires : ce sont eux qu'il ne faut jamais manquer.`,
+               `${stars.length} products make ${fmt(starShare)}% of revenue: these must never run out.`)
+          : tr(`${allItems.length} produits vendus sur la période.`, `${allItems.length} products sold over the period.`);
+        const todoParts = [
+          stars.length ? tr(`garder ${names(stars, 2)} toujours en rayon${restock[0] ? ` (remplir ${restock[0].article} ${String(restock[0].alerte_horaire).replace("Remplir ", "").toLowerCase()})` : ""}`,
+                            `keep ${names(stars, 2)} always on the shelf${restock[0] ? ` (restock ${restock[0].article} ${String(restock[0].alerte_horaire).replace("Remplir avant", "before")})` : ""}`) : "",
+          pair ? tr(`placer ${pair.consequent} à côté de ${pair.antecedent}`, `place ${pair.consequent} next to ${pair.antecedent}`) : "",
+          dorm.length ? tr(`réduire ou arrêter les produits à revoir`, `reduce or drop the products to review`) : "",
+        ].filter(Boolean);
+        const todo = todoParts.length ? todoParts.join(" ; ").replace(/^./, (c) => c.toUpperCase()) + "." : undefined;
+        return <PageStory headline={headline} points={points} todo={todo}
+          links={[{ href: "/alertes", label: tr("Que préparer demain ?", "What to prepare tomorrow?") }, { href: "/performance", label: tr("Voir la performance", "See performance") }]} />;
+      })()}
 
       {/* ── MINI KPIs + FILTRE ANNEE ── */}
       <div style={{ margin: "0 28px 12px" }}>
@@ -2268,13 +2322,15 @@ export default function ProduitsPage() {
           </div>
           <div>
             <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>
-              {tab === "assoc" ? tr("Associations", "Associations") : tab === "vel" ? tr("Articles / jour (moy.)", "Items / day (avg.)") : tab === "ticket" ? tr("Tickets à plusieurs produits", "Multi-product transactions") : tab === "pen" ? tr("Présence max", "Max presence") : "—"}
+              {tab === "assoc" ? tr("Associations", "Associations") : tab === "vel" ? tr("Articles / jour (moy.)", "Items / day (avg.)") : tab === "ticket" ? tr("Tickets à plusieurs produits", "Multi-product transactions") : tab === "pen" ? tr("Présence max", "Max presence") : tab === "matrix" ? tr("Incontournables (Stars)", "Must-haves (Stars)") : tr("Vendus chaque semaine", "Sold every week")}
             </div>
             <div style={{ fontSize: "1.35rem", fontWeight: 800, color: ORANGE }}>
               {tab === "assoc" && assocData ? fmt(assocData.nb_total_regles) :
                 tab === "ticket" && ticketData ? `${ticketData.stats?.pct_multi?.toFixed(0) || 0}%` :
                 tab === "pen" && penData ? `${Number(penData.kpis?.pen_max || 0).toFixed(0)}%` :
-                tab === "vel" && velData?.dow_velocity?.length ? `${fmt(velData.dow_velocity.reduce((s: number, d: any) => s + (d.all || 0), 0) / velData.dow_velocity.length, 0)}${tr("/j", "/d")}` : "—"}
+                tab === "vel" && velData?.dow_velocity?.length ? `${fmt(velData.dow_velocity.reduce((s: number, d: any) => s + (d.all || 0), 0) / velData.dow_velocity.length, 0)}${tr("/j", "/d")}` :
+                tab === "matrix" && matrixData?.quadrants?.Star ? fmt(matrixData.quadrants.Star.nb || 0) :
+                tab === "freq" && freqData ? fmt(freqData.nb_quotidiens || 0) : "—"}
             </div>
           </div>
           <div>
@@ -2299,7 +2355,7 @@ export default function ProduitsPage() {
 
       {/* ── TABS Selector ── */}
       <div style={{ margin: "18px 28px 16px" }}>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: 6, background: "var(--dk-surface)", borderRadius: 28, border: "1px solid var(--dk-line)" }}>
+        <div className="prod-tabs">
           {TABS.map((t) => {
             const Icon = t.Icon;
             const active = tab === t.id;
@@ -2307,20 +2363,8 @@ export default function ProduitsPage() {
               <button
                 key={t.id}
                 onClick={() => setTab(t.id as any)}
-                style={{
-                  flex: "1 1 190px",
-                  minWidth: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "10px 14px",
-                  borderRadius: 999,
-                  cursor: "pointer",
-                  border: "none",
-                  background: active ? "var(--dk-accent-wash)" : "transparent",
-                  boxShadow: active ? "inset 0 0 0 1px color-mix(in srgb, var(--dk-accent) 30%, transparent)" : "none",
-                  transition: "all 0.2s",
-                }}
+                className={`prod-tab${active ? " on" : ""}`}
+                aria-pressed={active}
               >
                 <div
                   style={{
@@ -2333,10 +2377,10 @@ export default function ProduitsPage() {
                   <Icon size={16} color={active ? t.color : MUTED} />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
-                  <span style={{ fontSize: ".82rem", fontWeight: 800, color: active ? INK : "var(--dk-ink2, #4A524C)", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: ".82rem", fontWeight: 800, color: active ? INK : "var(--dk-ink2, #4A524C)", lineHeight: 1.2, overflowWrap: "anywhere" }}>
                     {t.label}
                   </span>
-                  <span style={{ fontSize: ".64rem", color: MUTED, whiteSpace: "nowrap" }}>{t.sub}</span>
+                  <span style={{ fontSize: ".64rem", color: MUTED, lineHeight: 1.3, marginTop: 2 }}>{t.sub}</span>
                 </div>
               </button>
             );
@@ -2358,7 +2402,7 @@ export default function ProduitsPage() {
 
       {loading && (
         <div className="sw" style={{ padding: "40px 0", color: MUTED, fontSize: ".9rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-          <div className="w-5 h-5 rounded-full border-2 border-[#2E7D4F] border-t-transparent animate-spin" />
+          <div className="w-5 h-5 rounded-full border-2 border-[color:var(--ch-1)] border-t-transparent animate-spin" />
           {tr("Analyse en cours…", "Analysing…")}
         </div>
       )}
@@ -2651,7 +2695,7 @@ export default function ProduitsPage() {
 
           {/* Row 1: Ranked bar + Scatter Pen × CA */}
           <div className="sec-title">
-            <IconBar size={14} color={ORANGE} /> {tr("Présence × chiffre d'affaires", "Presence × revenue")}
+            <IconBar size={14} color={ORANGE} /> {tr("Présence et chiffre d'affaires", "Presence and revenue")}
           </div>
           <div className="sw">
             <div className="grid-main">
@@ -2736,7 +2780,7 @@ export default function ProduitsPage() {
                 {showGlobalStats && (
                   <>
                     <div className="sec-title">
-                      <IconDonutPie size={14} color={ORANGE} /> {tr("Statuts & Évolution temporelle", "Statuses & Trend over time")}
+                      <IconDonutPie size={14} color={ORANGE} /> {tr("Comment la présence évolue dans le temps", "How presence changes over time")}
                     </div>
                     <div className="sw">
                       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 0.55fr) minmax(0, 1.45fr)", gap: 12, marginBottom: 14 }}>
@@ -3162,7 +3206,7 @@ export default function ProduitsPage() {
           </div>
 
           <div className="sec-title">
-            <IconTrophy size={14} color={ORANGE} /> {tr("Contribution & Positionnement", "Contribution & Positioning")}
+            <IconTrophy size={14} color={ORANGE} /> {tr("Ce que chaque produit apporte au panier", "What each product brings to the basket")}
           </div>
           <div className="sw">
             <div className="grid-main">
@@ -3204,8 +3248,8 @@ export default function ProduitsPage() {
                 {(() => {
                   const dist = ticketData.stats?.distribution_par_statut || {};
                   const roles = [
-                    { k: "Générateur de chiffre", en: "Revenue driver", d: tr("au moins 50 % du ticket quand il est acheté avec d'autres produits", "at least 50% of the basket when bought with other products"), c: "#2E7D4F" },
-                    { k: "Accessoire", en: "Accessory", d: tr("moins de 50 % du ticket : il accompagne un autre achat", "under 50% of the basket: it goes with another purchase"), c: "#8DC05A" },
+                    { k: "Générateur de chiffre", en: "Revenue driver", d: tr("au moins 50 % du ticket quand il est acheté avec d'autres produits", "at least 50% of the basket when bought with other products"), c: "var(--ch-1)" },
+                    { k: "Accessoire", en: "Accessory", d: tr("moins de 50 % du ticket : il accompagne un autre achat", "under 50% of the basket: it goes with another purchase"), c: "var(--ch-soft)" },
                   ];
                   return (
                     <div className="cc">
@@ -3280,7 +3324,7 @@ export default function ProduitsPage() {
           </div>
 
           <div className="sec-title">
-            <IconRepeat size={14} color={ORANGE} /> {tr("Régularité et classes", "Regularity and classes")}
+            <IconRepeat size={14} color={ORANGE} /> {tr("Vendus chaque semaine ou de temps en temps ?", "Sold every week or now and then?")}
           </div>
           <div className="sw">
             <div className="g2">
@@ -3346,7 +3390,7 @@ export default function ProduitsPage() {
           <div className="sw"><RetainCard max={6} style={{ marginBottom: 16 }} /></div>
 
           <div className="sec-title">
-            <IconGrid size={14} color={ORANGE} /> {tr("Catégories & Distribution", "Categories & Distribution")}
+            <IconGrid size={14} color={ORANGE} /> {tr("Par famille de produits", "By product family")}
           </div>
           <div className="sw">
             <div>

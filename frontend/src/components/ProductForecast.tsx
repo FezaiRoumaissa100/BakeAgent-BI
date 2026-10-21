@@ -14,16 +14,16 @@ import { Takeaway } from "@/components/Ui";
 import { ChartAssistantButton } from "@/components/ChartAssistantButton";
 import { useChat } from "@/contexts/ChatContext";
 
-const GREEN = "#2E7D4F", LIGHTG = "#8DC05A", INK = "var(--dk-ink)", MUTED = "var(--dk-muted)";
+const GREEN = "var(--ch-1)", LIGHTG = "var(--ch-soft)", INK = "var(--dk-ink)", MUTED = "var(--dk-muted)";
 const fmt = (n: number, d = 0) => Number(n || 0).toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d });
 const JOURS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
 const JOURS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const dayLbl = (ds: string) => { const d = new Date(ds + "T00:00:00"); return `${tr(JOURS[d.getDay()], JOURS_EN[d.getDay()])} ${ds.slice(8, 10)}/${ds.slice(5, 7)}`; };
 const FIAB: Record<string, { fr: string; en: string; c: string }> = {
   bonne: { fr: "Fiable", en: "Reliable", c: GREEN },
-  moyenne: { fr: "Moyennement fiable", en: "Fairly reliable", c: "#D4A52A" },
-  faible: { fr: "Peu fiable", en: "Less reliable", c: "#C0392B" },
-  inconnue: { fr: "Fiabilité non mesurable", en: "Reliability not measurable", c: "#8E998F" },
+  moyenne: { fr: "Moyennement fiable", en: "Fairly reliable", c: "var(--ch-2)" },
+  faible: { fr: "Peu fiable", en: "Less reliable", c: "var(--dk-alert)" },
+  inconnue: { fr: "Fiabilité non mesurable", en: "Reliability not measurable", c: "var(--ch-other)" },
 };
 const METH: Record<string, { fr: string; en: string }> = {
   moyenne_4_semaines: { fr: "Moyenne des 4 derniers mêmes jours", en: "Average of the last 4 same weekdays" },
@@ -43,7 +43,7 @@ function Spark({ v, color = GREEN }: { v: number[]; color?: string }) {
 function TrendBadge({ chg }: { chg: number | null }) {
   if (chg == null) return <span className="pp-tag" style={{ background: "var(--dk-soft)", color: MUTED, padding: "2px 8px" }}>—</span>;
   const up = chg >= 15, down = chg <= -15;
-  const c = up ? GREEN : down ? "#4A78A8" : "var(--dk-ink2)";
+  const c = up ? GREEN : down ? "var(--ch-3)" : "var(--dk-ink2)";
   return (
     <span className="pp-tag num" style={{ background: up ? "var(--dk-accent-wash)" : "var(--dk-soft)", color: c, padding: "2px 8px", fontSize: ".7rem" }}>
       {up ? "↑ " : down ? "↓ " : ""}{chg >= 0 ? "+" : ""}{fmt(chg)} %
@@ -80,14 +80,14 @@ function ProductChart({ history, forecast, sel, onSel }: any) {
       <text x={L + bw * fStart + 8} y={T + 14} fontSize={11} fontWeight={800} fill={GREEN}>{tr("Prévision", "Forecast")}</text>
       <text x={L + bw * fStart - 8} y={T + 14} textAnchor="end" fontSize={11} fontWeight={700} fill="var(--dk-muted)">{tr("Ventes réelles", "Actual sales")}</text>
       {history.map((h: any, i: number) => (
-        h.ouvert ? <rect key={h.ds} x={X(i) - bw * 0.32} y={Y(h.qty)} width={bw * 0.64} height={Y(0) - Y(h.qty)} rx={2.5} fill="#B9C7B0">
+        h.ouvert ? <rect key={h.ds} x={X(i) - bw * 0.32} y={Y(h.qty)} width={bw * 0.64} height={Y(0) - Y(h.qty)} rx={2.5} fill="var(--ch-ramp-3)">
           <title>{`${dayLbl(h.ds)} : ${fmt(h.qty)} ${tr("vendus", "sold")}`}</title></rect>
           : <text key={h.ds} x={X(i)} y={Y(0) - 3} textAnchor="middle" fontSize={8} fill="var(--dk-muted)">×</text>
       ))}
       {band && <polygon points={band} fill={GREEN} opacity={0.14} />}
       <polyline points={fpts.map((p: any, i: number) => `${X(fStart + i)},${Y(p.open ? p.y : 0)}`).join(" ")} fill="none" stroke={GREEN} strokeWidth={2.4} strokeLinejoin="round" />
       {fpts.map((p: any, i: number) => p.ly != null && p.open ? (
-        <circle key={`ly${i}`} cx={X(fStart + i)} cy={Y(p.ly)} r={3} fill="none" stroke="#D4A52A" strokeWidth={1.6}><title>{tr(`L'an dernier : ${fmt(p.ly)}`, `Last year: ${fmt(p.ly)}`)}</title></circle>
+        <circle key={`ly${i}`} cx={X(fStart + i)} cy={Y(p.ly)} r={3} fill="none" stroke="var(--ch-2)" strokeWidth={1.6}><title>{tr(`L'an dernier : ${fmt(p.ly)}`, `Last year: ${fmt(p.ly)}`)}</title></circle>
       ) : null)}
       {fpts.map((p: any, i: number) => {
         const on = sel === p.ds;
@@ -190,7 +190,7 @@ export function ProductForecastSection() {
 
       {attention.length > 0 && (
         <div className="sw">
-          <div className="insight" style={{ margin: "0 0 16px", borderLeftColor: "#D4A52A" }}>
+          <div className="insight" style={{ margin: "0 0 16px", borderLeftColor: "var(--ch-2)" }}>
             <b>{tr("À vérifier avant de lire les prévisions : ", "Check before reading the forecasts: ")}</b>
             {attention.map((c: any, i: number) => <span key={i}>{c.date_from ? `${c.date_from.slice(8, 10)}/${c.date_from.slice(5, 7)}/${c.date_from.slice(0, 4)} → ${c.date_to?.slice(8, 10)}/${c.date_to?.slice(5, 7)}/${c.date_to?.slice(0, 4)} : ` : ""}{c.detail} </span>)}
           </div>
@@ -254,7 +254,7 @@ export function ProductForecastSection() {
                         <TrendBadge chg={p.change_pct} />
                       </div>
                     </div>
-                    <Spark v={p.spark} color={p.tendance === "hausse" ? GREEN : p.tendance === "baisse" ? "#4A78A8" : "#8E998F"} />
+                    <Spark v={p.spark} color={p.tendance === "hausse" ? GREEN : p.tendance === "baisse" ? "var(--ch-3)" : "var(--ch-other)"} />
                   </button>
                 );
               })}
@@ -277,7 +277,7 @@ export function ProductForecastSection() {
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
                       <span className="pp-tag" style={{ background: `color-mix(in srgb, ${fb.c} 13%, transparent)`, color: fb.c }}>{tr(fb.fr, fb.en)}{sel.wape != null ? tr(` · erreur moyenne ±${fmt(sel.wape * 100)} %`, ` · average error ±${fmt(sel.wape * 100)}%`) : ""}</span>
                       <span className="pp-tag" style={{ background: "var(--dk-soft)", color: "var(--dk-ink2)" }}>{tr(`Ventes ${sel.segment}s`, `${sel.segment} sales`)}</span>
-                      {sel.saisonnier && <span className="pp-tag" style={{ background: "var(--dk-soft)", color: "#A0694A" }}>{tr("Saisonnier", "Seasonal")}</span>}
+                      {sel.saisonnier && <span className="pp-tag" style={{ background: "var(--dk-soft)", color: "var(--ch-4)" }}>{tr("Saisonnier", "Seasonal")}</span>}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 999, background: "var(--dk-soft)" }}>
@@ -302,10 +302,10 @@ export function ProductForecastSection() {
 
                 <ProductChart history={hist} forecast={fc} sel={day} onSel={(d: string) => setDay(day === d ? null : d)} />
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 14, fontSize: ".72rem", color: MUTED, marginTop: 4 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 12, height: 10, borderRadius: 3, background: "#B9C7B0" }} />{tr("ventes réelles", "actual sales")}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 12, height: 10, borderRadius: 3, background: "var(--ch-ramp-3)" }} />{tr("ventes réelles", "actual sales")}</span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 3, background: GREEN }} />{tr("prévision", "forecast")}</span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 10, background: GREEN, opacity: 0.18, borderRadius: 3 }} />{tr("fourchette basse – haute", "low – high range")}</span>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 99, border: "1.6px solid #D4A52A" }} />{tr("même jour de la semaine, il y a 52 semaines", "same weekday, 52 weeks earlier")}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 99, border: "1.6px solid var(--ch-2)" }} />{tr("même jour de la semaine, il y a 52 semaines", "same weekday, 52 weeks earlier")}</span>
                   <span>· {tr("cliquez sur un jour prévu pour le détail", "click a forecast day for details")}</span>
                 </div>
 

@@ -18,6 +18,8 @@ from engines.products_engine import (
 from engines.forecast_engine import get_forecast_data_pg
 from engines.alerts_engine import get_alerts_data_pg
 from engines.product_forecast_engine import get_product_forecast_list, get_product_forecast_detail, get_product_alerts
+from engines.production_engine import get_production_day, save_production_day, get_production_summary, last_sales_day
+from fastapi import Body
 
 logger = logging.getLogger("main")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -27,7 +29,7 @@ if not is_pg_available():
 
 logger.info("Mode POSTGRESQL ONLY active. Tous les moteurs PG sont verifies disponibles au demarrage.")
 
-app = FastAPI(title="Le Croisic - Retail Intelligence API")
+app = FastAPI(title="BakeAgent - Retail Intelligence API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -67,6 +69,32 @@ def forecast_product_detail(product_id: int):
 @app.get("/api/alerts/products")
 def alerts_products(days: int = 14):
     return get_product_alerts(days)
+
+
+# ── Production du jour (saisie du boulanger : préparé / restant le soir) ──
+@app.get("/api/production")
+def production_day(date_str: Optional[str] = Query(None, alias="date")):
+    """Liste à remplir pour un jour (par défaut : le dernier jour de ventes)."""
+    try:
+        ds = date.fromisoformat(date_str) if date_str else (last_sales_day() or date.today())
+    except ValueError:
+        return {"ok": False, "message": "Date invalide (format attendu : AAAA-MM-JJ)."}
+    return get_production_day(ds)
+
+
+@app.post("/api/production")
+def production_save(payload: dict = Body(...)):
+    """Enregistre la saisie d'un jour : {"date": "AAAA-MM-JJ", "rows": [{"product_id", "produced", "leftover"}]}."""
+    try:
+        ds = date.fromisoformat(str(payload.get("date")))
+    except ValueError:
+        return {"ok": False, "message": "Date invalide (format attendu : AAAA-MM-JJ)."}
+    return save_production_day(ds, payload.get("rows") or [])
+
+
+@app.get("/api/production/summary")
+def production_summary(days: int = 14):
+    return get_production_summary(days)
 
 
 @app.get("/api/daily-kpis")

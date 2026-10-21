@@ -281,7 +281,10 @@ def calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="T
         seasonality_days.append({
             "day": labels_dow[i],
             "ca_total": ca_tot,
-            "ca_moyen": ca_moyen
+            "ca_moyen": ca_moyen,
+            # Nombre de jours ouverts : un jour rarement ouvert (ex. mercredi, ouvert seulement les jours de fête)
+            # ne doit pas être comparé aux autres
+            "nb_jours": nb_j if i in dow_dict else 0,
         })
 
     hourly_query = f"""

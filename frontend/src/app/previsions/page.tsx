@@ -7,6 +7,7 @@ import { t as txt } from "@/lib/texts";
 import { colors } from "@/lib/theme";
 import { fetchForecast } from "@/lib/api";
 import { tr, trData, locale } from "@/lib/i18n";
+import { PageStory, StoryIcons } from "@/components/PageStory";
 import {
   IconSparkline as IconChartLine,
   IconBolt as IconZap,
@@ -145,15 +146,67 @@ export default function PrevisionsPage() {
         </h1>
         <p style={{ color:MUTED, fontSize:"0.82rem", marginTop:"6px",
                     maxWidth:"640px", lineHeight:1.5 }}>
-          {tr(`Combien d'articles la boutique devrait vendre dans les ${horizon} prochains jours, et sur la prochaine saison.`, `How many items the shop should sell over the next ${horizon} days, and over the next season.`)}
+          {forecastType === "ca"
+            ? tr(`Combien la boutique devrait encaisser (€) dans les ${horizon} prochains jours ; la prévision de la saison plus bas reste en articles.`, `How much the shop should take in (€) over the next ${horizon} days; the season forecast below stays in items.`)
+            : tr(`Combien d'articles la boutique devrait vendre dans les ${horizon} prochains jours, et sur la prochaine saison.`, `How many items the shop should sell over the next ${horizon} days, and over the next season.`)}
         </p>
       </div>
+
+      {/* ── L'HISTOIRE EN BREF : ce que disent les prévisions, avant les graphiques ── */}
+      {(() => {
+        const open = forecast.filter((f: any) => !f.is_ferme && f.yhat > 0);
+        if (!open.length) return null;
+        const isCa = forecastType === "ca";
+        const u = (n: number) => isCa ? tr(`${fmt(n)} €`, `€${fmt(n)}`) : tr(`${fmt(n)} articles`, `${fmt(n)} items`);
+        const total = open.reduce((a: number, f: any) => a + f.yhat, 0);
+        const withLy = open.filter((f: any) => f.last_year != null && f.last_year > 0);
+        const lyTot = withLy.reduce((a: number, f: any) => a + f.last_year, 0);
+        const fcLy = withLy.reduce((a: number, f: any) => a + f.yhat, 0);
+        const evo = lyTot > 0 && withLy.length >= Math.ceil(open.length / 2) ? (fcLy / lyTot - 1) * 100 : null;
+        const pk = open.reduce((m: any, f: any) => (f.yhat > m.yhat ? f : m), open[0]);
+        const low = open.reduce((m: any, f: any) => (f.yhat < m.yhat ? f : m), open[0]);
+        const closed = forecast.filter((f: any) => f.is_ferme);
+        const dayName = (f: any) => { const t = new Date(String(f.ds) + "T12:00:00").toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" }); return t; };
+        // Saison : mois le plus chargé
+        const byMonth: Record<string, number> = {};
+        forecastSeason.filter((d: any) => d.yhat > 0).forEach((d: any) => { const k = String(d.ds).slice(0, 7); byMonth[k] = (byMonth[k] || 0) + d.yhat; });
+        const bestM = Object.entries(byMonth).sort((a, b) => b[1] - a[1])[0];
+        const monthName = (k: string) => new Date(k + "-15T12:00:00").toLocaleDateString(locale(), { month: "long", year: "numeric" });
+        const errW = prophetMetrics.erreur_semaine != null ? Number(prophetMetrics.erreur_semaine) * 100 : null;
+        const errD = prophetMetrics.mdape_cv != null ? Number(prophetMetrics.mdape_cv) : null;
+        const points = [
+          { icon: StoryIcons.trend, label: tr("Le jour le plus chargé", "Busiest day"),
+            text: tr(`${dayName(pk)} : ${u(pk.yhat)} prévus${pk.last_year ? ` (${u(pk.last_year)} l'an dernier le même jour de la semaine)` : ""}.`,
+                     `${dayName(pk)}: ${u(pk.yhat)} forecast${pk.last_year ? ` (${u(pk.last_year)} last year on the same weekday)` : ""}.`) },
+          { icon: StoryIcons.down, label: tr("Le plus calme", "Quietest"),
+            text: closed.length
+              ? tr(`${dayName(low)} (${u(low.yhat)}) ; ${closed.length} jour(s) de fermeture prévu(s) : ${closed.map(dayName).join(", ")}.`,
+                   `${dayName(low)} (${u(low.yhat)}); ${closed.length} closing day(s) expected: ${closed.map(dayName).join(", ")}.`)
+              : tr(`${dayName(low)} : ${u(low.yhat)} prévus.`, `${dayName(low)}: ${u(low.yhat)} forecast.`) },
+          bestM ? { icon: StoryIcons.calendar, label: tr("La saison à venir", "Coming season"),
+            text: tr(`${monthName(bestM[0])} sera le mois le plus chargé de la saison (${fmt(bestM[1])} articles prévus).`,
+                     `${monthName(bestM[0])} will be the busiest month of the season (${fmt(bestM[1])} items forecast).`) } : null,
+          errW != null || errD != null ? { icon: StoryIcons.shield, label: tr("Fiabilité", "Reliability"),
+            text: errW != null
+              ? tr(`Sur une semaine entière, la prévision s'écarte en moyenne d'environ ${fmt(errW)} % de la réalité ; un jour pris seul, d'environ ${fmt(errD || 0)} %.`,
+                   `Over a whole week the forecast is off by about ${fmt(errW)}% on average; for a single day, about ${fmt(errD || 0)}%.`)
+              : tr(`Un jour donné, la prévision s'écarte en moyenne d'environ ${fmt(errD || 0)} % de la réalité.`, `On a given day the forecast is off by about ${fmt(errD || 0)}% on average.`) } : null,
+        ].filter(Boolean) as any[];
+        const headline = evo !== null
+          ? tr(`${horizon} prochains jours : environ ${u(total)}, soit ${fmt(Math.abs(evo))} % ${evo >= 0 ? "de plus" : "de moins"} que les mêmes jours l'an dernier.`,
+               `Next ${horizon} days: about ${u(total)}, ${fmt(Math.abs(evo))}% ${evo >= 0 ? "more" : "less"} than the same days last year.`)
+          : tr(`${horizon} prochains jours : environ ${u(total)} sur ${open.length} jours d'ouverture.`, `Next ${horizon} days: about ${u(total)} over ${open.length} open days.`);
+        const todo = tr(`Prévoir fournées et personnel du ${dayName(pk)} dès la veille ; la quantité à préparer produit par produit est dans Alertes & Stock.`,
+                        `Plan batches and staff for ${dayName(pk)} the day before; the quantity to prepare per product is in Alerts & Stock.`);
+        return <PageStory headline={headline} points={points} todo={todo}
+          links={[{ href: "/alertes", label: tr("Liste à préparer", "Preparation list") }, { href: "/stock", label: tr("Saisir le stock", "Enter stock") }]} />;
+      })()}
 
       {/* ── WARNING BANNER ── */}
       <div className="sw">
         <div style={{ 
           background: "rgba(212,165,42,0.06)", 
-          borderLeft: "4px solid #6F9A64", 
+          borderLeft: "4px solid var(--ch-moss)", 
           padding: "16px 20px", 
           borderRadius: "0 12px 12px 0", 
           fontSize: "0.75rem", 
@@ -161,7 +214,7 @@ export default function PrevisionsPage() {
           marginBottom: "8px",
           display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap"
         }}>
-          <IconAlert size={14} color="#6F9A64" />
+          <IconAlert size={14} color="var(--ch-moss)" />
           <strong>{tr("À savoir :", "Good to know:")}</strong>
           <span style={{ flex: "1 1 320px", minWidth: 0 }}>{tr("Les prévisions représentent les valeurs estimées par le modèle à partir des données historiques. Elles ne constituent pas une mesure du stock réel ou des invendus physiques.", "Forecasts are values estimated by the model from historical data. They do not measure actual stock or physical unsold items.")}</span>
         </div>
@@ -187,6 +240,24 @@ export default function PrevisionsPage() {
               }}
             >
               {tr(`${h} jours`, `${h} days`)}
+            </button>
+          ))}
+          <span style={{ width: 1, height: 22, background: "var(--dk-line)", margin: "0 4px" }} />
+          <div style={{ fontSize: "0.75rem", fontWeight: 700, color: INK, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            {tr("En", "In")}
+          </div>
+          {[["articles", tr("Articles", "Items")], ["ca", tr("Chiffre d'affaires (€)", "Revenue (€)")]].map(([k, lbl]) => (
+            <button
+              key={k}
+              onClick={() => setForecastType(k)}
+              style={{
+                padding: "6px 14px", fontSize: "0.75rem", fontWeight: 700, borderRadius: "8px", cursor: "pointer",
+                border: forecastType === k ? "1px solid var(--dk-pill, #1E2420)" : "1px solid var(--dk-line, #E3E4DD)",
+                background: forecastType === k ? "var(--dk-pill, #1E2420)" : "var(--dk-surface, #FAFAF7)",
+                color: forecastType === k ? "white" : INK,
+              }}
+            >
+              {lbl}
             </button>
           ))}
           <span style={{ fontSize: "0.7rem", color: MUTED }}>
@@ -233,7 +304,7 @@ export default function PrevisionsPage() {
       {/* ── KEY METRICS ── */}
       <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <IconTarget size={18} color={ORANGE} />
-        {tr("Indicateurs Clés", "Key indicators")}
+        {tr("Les chiffres à retenir", "Key figures")}
       </div>
       <div className="sw">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
@@ -278,7 +349,7 @@ export default function PrevisionsPage() {
       {/* ── FORECAST CALENDAR ── */}
       <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <IconCalendarDays size={18} color={ORANGE} />
-        {tr("Calendrier des Prévisions", "Forecast calendar")}
+        {tr("Jour par jour", "Day by day")}
       </div>
       <div className="sw">
         <div className="cc" style={{ paddingRight: 46 }}>
@@ -331,7 +402,7 @@ export default function PrevisionsPage() {
       {/* ── HISTORY + FORECAST CHART ── */}
       <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <IconChartLine size={18} color={ORANGE} />
-        {tr("Historique + Prévision", "History + forecast")}
+        {tr("Avant et après aujourd'hui", "Before and after today")}
       </div>
       <div className="sw">
         <div className="cc" style={{ minHeight: "900px" }}>
@@ -339,7 +410,7 @@ export default function PrevisionsPage() {
             userQuestion="Explique cette prévision de demande" position="top-right" onOpenChat={openChat} />
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
             <div>
-              <div className="ct">{tr("Historique Récent et Prévision", "Recent history and forecast")}</div>
+              <div className="ct">{tr("Ventes récentes et prévision", "Recent sales and forecast")}</div>
               <div className="cs">{tr("Ventes réelles des derniers jours, puis prévision jour par jour avec sa fourchette", "Actual sales over recent days, then the day-by-day forecast with its range")}</div>
             </div>
             <div style={{ display: "flex", gap: "16px", fontSize: "0.7rem", fontWeight: 700, paddingRight: "28px" }}>
@@ -401,7 +472,7 @@ export default function PrevisionsPage() {
         <>
           <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <IconTrendUp size={18} color={ORANGE} />
-            {tr("Prévision de la saison", "Season forecast")}
+            {tr("La saison à venir", "The coming season")}
           </div>
           <div className="sw">
             <div className="cc">
@@ -470,7 +541,7 @@ export default function PrevisionsPage() {
             <div className="cc">
               <ChartAssistantButton chartType="forecast_decomposition" chartData={{ decomposition, filtres_page: { horizon, type: forecastType, produit: product, categorie: category, saison: season, evenement: event } }} chartName="ForecastDecomposition"
                 userQuestion="Explique la décomposition de la prévision (tendance, saisonnalité, événements)" position="top-right" onOpenChat={openChat} />
-              <div className="ct">{tr("Décomposition des prévisions", "Forecast breakdown")}</div>
+              <div className="ct">{tr("Ce qui fait monter ou baisser la prévision (décomposition)", "What pushes the forecast up or down (breakdown)")}</div>
               <div className="cs">{tr("Tendance, saisonnalité et événements", "Trend, seasonality and events")}</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px", marginTop: "16px" }}>
                 {decomposition.trend && (
@@ -782,7 +853,7 @@ function ForecastChart({ history, forecast: forecastAll, showObserved, showPredi
         ))}
 
         {/* Split line between history and forecast */}
-        <line x1={splitX} y1={pad.t} x2={splitX} y2={H - pad.b} stroke="#6F9A64" strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
+        <line x1={splitX} y1={pad.t} x2={splitX} y2={H - pad.b} stroke="var(--ch-moss)" strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
         <text x={splitX - 8} y={pad.t + 12} textAnchor="end" fontSize="11" fill="var(--dk-muted, #6E756F)" fontWeight="700">{tr("Historique", "History")}</text>
         <text x={splitX + 8} y={pad.t + 12} textAnchor="start" fontSize="11" fill="var(--dk-accent-deep, #256B42)" fontWeight="700">{tr(`Prévision J+${(forecastAll || []).length}`, `Forecast D+${(forecastAll || []).length}`)}</text>
 
@@ -887,7 +958,7 @@ function SeasonalChart({ data: dataAll }: any) {
   const yLabels = [];
   for (let v = 0; v <= max; v += yStep) yLabels.push({ y: getY(v), value: fmt(v) });
 
-  const lineColor = "#3E8E5E";
+  const lineColor = "var(--ch-1)";
   const gridColor = "var(--dk-grid, rgba(120,140,120,0.2))";
 
   return (

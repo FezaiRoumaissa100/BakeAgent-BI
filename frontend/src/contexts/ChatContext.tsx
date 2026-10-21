@@ -17,12 +17,15 @@ interface ChatContextType {
   closeChat: () => void;
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   addMessage: (message: Message) => void;
+  agentBusy: boolean;                        // l'assistant prépare une réponse (même panneau fermé)
+  setAgentBusy: (busy: boolean) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [agentBusy, setAgentBusy] = useState(false);
   const [initialMessage, setInitialMessage] = useState<string | null>(null);
   const [initialMetadata, setInitialMetadata] = useState<Record<string, any> | null>(null);
 
@@ -72,7 +75,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ChatContext.Provider value={{ isChatOpen, initialMessage, initialMetadata, messages, openChat, closeChat, setMessages, addMessage }}>
+    <ChatContext.Provider value={{ isChatOpen, initialMessage, initialMetadata, messages, openChat, closeChat, setMessages, addMessage, agentBusy, setAgentBusy }}>
       {children}
     </ChatContext.Provider>
   );

@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import ReactMarkdown from 'react-markdown';
 import { queryAgentWithMetadata } from "@/lib/api";
 import { useChat } from "@/contexts/ChatContext";
+import { useNotifications } from "@/contexts/NotificationContext";
 import { tr } from "@/lib/i18n";
 
 interface Message {
@@ -31,6 +32,11 @@ export function ChatDrawer({ isOpen, onClose, initialMessage, initialMetadata, u
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const [pendingMetadata, setPendingMetadata] = useState<Record<string, any> | null>(null);
+  const { notify } = useNotifications();
+  // Le panneau peut être fermé pendant que l'assistant réfléchit : la réponse arrive quand même,
+  // et une notification s'affiche dans la cloche si le panneau est fermé à ce moment-là.
+  const isOpenRef = useRef(isOpen);
+  useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -88,6 +94,7 @@ export function ChatDrawer({ isOpen, onClose, initialMessage, initialMetadata, u
     setInputValue("");
     setIsLoading(true);
     setIsThinking(true);
+    if (useContext) chatContext.setAgentBusy(true);
     setPendingMetadata(null); // Clear metadata after first message
 
     try {
@@ -102,6 +109,15 @@ export function ChatDrawer({ isOpen, onClose, initialMessage, initialMetadata, u
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
+      if (!isOpenRef.current) {
+        const plain = assistantContent.replace(/[#*_`>|]/g, "").replace(/\s+/g, " ").trim();
+        const q = question.length > 60 ? question.slice(0, 60) + "…" : question;
+        notify({
+          id: `assistant-${Date.now()}`, kind: "assistant", openChat: true, time: new Date().toISOString(),
+          title: [`L'assistant a répondu : « ${q} »`, `The assistant answered: "${q}"`],
+          body: [plain.slice(0, 140) + (plain.length > 140 ? "…" : ""), plain.slice(0, 140) + (plain.length > 140 ? "…" : "")],
+        });
+      }
     } catch (error: any) {
       console.error("Erreur ChatDrawer:", error);
 
@@ -113,9 +129,15 @@ export function ChatDrawer({ isOpen, onClose, initialMessage, initialMetadata, u
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorResponse]);
+      if (!isOpenRef.current) notify({
+        id: `assistant-err-${Date.now()}`, kind: "assistant_error", openChat: true, time: new Date().toISOString(),
+        title: ["L'assistant n'a pas pu répondre", "The assistant could not answer"],
+        body: ["Le service est momentanément indisponible. Réessayez plus tard.", "The service is temporarily unavailable. Please try again later."],
+      });
     } finally {
       setIsLoading(false);
       setIsThinking(false);
+      if (useContext) chatContext.setAgentBusy(false);
     }
   };
 

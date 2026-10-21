@@ -1,5 +1,5 @@
 import math
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from db.db import sql_fetch_all, sql_fetch_one, sql_value, is_pg_available
 from config import RISQUE_SEUIL_ELEVE, RISQUE_SEUIL_VIGILANCE, RISQUE_SEUIL_FAIBLE
 
@@ -113,6 +113,13 @@ def get_alerts_data_pg(mois_filter="Tout"):
             groupes.setdefault((r['ds'].weekday(), r['ds'].month), []).append(y)
     jour_type = {k: median(v) for k, v in groupes.items()}
 
+    # Jours fériés (même réglage que la prévision : forecasting/config.json) pour expliquer les jours chargés
+    try:
+        from engines.product_forecast_engine import _holidays
+        feries = _holidays({r['ds'].year for r in forecast_raw})
+    except Exception:
+        feries = {}
+
     days_data = []
     for r in forecast_raw:
         ds_date = r['ds']
@@ -169,6 +176,9 @@ def get_alerts_data_pg(mois_filter="Tout"):
             "statut_label": STATUT_LABEL[statut],
             "raison": raison,
             "bar_color": COLOR_STATUT.get(statut, '#B4B2A9'),
+            # Jour férié ce jour-là, ou le lendemain (veille de fête)
+            "ferie": feries.get(ds_date),
+            "veille_de": feries.get(ds_date + timedelta(days=1)),
         })
 
     # Filtrage par mois : appliqué aux jours ET aux indicateurs

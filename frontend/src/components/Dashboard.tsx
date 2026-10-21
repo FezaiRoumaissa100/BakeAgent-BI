@@ -1,7 +1,7 @@
 "use client";
 
 import { DailyKPIs, HourlyData } from "@/types/kpis";
-import { colors } from "@/lib/theme";
+import { colors, categoryPalette } from "@/lib/theme";
 import React from "react";
 import { IconSparkline } from "./Icons";
 import { ChartAssistantButton } from "@/components/ChartAssistantButton";
@@ -17,18 +17,8 @@ const LIGHT = colors.accentPale;
 const INK = colors.ink;
 const MUTED = colors.muted;
 const GRID = colors.grid;
-const PAL = [
-  ORANGE,
-  PEACH,
-  "#3E8E5E",
-  "#B9D7A0",
-  LIGHT,
-  "var(--dk-accent-deep, #2A7148)",
-  "#DCEBD9",
-  "var(--dk-accent-deep, #3E8E5E)",
-  "var(--dk-soft, #E4F0E6)",
-  "var(--dk-accent-deep, #1F5E3A)",
-];
+// Catégories : palette fixe (Vert, Blé doré, Bleu, Croûte, Prune, Autres…)
+const PAL = categoryPalette;
 
 function fmt(n: number, dec = 0) {
   return Number(n || 0).toLocaleString(locale(), {
@@ -192,9 +182,9 @@ function PlotlyBarChart({
       <div className="flex items-end gap-1.5 flex-1 w-full relative">
         {/* Horizontal grid lines */}
         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40">
-          <div className="w-full border-b border-[var(--dk-line)] border-dashed" />
-          <div className="w-full border-b border-[var(--dk-line)] border-dashed" />
-          <div className="w-full border-b border-[var(--dk-line)]" />
+          <div className="w-full border-b border-[color:var(--dk-line)] border-dashed" />
+          <div className="w-full border-b border-[color:var(--dk-line)] border-dashed" />
+          <div className="w-full border-b border-[color:var(--dk-line)]" />
         </div>
 
         {data.map((d, i) => {
@@ -214,7 +204,7 @@ function PlotlyBarChart({
                 className="w-full transition-all group-hover:brightness-90"
                 style={{
                   height: `${pct}%`,
-                  background: isMax ? ORANGE : "#8DC05A",
+                  background: isMax ? ORANGE : "var(--ch-soft)",
                   borderRadius: "6px 6px 2px 2px",
                 }}
               />
@@ -297,7 +287,7 @@ function PlotlyAreaChart({
         </svg>
       </div>
 
-      <div className="flex justify-between mt-1.5 pt-1 border-t border-[#ECEDE7] text-[8px] font-semibold" style={{ color: MUTED }}>
+      <div className="flex justify-between mt-1.5 pt-1 border-t border-[color:var(--dk-grid)] text-[8px] font-semibold" style={{ color: MUTED }}>
         {data
           .filter((_, i) => i === 0 || i === Math.floor(data.length / 2) || i === data.length - 1)
           .map((d, i) => (
@@ -408,8 +398,8 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
                 <div title={tr(`Habituel : ${fmt(k.ref, k.dec)}${k.unit} · ce jour : ${fmt(k.cur, k.dec)}${k.unit}`, `Usual: ${fmt(k.ref, k.dec)}${k.unit} · this day: ${fmt(k.cur, k.dec)}${k.unit}`)}
                      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", flexShrink: 0 }}>
                   <div style={{ display: "flex", alignItems: "flex-end", gap: 5, height: 70 }}>
-                    <div style={{ width: 18, height: `${(k.ref / mx) * 100}%`, background: "#8DC05A", borderRadius: "4px 4px 2px 2px" }} />
-                    <div style={{ width: 18, height: `${(k.cur / mx) * 100}%`, background: "#2E7D4F", borderRadius: "4px 4px 2px 2px" }} />
+                    <div style={{ width: 18, height: `${(k.ref / mx) * 100}%`, background: "var(--ch-soft)", borderRadius: "4px 4px 2px 2px" }} />
+                    <div style={{ width: 18, height: `${(k.cur / mx) * 100}%`, background: "var(--ch-1)", borderRadius: "4px 4px 2px 2px" }} />
                   </div>
                   <div style={{ fontSize: ".64rem", color: MUTED, marginTop: 5 }}>{tr("hab. · jour", "usual · day")}</div>
                 </div>
@@ -454,7 +444,8 @@ function ProdRows({
       {products.slice(0, 8).map((row, i) => {
         const pct = row[col] / mv;
         const bw = Math.max(3, Math.round(pct * 52));
-        const c = PAL[i % PAL.length];
+        // Classement d'une seule mesure : une seule couleur (le n°1 un peu plus foncé)
+        const c = i === 0 ? "var(--ch-peak)" : "var(--ch-1)";
         const name = String(row.article).slice(0, 22);
         return (
           <div key={i} className="prod-row">
@@ -497,7 +488,7 @@ function CadenceCard({ kpis }: { kpis: DailyKPIs }) {
       </div>
       {v_ref > 0 && (
         <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-          {[{ l: tr("Ce jour", "This day"), x: v, c: "#2E7D4F" }, { l: tr("D'habitude", "Usually"), x: v_ref, c: "#8DC05A" }].map((r) => (
+          {[{ l: tr("Ce jour", "This day"), x: v, c: "var(--ch-1)" }, { l: tr("D'habitude", "Usually"), x: v_ref, c: "var(--ch-soft)" }].map((r) => (
             <div key={r.l} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: ".76rem", color: MUTED }}>
               <span style={{ width: 70 }}>{r.l}</span>
               <div style={{ flex: 1, height: 8, borderRadius: 99, background: "var(--dk-grid)" }}>
@@ -537,7 +528,7 @@ function PairsCard({ kpis }: { kpis: DailyKPIs }) {
               <b className="num" style={{ flexShrink: 0 }}>{p.cnt} {tr("fois", "times")}</b>
             </div>
             <div style={{ height: 6, borderRadius: 99, background: "var(--dk-grid)", marginTop: 5 }}>
-              <div style={{ width: `${(p.cnt / mx) * 100}%`, height: "100%", borderRadius: 99, background: i === 0 ? "#2E7D4F" : "#8DC05A" }} />
+              <div style={{ width: `${(p.cnt / mx) * 100}%`, height: "100%", borderRadius: 99, background: i === 0 ? "var(--ch-1)" : "var(--ch-soft)" }} />
             </div>
           </div>
         ))}
@@ -674,7 +665,7 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
                 Elle montre maintenant la vraie répartition des tickets à plusieurs articles / à un seul article. */}
             <div style={{ display: "flex", gap: 5, marginBottom: 12 }}>
               <div style={{ height: 42, borderRadius: 10, background: ORANGE, flex: kpis.nb_multi || 0 }} />
-              <div style={{ height: 42, borderRadius: 10, background: LIGHT, flex: kpis.nb_mono || 0 }} />
+              <div style={{ height: 42, borderRadius: 10, background: colors.amber, flex: kpis.nb_mono || 0 }} />
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "var(--dk-ink2, #4A524C)", fontWeight: 500 }}>
@@ -682,7 +673,7 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
                 {tr("Plusieurs articles : ", "Multiple items: ")}{kpis.nb_multi} ({fmt((kpis.nb_multi / nb_total) * 100)}{tr(" %", "%")})
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "var(--dk-ink2, #4A524C)", fontWeight: 500 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: LIGHT, border: `1px solid ${PEACH}` }} />
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: colors.amber }} />
                 {tr("Un seul article : ", "Single item: ")}{kpis.nb_mono} ({fmt((kpis.nb_mono / nb_total) * 100)}{tr(" %", "%")})
               </div>
             </div>

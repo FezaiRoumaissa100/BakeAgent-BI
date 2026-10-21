@@ -137,6 +137,56 @@ def get_product_forecast_detail(product_id: int):
     }
 
 
+# ── Jours fériés (même règle que forecasting/pipeline.py : réglages jours_feries_pays / jours_feries_dates) ──
+def _easter(y):
+    a, b, c = y % 19, y // 100, y % 100
+    d, e = b // 4, b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = c // 4, c % 4
+    l_ = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l_) // 451
+    from datetime import date as _d
+    return _d(y, (h + l_ - 7 * m + 114) // 31, ((h + l_ - 7 * m + 114) % 31) + 1)
+
+
+def _holidays(years):
+    from datetime import date as _d
+    pays = str(_cfg.get("jours_feries_pays", "") or "").upper()
+    out = {}
+    for y in years:
+        if pays == "FR":
+            for md, n in {(1, 1): "Jour de l'An", (5, 1): "Fête du Travail", (5, 8): "Victoire 1945", (7, 14): "Fête nationale",
+                          (8, 15): "Assomption", (11, 1): "Toussaint", (11, 11): "Armistice", (12, 25): "Noël"}.items():
+                out[_d(y, *md)] = n
+            e = _easter(y)
+            for dd, n in ((1, "Lundi de Pâques"), (39, "Ascension"), (50, "Lundi de Pentecôte")):
+                out[e + timedelta(days=dd)] = n
+        for md in _cfg.get("jours_feries_dates", []) or []:
+            try:
+                m_, d_ = (int(x) for x in str(md).split("-"))
+                out[_d(y, m_, d_)] = f"Jour particulier {d_:02d}/{m_:02d}"
+            except Exception:
+                pass
+    return out
+
+
+def _raison(st, y, u, ly, ferie, veille):
+    """Pourquoi ce jour sort de l'habitude (code + valeurs ; le texte est écrit par la page, en français ou en anglais)."""
+    if st in ("NORMAL", "FERMÉ"):
+        return None
+    if ferie:
+        return {"code": "ferie", "nom": ferie}
+    if veille:
+        return {"code": "veille", "nom": veille}
+    if st in ("RUPTURE", "VIGILANCE") and u < 3:
+        return {"code": "saison"}
+    if ly is not None and u > 0 and ((y > u and ly >= u * 1.3) or (y < u and ly <= u * 0.7)):
+        return {"code": "an_dernier", "ly": round(ly)}
+    return {"code": "tendance", "sens": "hausse" if y > u else "baisse"}
+
+
 def get_product_alerts(days: int = 14):
     """Risque par produit et par jour : prévision comparée au jour habituel du produit
     (médiane des 8 derniers mêmes jours de la semaine ouverts, calculée par le pipeline), mêmes seuils que la page Alertes."""
@@ -156,6 +206,26 @@ def get_product_alerts(days: int = 14):
     # « Habitude » = niveau calculé par le pipeline (médiane des 8 derniers mêmes jours de semaine ouverts) :
     # même définition que sur la page Prévisions.
     dates = sorted({r["ds"] for r in fc})[:days]
+    # Prix moyen récent de chaque produit (90 derniers jours de ventes) : pour chiffrer les risques en euros
+    prix = {}
+    try:
+        for r in sql_fetch_all("""SELECT product_id, SUM(total_revenue) / NULLIF(SUM(quantity), 0) AS prix FROM fact_ticket_lines
+                                  WHERE date_id > %s AND date_id <= %s GROUP BY product_id""", (end - timedelta(days=90), end)):
+            if r["prix"] is not None:
+                prix[r["product_id"]] = float(r["prix"])
+    except Exception:
+        prix = {}
+    # Ventes du même jour de la semaine 52 semaines plus tôt (pour expliquer les écarts)
+    ly = {}
+    if dates:
+        try:
+            for r in sql_fetch_all(f"""SELECT product_id, date_id, SUM(quantity) AS q FROM fact_ticket_lines
+                                       WHERE date_id IN ({", ".join(["%s"] * len(dates))}) GROUP BY 1, 2""",
+                                   tuple(d - timedelta(days=364) for d in dates)):
+                ly[(r["product_id"], r["date_id"] + timedelta(days=364))] = float(r["q"] or 0)
+        except Exception:
+            ly = {}
+    fer = _holidays({d.year for d in dates}) if dates else {}
     prods = {}
     for r in fc:
         if r["ds"] not in dates:
@@ -175,12 +245,19 @@ def get_product_alerts(days: int = 14):
             ratio = y / u
             st = ("RUPTURE" if ratio >= RISQUE_SEUIL_ELEVE else "VIGILANCE" if ratio >= RISQUE_SEUIL_VIGILANCE
                   else "SURSTOCK" if ratio < RISQUE_SEUIL_FAIBLE else "NORMAL")
-        p["days"].append({"ds": str(r["ds"]), "yhat": y, "usual": u, "conseille": _f(r["yhat_upper"]), "statut": st})
+        pr = prix.get(pid)
+        euros = round(abs(y - u) * pr) if (pr and st in ("RUPTURE", "VIGILANCE", "SURSTOCK")) else 0
+        p["prix"] = round(pr, 2) if pr else None
+        p["days"].append({"ds": str(r["ds"]), "yhat": y, "usual": u, "conseille": _f(r["yhat_upper"]), "statut": st,
+                          "euros": euros,
+                          "raison": _raison(st, y, u, ly.get((pid, r["ds"])), fer.get(r["ds"]), fer.get(r["ds"] + timedelta(days=1)))})
     items = list(prods.values())
     for p in items:
         p["nb_risque"] = sum(1 for d in p["days"] if d["statut"] == "RUPTURE")
         p["nb_vigilance"] = sum(1 for d in p["days"] if d["statut"] == "VIGILANCE")
         p["volume"] = sum(d["yhat"] for d in p["days"])
+        p["euros_manque"] = sum(d["euros"] for d in p["days"] if d["statut"] in ("RUPTURE", "VIGILANCE"))
+        p["euros_invendus"] = sum(d["euros"] for d in p["days"] if d["statut"] == "SURSTOCK")
         p["excedent"] = round(sum(max(0.0, d["yhat"] - d["usual"]) for d in p["days"] if d["statut"] in ("RUPTURE", "VIGILANCE")), 1)
     items.sort(key=lambda p: (-p["excedent"], -p["nb_risque"], -p["volume"]))
     return {"available": True, "dates": [str(d) for d in dates], "items": items,

@@ -126,6 +126,22 @@ def get_forecast_data_pg(horizon=14, forecast_type="articles", product=None, cat
             "y": safe_num(r['y'])
         })
     
+    # Ventes du même jour de la semaine 52 semaines plus tôt (ds - 364 jours), pour chaque jour prévu.
+    # Sert à la carte « Demain » de la Vue du Jour. Même unité que la prévision (articles ou €).
+    if forecast_list:
+        try:
+            ly_rows = sql_fetch_all(f"""
+                SELECT date_id AS ds, {"ca_jour" if forecast_type == "ca" else "nb_articles"} AS y
+                FROM daily_aggregates
+                WHERE date_id IN ({", ".join(["%s"] * len(forecast_list))})
+            """, tuple((r['ds'] - timedelta(days=364)) for r in forecast_raw))
+            ly = {r['ds'].strftime('%Y-%m-%d'): safe_num(r['y']) for r in ly_rows}
+        except Exception:
+            ly = {}
+        for item, r in zip(forecast_list, forecast_raw):
+            v = ly.get((r['ds'] - timedelta(days=364)).strftime('%Y-%m-%d'))
+            item["last_year"] = int(round(v)) if v else None
+
     # Référence comparable : les mêmes jours un an plus tôt (décalage de 364 jours,
     # même jour de la semaine), jours ouverts uniquement.
     moy_jour = 0.0

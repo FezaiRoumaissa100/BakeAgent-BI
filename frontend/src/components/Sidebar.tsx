@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import {
-  IconSparkline, IconBarsGrouped, IconGrid, IconTrendUp, IconAlert
+  IconSparkline, IconBarsGrouped, IconGrid, IconTrendUp, IconAlert, IconBox
 } from "./Icons";
 import { tr } from "@/lib/i18n";
 import { getNavMode, isNavOpen, setNavOpen, applyNavForWidth } from "@/lib/navMode";
@@ -18,14 +18,22 @@ const getNavItems = () => [
   { href: "/produits",    label: tr("Produits", "Products"),               sub: tr("Quoi vend-on, que décider ?", "What sells, what to decide?"), icon: <IconGrid size={19} color="currentColor" strokeWidth={2.1}/> },
   { href: "/previsions",  label: tr("Prévisions", "Forecasts"),            sub: tr("Combien vendra-t-on ?", "How much will we sell?"),            icon: <IconTrendUp size={19} color="currentColor" strokeWidth={2.1}/> },
   { href: "/alertes",     label: tr("Alertes & Stock", "Alerts & Stock"),  sub: tr("Que préparer ?", "What to prepare?"),                         icon: <IconAlert size={19} color="currentColor" strokeWidth={2.1}/> },
+  { href: "/stock",       label: tr("Saisie du stock", "Stock entry"),     sub: tr("Préparé et restant le soir", "Made and left at closing"),     icon: <IconBox size={19} color="currentColor" strokeWidth={2.1}/> },
 ];
 
-// Initiales de la boutique pour le logo (ex. « Boulangerie Le Croisic » → « LC »)
-const initials = (name: string) => {
-  const words = name.replace(/^(boulangerie|pâtisserie|patisserie)\s+/i, "").split(/\s+/).filter(Boolean);
-  return (words.length >= 2 ? words[0][0] + words[words.length - 1][0] : (words[0] || "BI").slice(0, 2)).toUpperCase();
-};
-const shortName = (name: string) => name.replace(/^(boulangerie|pâtisserie|patisserie)\s+/i, "");
+// Logo du produit : un épi de blé (le même pour toutes les boulangeries)
+function WheatMark({ size = 22 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+      <path d="M12 22V8" />
+      <ellipse cx="12" cy="6" rx="2.2" ry="3.4" />
+      <ellipse cx="9" cy="11" rx="2" ry="3.2" transform="rotate(-35 9 11)" />
+      <ellipse cx="15" cy="11" rx="2" ry="3.2" transform="rotate(35 15 11)" />
+      <ellipse cx="9" cy="16" rx="2" ry="3.2" transform="rotate(-35 9 16)" />
+      <ellipse cx="15" cy="16" rx="2" ry="3.2" transform="rotate(35 15 16)" />
+    </svg>
+  );
+}
 
 // Ouvre / ferme le menu. Utilisé par le logo du menu et par le logo de l'en-tête (mode « menu caché »).
 export function toggleSidebar() {
@@ -74,11 +82,13 @@ export function Sidebar() {
         {/* Logo : replie / déplie le menu */}
         <div className="side-brand">
           <button className="side-logo" onClick={toggleSidebar} aria-expanded={open} aria-label={toggleLabel} title={toggleLabel}>
-            {initials(siteConfig.bakeryName)}
+            {siteConfig.bakeryLogo
+              ? <img src={siteConfig.bakeryLogo} alt={siteConfig.bakeryName || siteConfig.productName} className="side-logo-img" />
+              : <WheatMark />}
           </button>
           <div className="side-brand-txt">
-            <span className="side-title">{shortName(siteConfig.bakeryName)}</span>
-            <span className="side-brand-sub">{tr("Boulangerie · Tableau de bord", "Bakery · Dashboard")}</span>
+            <span className="side-title">{siteConfig.productName}</span>
+            <span className="side-brand-sub">{siteConfig.bakeryName || tr("Tableau de bord", "Dashboard")}</span>
           </div>
           {/* Flèche : referme le menu (comme le logo) */}
           <button className="side-chevron" onClick={toggleSidebar} aria-label={toggleLabel} title={toggleLabel}>

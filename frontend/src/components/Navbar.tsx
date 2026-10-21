@@ -8,7 +8,8 @@ import { tr } from "@/lib/i18n";
 import { ThemeToggle } from "./ThemeToggle";
 import { LangToggle } from "./LangToggle";
 import { toggleSidebar } from "./Sidebar";
-import { fetchAlerts, fetchDataPeriod } from "@/lib/api";
+import { fetchDataPeriod } from "@/lib/api";
+import { NotificationBell } from "./NotificationBell";
 import { ExpertBadge } from "./Expert";
 import { useChat } from "@/contexts/ChatContext";
 
@@ -18,6 +19,7 @@ const pageName = (path: string) => {
   if (path.startsWith("/produits")) return tr("Produits", "Products");
   if (path.startsWith("/previsions")) return tr("Prévisions", "Forecasts");
   if (path.startsWith("/alertes")) return tr("Alertes & Stock", "Alerts & Stock");
+  if (path.startsWith("/stock")) return tr("Saisie du stock", "Stock entry");
   return tr("Vue du Jour", "Daily View");
 };
 
@@ -25,14 +27,6 @@ export function Navbar() {
   const pathname = usePathname() || "/";
   // Assistant IA : ouvre le panneau de discussion (rendu une seule fois dans layout.tsx)
   const { openChat } = useChat();
-
-  // Compteur de la cloche : nombre réel de jours en « risque de manque » (page Alertes & Stock)
-  const [alertCount, setAlertCount] = useState<number | null>(null);
-  useEffect(() => {
-    fetchAlerts("Tout")
-      .then((d) => setAlertCount(Number(d?.kpis?.statuts?.RUPTURE || 0)))
-      .catch(() => setAlertCount(null));
-  }, []);
 
   // Période réelle des données (sinon valeurs de secours de siteConfig)
   const [period, setPeriod] = useState<{ d1: string; d2: string }>({ d1: siteConfig.dataStartLabel, d2: siteConfig.dataEndLabel });
@@ -74,22 +68,8 @@ export function Navbar() {
         </button>
         <LangToggle />
         <ThemeToggle />
-        <a className="icon-chip" href="/alertes"
-           title={alertCount ? tr(`${alertCount} jours en risque de manque`, `${alertCount} days at risk of shortage`) : tr("Alertes & Stock", "Alerts & Stock")}
-           aria-label={tr("Alertes & Stock", "Alerts & Stock")}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-          </svg>
-          {alertCount ? (
-            <span style={{
-              position: "absolute", top: -5, right: -5, minWidth: 18, height: 18, padding: "0 5px",
-              borderRadius: 99, background: "var(--dk-alert)", color: "#fff", fontSize: ".62rem", fontWeight: 800,
-              display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none",
-              border: "2px solid var(--dk-page)"
-            }}>{alertCount}</span>
-          ) : null}
-        </a>
+        {/* Cloche : liste des notifications (réponses de l'assistant, produits à risque, journée chargée…) */}
+        <NotificationBell />
       </div>
     </nav>
   );

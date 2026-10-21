@@ -2,12 +2,21 @@
 import { HourlyData } from "@/types/kpis";
 import { useEffect, useRef } from "react";
 
-const ORANGE = "#2E7D4F";
-const PEACH  = "#8DC05A";
-const LIGHT  = "#DCEBD9";
+const ORANGE = "var(--ch-1, #2E7D4F)";
+const PEACH  = "var(--ch-soft, #8EB08A)";
+const LIGHT  = "var(--dk-accent-pale, #D6E1D3)";
 const MUTED  = "var(--dk-muted, #6E756F)";
 
-function sparkline(canvas: HTMLCanvasElement, data: number[], color: string) {
+// Le canvas ne comprend pas var(--x) : on lit la vraie couleur du thème (clair ou sombre)
+function resolveColor(c: string): string {
+  const m = /^var\((--[\w-]+)(?:,\s*([^)]+))?\)$/.exec(c.trim());
+  if (!m || typeof window === "undefined") return c;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim();
+  return v || (m[2] || "#2E7D4F").trim();
+}
+
+function sparkline(canvas: HTMLCanvasElement, data: number[], colorIn: string) {
+  const color = resolveColor(colorIn);
   const ctx = canvas.getContext("2d");
   if (!ctx || data.length < 2) return;
   const w = canvas.width, h = canvas.height;
@@ -24,8 +33,10 @@ function sparkline(canvas: HTMLCanvasElement, data: number[], color: string) {
   ctx.stroke();
   // fill under
   ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
-  ctx.fillStyle = color.replace(")", ", 0.12)").replace("rgb", "rgba");
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = color;
   ctx.fill();
+  ctx.globalAlpha = 1;
 }
 
 interface Props {
