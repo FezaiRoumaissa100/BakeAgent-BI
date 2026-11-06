@@ -1,7 +1,9 @@
 "use client";
 
-// Vue du Jour — en-tête « bento » (maquette « texture & motif ») :
-// carte héro (chiffre d'affaires du jour), l'essentiel, produits du jour, les 7 prochains jours, demain.
+// Vue du Jour, mise en page compacte :
+//  - <DayHeader>  : titre, phrase clé et 4 indicateurs (CA, tickets, panier, demain), comparés à l'habitude ;
+//  - <DayOutlook> : produits du jour + les 7 prochains jours (avec le détail de demain en pied de carte).
+// <DayBento> affiche les deux à la suite (compatibilité).
 // Données : /api/daily-kpis (journée affichée) et /api/forecast (prévision boutique, articles par jour).
 
 import React from "react";
@@ -10,59 +12,27 @@ import { tr, locale, num } from "@/lib/i18n";
 import { siteConfig } from "@/lib/siteConfig";
 import { ChartAssistantButton } from "@/components/ChartAssistantButton";
 import { useChat } from "@/contexts/ChatContext";
+import { Scope } from "@/components/Ui";
 
 const fmt = (n: number, d = 0) =>
   Number(n || 0).toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d });
-
-// Petit épi de blé (même dessin que le logo du menu)
-function Wheat({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
-      <path d="M12 22V8" />
-      <ellipse cx="12" cy="6" rx="2.2" ry="3.4" />
-      <ellipse cx="9" cy="11" rx="2" ry="3.2" transform="rotate(-35 9 11)" />
-      <ellipse cx="15" cy="11" rx="2" ry="3.2" transform="rotate(35 15 11)" />
-      <ellipse cx="9" cy="16" rx="2" ry="3.2" transform="rotate(-35 9 16)" />
-      <ellipse cx="15" cy="16" rx="2" ry="3.2" transform="rotate(35 15 16)" />
-    </svg>
-  );
-}
-
-// Grand motif d'épis dans le coin de la carte héro
-function HeroMotif() {
-  return (
-    <svg className="bento-hero-motif" aria-hidden="true" viewBox="0 0 200 260" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-      <path d="M70 270 C 80 200, 100 130, 140 40" />
-      <path d="M120 270 C 128 210, 146 150, 178 90" />
-      <ellipse cx="138" cy="56" rx="8" ry="18" transform="rotate(25 138 56)" />
-      <ellipse cx="120" cy="82" rx="8" ry="18" transform="rotate(-30 120 82)" />
-      <ellipse cx="146" cy="92" rx="8" ry="18" transform="rotate(40 146 92)" />
-      <ellipse cx="112" cy="120" rx="8" ry="18" transform="rotate(-35 112 120)" />
-      <ellipse cx="136" cy="128" rx="8" ry="18" transform="rotate(42 136 128)" />
-      <ellipse cx="104" cy="158" rx="8" ry="18" transform="rotate(-35 104 158)" />
-      <ellipse cx="176" cy="104" rx="7" ry="16" transform="rotate(30 176 104)" />
-      <ellipse cx="160" cy="130" rx="7" ry="16" transform="rotate(-28 160 130)" />
-      <ellipse cx="180" cy="142" rx="7" ry="16" transform="rotate(42 180 142)" />
-    </svg>
-  );
-}
 
 type FcDay = { ds: string; date_fr?: string; jour_semaine?: string; yhat: number; yhat_lower?: number; yhat_upper?: number; is_ferme?: number; last_year?: number | null };
 
 const JOURS_COURTS_FR = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
 const JOURS_COURTS_EN = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-function dayLabel(ds: string) {
+export function dayLabel(ds: string) {
   const d = new Date(ds + "T12:00:00");
   return `${tr(JOURS_COURTS_FR[d.getDay()], JOURS_COURTS_EN[d.getDay()])} ${d.getDate()}`;
 }
-function longDate(ds?: string) {
+export function longDate(ds?: string) {
   if (!ds) return "";
   const d = new Date(ds + "T12:00:00");
   return d.toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
-export function DayBento({ kpis, forecast }: { kpis: DailyKPIs; forecast: any | null }) {
-  const { openChat } = useChat();
+// Calculs communs aux deux blocs
+export function useDay(kpis: DailyKPIs, forecast: any | null) {
 
   const hasRef = Number(kpis.ca_ref || 0) > 0;
   const delta = Number(kpis.delta_vs_moy || 0);
@@ -119,155 +89,151 @@ export function DayBento({ kpis, forecast }: { kpis: DailyKPIs; forecast: any | 
     : tr("journée habituelle", "usual day");
 
   const journee = kpis.date_fr || kpis.date;
+  return { hasRef, delta, deltaTxt, refLabel, panierRef, pct, headline, top, topCa, shareTop, peak, prods, maxQ,
+    days, openDays, maxF, totalF, peakF, tomorrow, lastYear, typicalOpen, tomorrowWord, journee };
+}
 
+// Écart à l'habitude : flèche + pourcentage, vert si mieux, rouge si moins bien
+function Delta({ v, label }: { v: number | null; label?: string }) {
+  if (v === null || !isFinite(v)) return <span className="kpi-d">{label || tr("sans repère", "no reference")}</span>;
+  const up = v >= 0;
   return (
-    <div className="bento-wrap">
-      {/* En-tête de page */}
-      <header className="bento-head">
-        <div className="bento-eyebrow">
-          {longDate(kpis.date) || journee}
-          {hasRef ? tr(` · comparée ${refLabel.startsWith("moyenne") ? "à la" : "au"} ${refLabel}`, " · compared with the previous same weekdays") : ""}
+    <span className={`kpi-d ${Math.abs(v) < 1 ? "" : up ? "up" : "down"}`}>
+      {Math.abs(v) >= 1 && <span aria-hidden="true">{up ? "▲" : "▼"}</span>} {up ? "+" : "−"}{num(Math.abs(v), 0)} %{label ? ` ${label}` : ""}
+    </span>
+  );
+}
+
+const KpiIcon = ({ d }: { d: React.ReactNode }) => (
+  <span className="kpi-ic" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+  </span>
+);
+
+export function DayHeader({ kpis, forecast }: { kpis: DailyKPIs; forecast: any | null }) {
+  const D = useDay(kpis, forecast);
+  const t = D.tomorrow;
+  return (
+    <div className="sw">
+      <header className="page-head">
+        <div className="page-eyebrow">
+          {longDate(kpis.date) || D.journee}
+          {D.hasRef ? tr(` · comparée ${D.refLabel.startsWith("moyenne") ? "à la" : "au"} ${D.refLabel}`, " · compared with the previous same weekdays") : ""}
         </div>
-        <h1 className="page-h1">
-          {tr("Vue du", "Daily")} <span style={{ color: "var(--dk-accent)" }}>{tr("Jour", "View")}</span>
-        </h1>
+        <h1 className="page-h1">{tr("Vue du Jour", "Daily View")}</h1>
+        <p className="page-lede">
+          <b>{D.headline}</b>{" "}
+          {D.top ? tr(`${D.top.article} est le plus vendu (${fmt(D.top.quantity || 0)} pièces), pic d'activité à ${D.peak} h.`, `${D.top.article} is the best seller (${fmt(D.top.quantity || 0)} units), peak at ${D.peak}:00.`) : ""}
+        </p>
       </header>
+      <div className="kpi-row">
+        <div className="kpi">
+          <div className="kpi-top"><KpiIcon d={<><path d="M12 2v20" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></>} />{tr("Chiffre d'affaires", "Revenue")}</div>
+          <div className="kpi-v num">{fmt(kpis.ca_jour)} €</div>
+          <Delta v={D.hasRef ? D.delta : null} label={tr("vs habitude", "vs usual")} />
+        </div>
+        <div className="kpi">
+          <div className="kpi-top"><KpiIcon d={<><path d="M4 4h16v16l-3-2-3 2-2-2-2 2-3-2-3 2Z" /><path d="M8 9h8M8 13h5" /></>} />{tr("Tickets", "Transactions")}</div>
+          <div className="kpi-v num">{fmt(kpis.tickets)}</div>
+          <Delta v={D.pct(kpis.tickets, Number(kpis.tickets_ref || 0))} label={tr("vs habitude", "vs usual")} />
+        </div>
+        <div className="kpi">
+          <div className="kpi-top"><KpiIcon d={<><path d="M5 11h14l-1.5 9h-11Z" /><path d="m9 11 3-6 3 6" /></>} />{tr("Panier moyen", "Average basket")}</div>
+          <div className="kpi-v num">{fmt(kpis.panier, 2)} €</div>
+          <Delta v={D.pct(kpis.panier, D.panierRef)} label={tr("vs habitude", "vs usual")} />
+        </div>
+        <div className="kpi">
+          <div className="kpi-top"><KpiIcon d={<><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></>} />{tr("Demain", "Tomorrow")}</div>
+          <div className="kpi-v num">{!t ? "—" : t.is_ferme ? tr("Fermé", "Closed") : `${fmt(t.yhat)}`}<span className="kpi-unit">{t && !t.is_ferme ? tr(" articles", " items") : ""}</span></div>
+          <span className="kpi-d">{t ? D.tomorrowWord : forecast === null ? tr("chargement…", "loading…") : tr("prévision indisponible", "forecast unavailable")}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      <div className="bento">
-        {/* Carte héro : chiffre d'affaires du jour */}
-        <section className="bento-card bento-hero bento-span2">
-          <ChartAssistantButton chartType="day_summary" chartData={{ journee, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)", ca_jour: kpis.ca_jour, ca_habituel: kpis.ca_ref, ecart_pct: delta, tickets: kpis.tickets, tickets_habituels: kpis.tickets_ref, articles: kpis.qte_jour, panier_moyen: kpis.panier, panier_habituel: panierRef, heure_de_pointe: kpis.peak_h, ca_heure_de_pointe: kpis.peak_ca_h, reference: refLabel }}
-            chartName="DaySummary" userQuestion="Explique le résumé de cette journée" position="top-right" onOpenChat={openChat} />
-          <HeroMotif />
-          <div style={{ position: "relative" }}>
-            <div className="bento-label bento-hero-muted">{tr("Chiffre d'affaires du jour", "Revenue of the day")}</div>
-            <div className="bento-hero-row">
-              <div className="bento-hero-big num">{fmt(kpis.ca_jour)} €</div>
-              {hasRef && <div className="bento-chip">{deltaTxt} {tr("vs habitude", "vs usual")}</div>}
-            </div>
-          </div>
-          <div className="bento-hero-stats">
-            {[
-              { l: tr("Tickets", "Transactions"), v: fmt(kpis.tickets), d: pct(kpis.tickets, Number(kpis.tickets_ref || 0)) },
-              { l: tr("Articles", "Items"), v: fmt(kpis.qte_jour), d: null },
-              { l: tr("Panier moyen", "Average basket"), v: `${fmt(kpis.panier, 2)} €`, d: pct(kpis.panier, panierRef) },
-              { l: tr("Pic", "Peak"), v: `${peak} h`, d: null },
-            ].map((s) => (
-              <div key={s.l}>
-                <div className="bento-hero-muted" style={{ fontSize: ".82rem" }}>{s.l}</div>
-                <div className="bento-hero-stat num">{s.v}</div>
-                {s.d !== null && <div className="bento-hero-muted" style={{ fontSize: ".72rem", marginTop: 2 }}>{s.d >= 0 ? "+" : ""}{num(s.d, 0)} % {tr("vs hab.", "vs usual")}</div>}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* L'essentiel */}
-        <section className="bento-card bento-retain">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span className="bento-stamp"><Wheat size={20} /></span>
-            <span className="bento-label" style={{ color: "var(--dk-accent)" }}>{tr("L'essentiel", "Key point")}</span>
-          </div>
-          <p className="bento-headline">{headline}</p>
-          <p className="bento-text">
-            {top ? tr(`${top.article} est le produit le plus vendu : ${fmt(top.quantity || 0)} pièces. `, `${top.article} is the best seller: ${fmt(top.quantity || 0)} units. `) : ""}
-            {topCa && shareTop >= 1 ? tr(`${topCa.article} fait ${fmt(shareTop)} % du chiffre d'affaires. `, `${topCa.article} makes ${fmt(shareTop)}% of revenue. `) : ""}
-            {tr(`Le pic arrive à ${peak} h.`, `The peak comes at ${peak}:00.`)}
-          </p>
-        </section>
-
-        {/* Produits du jour */}
-        <section className="bento-card">
-          <ChartAssistantButton chartType="day_top_products_qty" chartData={{ journee, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)", produits: prods }}
-            chartName="DayTopProducts" userQuestion="Explique les produits les plus vendus ce jour-là" position="top-right" onOpenChat={openChat} />
-          <div className="bento-title-row">
-            <h2 className="ct" style={{ margin: 0 }}>{tr("Produits du", "Products of the")} <span style={{ color: "var(--dk-accent)" }}>{tr("Jour", "Day")}</span></h2>
-            <span className="cs" style={{ margin: 0 }}>{tr("quantités vendues", "units sold")}</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 14 }}>
-            {prods.length === 0 && <div className="cs">{tr("Aucune vente ce jour-là.", "No sales that day.")}</div>}
-            {prods.map((p, i) => (
-              <div key={p.article} title={`${p.article} : ${fmt(p.quantity || 0)}`}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: ".86rem" }}>
-                  <span style={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.article}</span>
-                  <span className="num" style={{ fontWeight: 800 }}>{fmt(p.quantity || 0)}</span>
-                </div>
-                <div className="bento-track"><div style={{ width: `${((p.quantity || 0) / maxQ) * 100}%`, background: i === 0 ? "var(--ch-peak)" : "var(--ch-1)" }} /></div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Les 7 prochains jours */}
-        <section className="bento-card bento-span2">
-          {days.length > 0 && (
-            <ChartAssistantButton chartType="next_7_days_forecast" chartData={{ apres_la_journee: journee, prevision_articles_par_jour: days, total_jours_ouverts: totalF }}
+export function DayOutlook({ kpis, forecast }: { kpis: DailyKPIs; forecast: any | null }) {
+  const { openChat } = useChat();
+  const D = useDay(kpis, forecast);
+  const t = D.tomorrow;
+  return (
+    <div className="sw">
+      <div className="grid-main stretch">
+        {/* Les 7 prochains jours + détail de demain */}
+        <section className="cc">
+          {D.days.length > 0 && (
+            <ChartAssistantButton chartType="next_7_days_forecast" chartData={{ apres_la_journee: D.journee, prevision_articles_par_jour: D.days, total_jours_ouverts: D.totalF }}
               chartName="Next7Days" userQuestion="Explique la prévision des 7 prochains jours" position="top-right" onOpenChat={openChat} />
           )}
-          <div className="bento-title-row">
-            <h2 className="ct" style={{ margin: 0 }}>{tr("Les 7 Prochains", "The Next 7")} <span style={{ color: "var(--dk-accent)" }}>{tr("Jours", "Days")}</span></h2>
-            {days.length > 0 && <span className="cs" style={{ margin: 0 }}>{tr(`articles prévus · ${fmt(totalF)} au total`, `items forecast · ${fmt(totalF)} in total`)}</span>}
+          <div className="card-head">
+            <h2 className="ct">{tr("Les 7 prochains jours", "The next 7 days")}</h2>
+            {D.days.length > 0 && <span className="card-meta">{tr(`${fmt(D.totalF)} articles prévus`, `${fmt(D.totalF)} items forecast`)}</span>}
           </div>
-          {days.length === 0 ? (
-            <div className="cs" style={{ marginTop: 14 }}>{forecast === null ? tr("Chargement de la prévision…", "Loading the forecast…") : tr("Prévision indisponible.", "Forecast unavailable.")}</div>
+          {D.days.length > 0 && (
+            <Scope period={tr(`Prévision du ${dayLabel(D.days[0].ds)} au ${dayLabel(D.days[D.days.length - 1].ds)}`, `Forecast ${dayLabel(D.days[0].ds)} to ${dayLabel(D.days[D.days.length - 1].ds)}`)}
+              calc={tr("Total prévu de chaque jour, tous produits", "Forecast total of each day, all products")} unit={tr("articles", "items")} />
+          )}
+          {D.days.length === 0 ? (
+            <div className="cs">{forecast === null ? tr("Chargement de la prévision…", "Loading the forecast…") : tr("Prévision indisponible.", "Forecast unavailable.")}</div>
           ) : (
             <div className="bento-bars" role="img" aria-label={tr("Prévision des 7 prochains jours", "Forecast for the next 7 days")}>
-              {days.map((d) => {
+              {D.days.map((d) => {
                 const closed = !!d.is_ferme;
-                const isPeak = !closed && peakF && d.ds === peakF.ds;
+                const isPeak = !closed && D.peakF && d.ds === D.peakF.ds;
                 return (
                   <div key={d.ds} className="bento-bar-col" title={closed ? tr("Boutique fermée", "Shop closed") : tr(`${fmt(d.yhat)} articles prévus (fourchette ${fmt(d.yhat_lower || 0)}–${fmt(d.yhat_upper || 0)})`, `${fmt(d.yhat)} items forecast (range ${fmt(d.yhat_lower || 0)}–${fmt(d.yhat_upper || 0)})`)}>
                     <div className="bento-bar-val num">{closed ? tr("fermé", "closed") : fmt(d.yhat)}</div>
                     <div className={`bento-bar${closed ? " closed" : ""}`}
-                      style={closed ? undefined : { height: `${Math.max(8, (d.yhat / maxF) * 150)}px`, background: isPeak ? "var(--ch-peak)" : "var(--ch-1)" }} />
+                      style={closed ? undefined : { height: `${Math.max(6, (d.yhat / D.maxF) * 100)}px`, background: isPeak ? "var(--ch-peak)" : "var(--ch-1)" }} />
                     <div className="bento-bar-lbl">{dayLabel(d.ds)}</div>
                   </div>
                 );
               })}
             </div>
           )}
-        </section>
-
-        {/* Demain */}
-        <section className="bento-card bento-tile bento-span2">
-          <div className="bento-label bento-tile-muted">
-            {tr("Demain", "Tomorrow")}{tomorrow ? ` · ${new Date(tomorrow.ds + "T12:00:00").toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })}` : ""}
-          </div>
-          {tomorrow ? (
-            <div>
-              <div className="bento-tile-big num">{tomorrow.is_ferme ? tr("Fermé", "Closed") : fmt(tomorrow.yhat)}</div>
-              <div className="bento-tile-muted" style={{ marginTop: 6, fontSize: ".9rem", lineHeight: 1.45 }}>
-                {tomorrow.is_ferme
-                  ? tr("La boutique est fermée ce jour-là.", "The shop is closed that day.")
-                  : tr(`articles prévus — ${tomorrowWord}`, `items forecast — ${tomorrowWord}`)}
-              </div>
-              {!tomorrow.is_ferme && (
-                <div className="bento-tile-stats">
-                  <div>
-                    <div className="bento-tile-muted">{tr("Fourchette probable", "Likely range")}</div>
-                    <div className="bento-tile-val num">{fmt(tomorrow.yhat_lower || 0)} – {fmt(tomorrow.yhat_upper || 0)}</div>
-                  </div>
-                  <div>
-                    <div className="bento-tile-muted">{tr("Moyenne des 7 jours", "7-day average")}</div>
-                    <div className="bento-tile-val num">{fmt(typicalOpen)}</div>
-                    {typicalOpen > 0 && <div className="bento-tile-muted bento-tile-sub">{`${tomorrow.yhat >= typicalOpen ? "+" : ""}${fmt(((tomorrow.yhat - typicalOpen) / typicalOpen) * 100)} %`}</div>}
-                  </div>
-                  <div>
-                    <div className="bento-tile-muted">{tr("Il y a 52 semaines", "52 weeks earlier")}</div>
-                    <div className="bento-tile-val num">{lastYear !== null ? fmt(lastYear) : "—"}</div>
-                    <div className="bento-tile-muted bento-tile-sub">{tr("même jour de la semaine", "same weekday")}</div>
-                  </div>
-                </div>
-              )}
+          {t && !t.is_ferme && (
+            <div className="mini-stats">
+              <div><span>{tr("Demain, fourchette probable", "Tomorrow, likely range")}</span><b className="num">{fmt(t.yhat_lower || 0)} – {fmt(t.yhat_upper || 0)}</b></div>
+              <div><span>{tr("Moyenne des 7 jours", "7-day average")}</span><b className="num">{fmt(D.typicalOpen)}</b></div>
+              <div><span>{tr("Il y a 52 semaines", "52 weeks earlier")}</span><b className="num">{D.lastYear !== null ? fmt(D.lastYear) : "—"}</b></div>
             </div>
-          ) : (
-            <div className="bento-tile-muted">{forecast === null ? tr("Chargement…", "Loading…") : tr("Prévision indisponible.", "Forecast unavailable.")}</div>
           )}
         </section>
+
+        {/* Produits du jour */}
+        <section className="cc">
+          <ChartAssistantButton chartType="day_top_products_qty" chartData={{ journee: D.journee, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)", produits: D.prods }}
+            chartName="DayTopProducts" userQuestion="Explique les produits les plus vendus ce jour-là" position="top-right" onOpenChat={openChat} />
+          <div className="card-head">
+            <h2 className="ct">{tr("Produits du jour", "Products of the day")}</h2>
+          </div>
+          <Scope period={tr(`Journée du ${D.journee}`, `Day of ${D.journee}`)} calc={tr("Quantité vendue ce jour-là", "Quantity sold that day")} unit={tr("pièces", "pieces")} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+            {D.prods.length === 0 && <div className="cs">{tr("Aucune vente ce jour-là.", "No sales that day.")}</div>}
+            {D.prods.map((p, i) => (
+              <div key={p.article} title={`${p.article} : ${fmt(p.quantity || 0)}`}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: ".8rem" }}>
+                  <span style={{ fontWeight: 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.article}</span>
+                  <span className="num" style={{ fontWeight: 800 }}>{fmt(p.quantity || 0)}</span>
+                </div>
+                <div className="bento-track"><div style={{ width: `${((p.quantity || 0) / D.maxQ) * 100}%`, background: i === 0 ? "var(--ch-peak)" : "var(--ch-1)" }} /></div>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
-      <div className="cs" style={{ margin: "10px 6px 0" }}>
+      <div className="cs" style={{ margin: "2px 4px 0" }}>
         {siteConfig.bakeryName ? `${siteConfig.bakeryName} · ` : ""}{tr("Données de caisse et prévision boutique (articles par jour).", "Till data and shop forecast (items per day).")}
       </div>
     </div>
+  );
+}
+
+export function DayBento({ kpis, forecast }: { kpis: DailyKPIs; forecast: any | null }) {
+  return (
+    <>
+      <DayHeader kpis={kpis} forecast={forecast} />
+      <DayOutlook kpis={kpis} forecast={forecast} />
+    </>
   );
 }

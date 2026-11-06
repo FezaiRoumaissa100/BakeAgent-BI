@@ -29,5 +29,5 @@
   "_seuils": "seuil_jour_ouvert_pct : un jour compte comme ouvert s'il vend au moins ce % d'un jour normal (sinon : ventes isolées, jour fermé). poids_an_dernier_jours_evenement : jours de fête (Noël, 1er janvier, Pâques…), part donnée aux ventes du même jour l'an dernier (0 à 1), le reste au modèle.",
   "jours_feries_pays": "FR",
   "jours_feries_dates": [],
-  "_jours_feries": "jours_feries_pays : jours fériés ajoutés automatiquement comme événements (\"FR\" = France, \"\" = aucun). jours_feries_dates : autres dates fixes à traiter comme des jours particuliers, au format \"MM-JJ\" (ex. \"06-21\")."
+  "_jours_feries": "jours_feries_pays : jours fériés ajoutés automatiquement comme événements (\"FR\" = France ; autre pays : son code à 2 lettres, ex. \"BE\", \"CH\", \"TN\", \"MA\", avec le paquet Python holidays installé ; \"\" = aucun). jours_feries_dates : autres dates fixes à traiter comme des jours particuliers, au format \"MM-JJ\" (ex. \"06-21\")."
 }

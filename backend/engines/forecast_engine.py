@@ -7,14 +7,22 @@ def safe_num(v, default=0.0):
         return default
     return float(v)
 
-def shop_source():
+LONG_H = 30   # horizon d'un calcul « long » (FORECAST_HORIZON=30), distinct du calcul normal à 14 jours
+
+
+def shop_source(long=False):
     """Dernier calcul de forecasting/pipeline.py contenant la prévision de toute la boutique (table shop_forecasts).
+    long=False : dernier calcul normal (horizon < 30 jours) ; long=True : dernier calcul à 30 jours.
     None si le pipeline n'a pas encore été lancé : on se replie alors sur la prévision Prophet du notebook."""
     import json
     try:
         # Dernier calcul seulement : si la prévision boutique n'a pas pu y être calculée, on ne ressert pas
         # silencieusement un calcul plus ancien (dates peut-être déjà passées).
-        run = sql_fetch_one("SELECT * FROM product_forecast_runs ORDER BY run_id DESC LIMIT 1")
+        if long:
+            run = sql_fetch_one("SELECT * FROM product_forecast_runs WHERE horizon >= %s ORDER BY run_id DESC LIMIT 1", (LONG_H,))
+        else:
+            run = sql_fetch_one("SELECT * FROM product_forecast_runs WHERE horizon < %s ORDER BY run_id DESC LIMIT 1", (LONG_H,)) \
+                or sql_fetch_one("SELECT * FROM product_forecast_runs ORDER BY run_id DESC LIMIT 1")
         if not run or not sql_value("SELECT COUNT(*) FROM shop_forecasts WHERE run_id = %s AND ds > %s",
                                     (run["run_id"], run["data_end"])):
             return None
@@ -36,11 +44,24 @@ def get_forecast_data_pg(horizon=14, forecast_type="articles", product=None, cat
     if not is_pg_available():
         raise Exception("PostgreSQL non disponible")
     
-    # Une seule prévision Prophet est disponible : J+1 à J+14 (« 14j_global »).
-    # L'horizon 7 jours en est les 7 premiers jours ; au-delà de 14 jours, aucune prévision n'existe.
-    horizon = 7 if int(horizon or 14) <= 7 else 14
     model_name = "14j_global"
     src = shop_source()   # prévision du pipeline (vérifiée) si disponible ; sinon Prophet (notebook)
+    # Horizons proposés : 7, 14 ou 30 jours. Les 14 premiers jours viennent toujours du calcul normal (plus précis) ;
+    # les jours 15 à 30 viennent du calcul à 30 jours, s'il existe et porte sur les mêmes données.
+    # Repli Prophet (notebook) : J+1 à J+14 seulement.
+    try:
+        base_h = int(src[0].get("horizon") or 14) if src else 14
+    except Exception:
+        base_h = 14
+    src_long = None
+    if src:
+        cand = shop_source(long=True)
+        if cand and cand[0]["run_id"] != src[0]["run_id"] and cand[0]["data_end"] == src[0]["data_end"]:
+            src_long = cand
+    max_horizon = max(base_h, int(src_long[0].get("horizon") or 0)) if src_long else base_h
+    wanted = int(horizon or 14)
+    horizon = 7 if wanted <= 7 else 14 if wanted <= 14 else 30
+    horizon = min(horizon, max_horizon)
 
     # Prix moyen réellement encaissé par article (pour le chiffre d'affaires estimé)
     prix_article = safe_num(sql_value(
@@ -66,6 +87,11 @@ def get_forecast_data_pg(horizon=14, forecast_type="articles", product=None, cat
         forecast_raw = sql_fetch_all("""SELECT ds, yhat, yhat_lower, yhat_upper, is_ferme, ca, ca_lower, ca_upper
                                         FROM shop_forecasts WHERE run_id = %s AND kind = 'court'
                                         ORDER BY ds LIMIT %s""", (src[0]["run_id"], horizon))
+        if src_long and horizon > len(forecast_raw) and forecast_raw:
+            forecast_raw += sql_fetch_all("""SELECT ds, yhat, yhat_lower, yhat_upper, is_ferme, ca, ca_lower, ca_upper
+                                             FROM shop_forecasts WHERE run_id = %s AND kind = 'court' AND ds > %s
+                                             ORDER BY ds LIMIT %s""",
+                                          (src_long[0]["run_id"], forecast_raw[-1]["ds"], horizon - len(forecast_raw)))
     else:
         forecast_raw = sql_fetch_all(forecast_query, (model_name, horizon))
     
@@ -111,7 +137,7 @@ def get_forecast_data_pg(horizon=14, forecast_type="articles", product=None, cat
         {"ca_jour" if forecast_type == "ca" else "nb_articles"} as y
     FROM daily_aggregates
     ORDER BY date_id DESC
-    LIMIT 60
+    LIMIT 90
     """
     
     history_raw = sql_fetch_all(history_query)
@@ -219,6 +245,14 @@ def get_forecast_data_pg(horizon=14, forecast_type="articles", product=None, cat
             "run_at": str(src[0].get("run_at"))[:16],
             "objectif_cahier_des_charges": "15 à 20 % sur 14 jours",
         }
+        if src_long:
+            # Précision mesurée du calcul à 30 jours (tests de 30 jours sur l'historique) : jours 15 à 30 moins fiables
+            lc = src_long[1].get("court", {}) or {}
+            prophet_metrics["long"] = {"horizon": int(src_long[0].get("horizon") or 30), "wape_jour": lc.get("wape_jour"),
+                                       "biais": lc.get("biais"), "erreur_semaine": lc.get("erreur_semaine"),
+                                       "couverture_fourchette": lc.get("couverture_fourchette"),
+                                       "jours_testes": lc.get("jours_testes"), "fenetres": lc.get("fenetres"),
+                                       "run_at": str(src_long[0].get("run_at"))[:16]}
         w = court.get("wape_jour")
         model_comparison = [
             {"model": "Somme des prévisions par produit combinée avec l'an dernier", "mape": round(w * 100, 1) if w is not None else None, "status": "Retenu"},
@@ -251,6 +285,7 @@ def get_forecast_data_pg(horizon=14, forecast_type="articles", product=None, cat
             "label": forecast_label,
             "unit": unit_label,
             "horizon": horizon,
+            "max_horizon": max_horizon,
             "history_period": history_period
         },
         "metrics": {

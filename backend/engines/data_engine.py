@@ -1,6 +1,7 @@
 import math
 from datetime import datetime, date
 from db.db import sql_fetch_all, sql_fetch_one, sql_value, is_pg_available
+from config import np_sql
 
 def safe_float(v):
     if v is None or (isinstance(v, float) and math.isnan(v)):
@@ -63,7 +64,7 @@ def calculate_daily_kpis_pg(sel_date: date):
             hour,
             SUM(total_revenue) as ca,
             COUNT(DISTINCT ticket_number) as tkt,
-            SUM(quantity) as qte
+            COALESCE(SUM(quantity) FILTER (WHERE TRUE""" + np_sql("") + """), 0) as qte
         FROM fact_ticket_lines
         WHERE date_id = %s
         GROUP BY hour
@@ -109,20 +110,70 @@ def calculate_daily_kpis_pg(sel_date: date):
     
     vitesse = qte_jour / heures_act if heures_act > 0 else 0.0
     
-    # Référence comparable : le même jour de la semaine des 4 semaines précédentes (jours ouverts)
+    # ── Jour particulier ? (jour férié du pays réglé dans forecasting/config.json, ou événement court du
+    #    calendrier de la boutique : Réveillon, Saint-Valentin, Fête des Mères…). Un tel jour se compare au MÊME
+    #    jour particulier de l'année d'avant, pas à un jour ordinaire. Un jour ordinaire se compare aux mêmes jours
+    #    de la semaine précédents, en écartant les jours particuliers (sinon un 24/12 gonfle « l'habitude »).
+    from engines.calendar_engine import special_days as _special_of, same_special_day_last_year
+    from datetime import timedelta
+    special = _special_of([sel_date]).get(sel_date)
+    ref_dates, ref_label_special = [], None
+    if special:
+        # Même jour particulier l'an dernier : même nom (fêtes mobiles comme Pâques), sinon même date
+        cand = [same_special_day_last_year(sel_date, special)]
+        ok = sql_fetch_all("SELECT date_id FROM daily_aggregates WHERE date_id = ANY(%s::date[]) AND ca_jour > 0",
+                           ([d.isoformat() for d in cand],))
+        if ok:
+            d0 = ok[0]['date_id'] if isinstance(ok[0]['date_id'], date) else date.fromisoformat(str(ok[0]['date_id']))
+            ref_dates = [d0]
+            ref_label_special = f"{special} {d0.year} ({d0.strftime('%d/%m/%Y')})"
+    if not ref_dates:
+        # Jour ordinaire : les 4 derniers mêmes jours de la semaine ouverts, hors jours particuliers (8 semaines max)
+        prev = [sel_date - timedelta(days=7 * k) for k in range(1, 9)]
+        sp = _special_of(prev)
+        opened = sql_fetch_all("SELECT date_id, ca_jour FROM daily_aggregates WHERE date_id = ANY(%s::date[]) AND ca_jour > 0",
+                               ([d.isoformat() for d in prev],))
+        # Un jour « ouvert » doit avoir un vrai volume : quelques ventes isolées un jour de fermeture
+        # (moins de 15 % du chiffre médian de ces jours) feraient croire à tort que la journée est « plus forte »
+        cas = sorted(safe_float(r['ca_jour']) for r in opened)
+        med = cas[len(cas) // 2] if cas else 0
+        opened = {r['date_id'] if isinstance(r['date_id'], date) else date.fromisoformat(str(r['date_id']))
+                  for r in opened if safe_float(r['ca_jour']) >= 0.15 * med}
+        ref_dates = [d for d in prev if d in opened and d not in sp][:4]
+    ref_strs = [d.isoformat() for d in ref_dates]
+
     ref = sql_fetch_one(
         """
         SELECT AVG(ca_jour) AS ca, AVG(nb_tickets) AS tkt, COUNT(*) AS n
         FROM daily_aggregates
-        WHERE date_id IN (%s::date - 7, %s::date - 14, %s::date - 21, %s::date - 28)
+        WHERE date_id = ANY(%s::date[])
           AND ca_jour > 0
         """,
-        (date_str, date_str, date_str, date_str)
+        (ref_strs,)
     ) or {}
     ca_moy_global = safe_float(ref.get('ca'))
     tickets_ref = safe_float(ref.get('tkt'))
     nb_ref = int(ref.get('n') or 0)
     delta_vs_moy = (ca_jour - ca_moy_global) / ca_moy_global * 100 if ca_moy_global > 0 else 0
+
+    # Repère heure par heure : chiffre d'affaires moyen de chaque heure sur ces mêmes jours de comparaison
+    # (pour voir si une heure a été plus forte ou plus faible que d'habitude)
+    if nb_ref > 0:
+        try:
+            ref_h = sql_fetch_all(
+                """
+                SELECT hour, SUM(total_revenue) AS ca
+                FROM fact_ticket_lines
+                WHERE date_id = ANY(%s::date[])
+                GROUP BY hour
+                """,
+                (ref_strs,)
+            )
+            ref_by_h = {int(r['hour']): safe_float(r['ca']) / nb_ref for r in ref_h}
+            for h in hourly_list:
+                h["ca_ref"] = ref_by_h.get(h["hour"], 0.0)
+        except Exception:
+            pass
 
     # Vitesse habituelle (articles par heure d'activité) sur ces mêmes jours
     vitesse_ref = safe_float(sql_value(
@@ -130,13 +181,16 @@ def calculate_daily_kpis_pg(sel_date: date):
         SELECT AVG(v) FROM (
             SELECT SUM(quantity)::numeric / NULLIF(COUNT(DISTINCT hour) FILTER (WHERE quantity > 0), 0) AS v
             FROM fact_ticket_lines
-            WHERE date_id IN (%s::date - 7, %s::date - 14, %s::date - 21, %s::date - 28)
+            WHERE date_id = ANY(%s::date[])""" + np_sql("") + """
             GROUP BY date_id
         ) t
         """,
-        (date_str, date_str, date_str, date_str)
+        (ref_strs,)
     ))
     
+    # Articles qui ne sont pas des produits (service, sac...) : hors des classements, des paires et des paniers
+    NP = np_sql("f.")
+
     # Top produits quantité
     top_qte = sql_fetch_all(
         """
@@ -145,7 +199,7 @@ def calculate_daily_kpis_pg(sel_date: date):
             SUM(f.quantity) as quantity
         FROM fact_ticket_lines f
         JOIN dim_products p ON f.product_id = p.product_id
-        WHERE f.date_id = %s
+        WHERE f.date_id = %s""" + NP + """
         GROUP BY p.article_name
         ORDER BY quantity DESC
         LIMIT 8
@@ -163,7 +217,7 @@ def calculate_daily_kpis_pg(sel_date: date):
             SUM(f.total_revenue) as total_revenue
         FROM fact_ticket_lines f
         JOIN dim_products p ON f.product_id = p.product_id
-        WHERE f.date_id = %s
+        WHERE f.date_id = %s""" + NP + """
         GROUP BY p.article_name
         ORDER BY total_revenue DESC
         LIMIT 8
@@ -172,6 +226,24 @@ def calculate_daily_kpis_pg(sel_date: date):
     )
     
     top_ca_list = [{"article": r['article'], "total_revenue": safe_float(r['total_revenue'])} for r in top_ca]
+    # Repère par produit : chiffre d'affaires moyen du produit sur les mêmes jours de comparaison
+    if nb_ref > 0 and top_ca_list:
+        try:
+            ref_p = sql_fetch_all(
+                """
+                SELECT p.article_name AS article, SUM(f.total_revenue) AS rev
+                FROM fact_ticket_lines f
+                JOIN dim_products p ON f.product_id = p.product_id
+                WHERE f.date_id = ANY(%s::date[]) AND p.article_name = ANY(%s)""" + NP + """
+                GROUP BY p.article_name
+                """,
+                (ref_strs, [t["article"] for t in top_ca_list])
+            )
+            ref_by_p = {r['article']: safe_float(r['rev']) / nb_ref for r in ref_p}
+            for t in top_ca_list:
+                t["ref_revenue"] = ref_by_p.get(t["article"], 0.0)
+        except Exception:
+            pass
     
     # Top produits tickets
     top_tkt = sql_fetch_all(
@@ -181,7 +253,7 @@ def calculate_daily_kpis_pg(sel_date: date):
             COUNT(DISTINCT f.ticket_number) as nb_tkt
         FROM fact_ticket_lines f
         JOIN dim_products p ON f.product_id = p.product_id
-        WHERE f.date_id = %s
+        WHERE f.date_id = %s""" + NP + """
         GROUP BY p.article_name
         ORDER BY nb_tkt DESC
         LIMIT 8
@@ -221,7 +293,7 @@ def calculate_daily_kpis_pg(sel_date: date):
         JOIN dim_products p1 ON f1.product_id = p1.product_id
         JOIN dim_products p2 ON f2.product_id = p2.product_id
         WHERE f1.date_id = %s
-            AND f1.product_id < f2.product_id
+            AND f1.product_id < f2.product_id""" + np_sql("f1.") + np_sql("f2.") + """
         GROUP BY p1.article_name, p2.article_name
         ORDER BY cnt DESC
         LIMIT 5
@@ -234,7 +306,7 @@ def calculate_daily_kpis_pg(sel_date: date):
     # Tickets mono vs multi
     ticket_sizes = sql_fetch_all(
         """
-        SELECT ticket_number, COUNT(DISTINCT product_id) as nb_items
+        SELECT ticket_number, COUNT(DISTINCT product_id) FILTER (WHERE TRUE""" + np_sql("") + """) as nb_items
         FROM fact_ticket_lines
         WHERE date_id = %s
         GROUP BY ticket_number
@@ -273,9 +345,13 @@ def calculate_daily_kpis_pg(sel_date: date):
         "ca_moy_global": ca_moy_global,
         "ca_ref": ca_moy_global,
         "tickets_ref": tickets_ref,
-        "ref_label": (f"moyenne des {nb_ref} {jours_fr[sel_date.weekday()].lower()}s précédents" if nb_ref > 1
+        "ref_label": (ref_label_special if ref_label_special
+                      else f"moyenne des {nb_ref} {jours_fr[sel_date.weekday()].lower()}s précédents" if nb_ref > 1
                       else f"{jours_fr[sel_date.weekday()].lower()} précédent ouvert" if nb_ref == 1
                       else "aucun jour comparable"),
+        # Jour férié ou événement court (Réveillon, Saint-Valentin…) : comparé au même jour l'an dernier
+        "jour_special": special,
+        "ref_dates": ref_strs,
         "nb_jours_ref": nb_ref,
         "vitesse_ref": vitesse_ref,
         "delta_vs_moy": delta_vs_moy,

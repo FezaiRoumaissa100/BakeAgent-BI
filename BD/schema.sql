@@ -192,3 +192,17 @@ CREATE TABLE IF NOT EXISTS daily_aggregates (
     ref_actives INT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_dailyagg_tickets ON daily_aggregates(nb_tickets DESC);
+-- ================================================================
+-- ── COUCHE 3 : PRODUCTION (tailles de plaque) ─────────────────
+-- ================================================================
+-- Combien de pièces contient une plaque (ou une fournée) de chaque produit. Les ventes et prévisions restent en pièces ;
+-- la plaque ne sert qu'à présenter « À préparer » et la saisie du stock comme le boulanger travaille.
+-- Créée aussi automatiquement par le backend (backend/engines/tray_engine.py). Tailles de départ de la démo : BD/demo_data/seed_tray_sizes_demo_bakery.sql
+CREATE TABLE IF NOT EXISTS product_tray_sizes (
+    product_id      INTEGER PRIMARY KEY REFERENCES dim_products(product_id) ON DELETE CASCADE,
+    pieces_per_tray INTEGER NOT NULL CHECK (pieces_per_tray BETWEEN 1 AND 1000),
+    rounding        VARCHAR(10) NOT NULL DEFAULT 'up' CHECK (rounding IN ('up', 'nearest', 'none')),  -- up = plaque entière au-dessus
+    is_estimate     BOOLEAN NOT NULL DEFAULT TRUE,        -- vrai tant qu'un humain n'a pas confirmé la taille
+    note            VARCHAR(200),
+    updated_at      TIMESTAMP NOT NULL DEFAULT now()
+);

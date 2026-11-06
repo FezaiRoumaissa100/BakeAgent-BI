@@ -1,9 +1,10 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { niceScale, fmtAxisNum } from "@/lib/chartScale";
 import { colors, categoryPalette } from "@/lib/theme";
 import { ExpertNote } from "@/components/Expert";
-import { RetainProvider, RetainCard, Takeaway, Details } from "@/components/Ui";
+import { RetainProvider, RetainCard, Takeaway, Details, Scope } from "@/components/Ui";
 import {
   fetchPenetration,
   fetchVelocity,
@@ -52,7 +53,7 @@ import {
 import { ChartAssistantButton } from "@/components/ChartAssistantButton";
 import { useChat } from "@/contexts/ChatContext";
 import { tr, trData, locale } from "@/lib/i18n";
-import { PageStory, StoryIcons } from "@/components/PageStory";
+import { useSelectedPeriod } from "@/lib/selectedDay";
 
 /* ──────────── Palette & helpers (couleurs FONCÉES, DISTINCTES & saturées) ──────────── */
 const ORANGE = colors.accentDeep;
@@ -90,17 +91,17 @@ function kFmt(n: number) {
   return v.toFixed(0);
 }
 function pctColor(v: number) {
-  if (v >= 70) return "var(--dk-accent-deep, #256B42)";
+  if (v >= 70) return "var(--dk-accent-deep, #43309E)";
   if (v >= 40) return "var(--ch-1)";
   if (v >= 20) return "var(--ch-2)";
   return "var(--dk-warn, #B7791F)";
 }
 function statutColor(s: string) {
   const x = String(s).toLowerCase();
-  if (x.includes("leader") || x.includes("cœur") || x.includes("coeur") || x.includes("pha") || x.includes("dominant") || x.includes("quotidien")) return "var(--dk-accent-deep, #256B42)";
+  if (x.includes("leader") || x.includes("cœur") || x.includes("coeur") || x.includes("pha") || x.includes("dominant") || x.includes("quotidien")) return "var(--dk-accent-deep, #43309E)";
   if (x.includes("régulier") || x.includes("regulier") || x.includes("croissance")) return "var(--ch-1)";
   if (x.includes("cyclique") || x.includes("niche")) return "var(--dk-warn, #B7791F)";
-  if (x.includes("sporadique") || x.includes("éliminer") || x.includes("mort")) return "#44403C";
+  if (x.includes("sporadique") || x.includes("éliminer") || x.includes("mort")) return "var(--dk-muted, #5E5A78)";
   return "var(--ch-peak)";
 }
 
@@ -136,7 +137,11 @@ function RankedRows({
           <div key={i} className="prod-row">
             <div className="prod-nm" title={String(r[labelKey])}>
               <div className="pdot" style={{ background: c }} />
-              {labelKey === "article" ? <ProdName name={String(r[labelKey])} /> : <span>{String(r[labelKey])}</span>}
+              <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+                {labelKey === "article" ? <ProdName name={String(r[labelKey])} /> : <span>{String(r[labelKey])}</span>}
+                {/* la famille sous le nom (et non à côté de la valeur) : le nom n'est plus coupé */}
+                {subKey && r[subKey] != null && <small style={{ color: MUTED, fontSize: ".66rem", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{trData(r[subKey])}</small>}
+              </div>
             </div>
             <div className="pbar-w" style={{ width: 80 }}>
               <div className="pbar" style={{ width: `${(Number(r[valueKey]) / max) * 100}%`, background: c }} />
@@ -144,7 +149,6 @@ function RankedRows({
             <span className="pval">
               <strong style={{ color: INK }}>{fmt(r[valueKey], Number.isInteger(r[valueKey]) ? 0 : 1)}</strong>
               {unit}
-              {subKey && r[subKey] != null && <span style={{ color: MUTED, marginLeft: 4, fontSize: ".65rem" }}>{trData(r[subKey])}</span>}
             </span>
           </div>
         );
@@ -534,7 +538,7 @@ function BubbleScatter({
                       x={toX(d[xKey]) - r - 7}
                       y={toY(d[yKey]) + 4}
                       textAnchor="end"
-                      style={{ fontSize: 10, fontWeight: 800, fill: "var(--dk-ink, #1E2420)" }}
+                      style={{ fontSize: 10, fontWeight: 800, fill: "var(--dk-ink, #24213A)" }}
                     >
                       {String(d[labelKey] || "").slice(0, 18)} ↗
                     </text>
@@ -556,7 +560,7 @@ function BubbleScatter({
                   r={r}
                   fill={c}
                   fillOpacity={0.96}
-                  stroke="var(--dk-ink, #1E2420)"
+                  stroke="var(--dk-ink, #24213A)"
                   strokeOpacity={0.25}
                   strokeWidth={0.8}
                 />
@@ -595,7 +599,7 @@ function BubbleScatter({
             width: legendWidth,
             flexShrink: 0,
             padding: "12px 12px",
-            background: "var(--dk-soft, #F7F8F4)",
+            background: "var(--dk-soft, #F4F1FC)",
             borderRadius: 12,
             border: "1px solid var(--dk-line, #E6E8E1)",
           }}
@@ -883,12 +887,14 @@ function CategoryBars({
   cats,
   color = ORANGE,
   height = 220,
+  scaleMax,
 }: {
   cats: { category: string; taux_moyen: number; ca_total?: number; nb_articles?: number }[];
   color?: string;
   height?: number;
+  scaleMax?: number;     // ex. 100 pour des pourcentages : la longueur de barre se lit alors directement
 }) {
-  const max = Math.max(...cats.map((c) => c.taux_moyen), 1);
+  const max = scaleMax ?? Math.max(...cats.map((c) => c.taux_moyen), 1);
   const shown = cats.slice(0, 12);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 7, height, overflowY: "auto", paddingRight: 4 }}>
@@ -899,10 +905,10 @@ function CategoryBars({
             <div className="pdot" style={{ background: PAL[i % PAL.length], flexShrink: 0 }} />
             <span
               style={{
-                width: 120,
-                fontSize: ".70rem",
+                width: 150,
+                fontSize: ".78rem",
                 color: INK,
-                fontWeight: 500,
+                fontWeight: 600,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -921,8 +927,8 @@ function CategoryBars({
                 }}
               />
             </div>
-            <span style={{ width: 44, textAlign: "right", fontSize: ".72rem", fontWeight: 800, color: INK }}>
-              {c.taux_moyen.toFixed(1)}%
+            <span style={{ width: 52, textAlign: "right", fontSize: ".8rem", fontWeight: 800, color: INK }}>
+              {fmt(c.taux_moyen, 1)} %
             </span>
             {c.ca_total != null && (
               <span style={{ width: 60, textAlign: "right", fontSize: ".65rem", color: MUTED, fontWeight: 600 }}>
@@ -956,7 +962,7 @@ function SimpleBar({
   const max = Math.max(...vals, 1);
   return (
     <div style={{ height }} className="w-full flex flex-col justify-between pt-2">
-      <div className="flex items-end gap-1.5 flex-1 w-full relative">
+      <div className="flex items-end gap-1.5 flex-1 w-full relative" style={{ paddingTop: 18 }}>
         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40">
           <div className="w-full border-b border-[color:var(--dk-line)] border-dashed" />
           <div className="w-full border-b border-[color:var(--dk-line)] border-dashed" />
@@ -971,6 +977,9 @@ function SimpleBar({
               <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-[color:var(--dk-tip-bg)] text-white text-[9px] font-bold py-0.5 px-1.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-30 shadow">
                 {trData(r[labelKey])} : {fmt(v)} {unit}
               </div>
+              <div className="text-[11px] font-bold leading-none mb-1 whitespace-nowrap" style={{ color: isMax ? ORANGE : MUTED }}>
+                {fmtAxisNum(v)}
+              </div>
               <div
                 className="w-full rounded-t-sm transition-all"
                 style={{ height: `${pct}%`, background: isMax ? ORANGE : color, opacity: isMax ? 1 : 0.85 }}
@@ -979,9 +988,11 @@ function SimpleBar({
           );
         })}
       </div>
-      <div className="flex justify-between mt-1.5 pt-1 border-t border-[color:var(--dk-grid)] text-[8px] font-semibold" style={{ color: MUTED }}>
-        {rows.filter((_, i) => i % Math.ceil(rows.length / 4) === 0 || i === rows.length - 1).map((r, i) => (
-          <span key={i}>{trData(r[labelKey])}</span>
+      <div className="flex gap-1.5 mt-1.5 pt-1 border-t border-[color:var(--dk-grid)] text-[11px] font-semibold" style={{ color: MUTED }}>
+        {rows.map((r, i) => (
+          <span key={i} className="flex-1 text-center whitespace-nowrap overflow-hidden">
+            {rows.length <= 16 || i % 2 === 0 ? trData(r[labelKey]) : ""}
+          </span>
         ))}
       </div>
     </div>
@@ -1001,7 +1012,7 @@ function GroupedBarsDow({
   const series = [
     { key: "all", label: tr("Global", "Overall"), color: ORANGE },
     { key: "touristic", label: tr("Saison", "Season"), color: PEACH },
-    { key: "event", label: tr("Événement", "Event"), color: "var(--dk-accent-deep, #2A7148)" },
+    { key: "event", label: tr("Événement", "Event"), color: "var(--dk-accent-deep, #43309E)" },
   ];
   return (
     <div style={{ height }} className="w-full flex flex-col justify-between pt-2">
@@ -1274,7 +1285,7 @@ function LiftMatrix({
             const v = matrix[i][j];
             const intensity = v > 0 ? Math.min(v / maxLift, 1) : 0;
             const isDiag = i === j;
-            const fill = v === 0 ? "var(--dk-soft, #F1F2EC)" : isDiag ? "var(--dk-soft, #E4F0E6)" : ORANGE;
+            const fill = v === 0 ? "var(--dk-soft, #F4F1FC)" : isDiag ? "var(--dk-soft, #F4F1FC)" : ORANGE;
             const opac = v === 0 ? 1 : isDiag ? 0.55 : 0.18 + intensity * 0.82;
             const x = labelW + j * cell;
             const y = labelH + i * cell;
@@ -1371,8 +1382,8 @@ function Chip({
         border: "none",
         cursor: "pointer",
         background: active ? ORANGE : "var(--dk-line, #F1F1EC)",
-        color: active ? "white" : "var(--dk-ink2, #4A524C)",
-        boxShadow: active ? `0 2px 10px rgba(46,125,79,0.28)` : "none",
+        color: active ? "white" : "var(--dk-ink2, #3A3655)",
+        boxShadow: active ? `0 2px 10px rgba(91,69,194,0.28)` : "none",
         transition: "all 0.18s",
       }}
     >
@@ -1387,160 +1398,117 @@ function CardHeader({
   title,
   sub,
   icon,
+  scope,
 }: {
   title: string;
   sub?: string;
   icon?: React.ReactNode;
+  scope?: { period?: React.ReactNode; calc?: React.ReactNode; unit?: React.ReactNode };
 }) {
   return (
-    <div style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
-      {icon && <div style={{ display: "flex" }}>{icon}</div>}
-      <div style={{ minWidth: 0 }}>
-        <div className="ct" style={{ marginBottom: 0 }}>{title}</div>
-        {sub && <div className="cs" style={{ marginBottom: 0 }}>{sub}</div>}
+    <div style={{ marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        {icon && <div style={{ display: "flex" }}>{icon}</div>}
+        <div style={{ minWidth: 0 }}>
+          <div className="ct" style={{ marginBottom: 0 }}>{title}</div>
+          {sub && <div className="cs" style={{ marginBottom: 0 }}>{sub}</div>}
+        </div>
       </div>
+      {scope && <Scope period={scope.period} calc={scope.calc} unit={scope.unit} />}
     </div>
   );
 }
 
-/* Matrice de décision en 2 × 2 (cahier des charges).
-   Chaque case : icône, nombre de produits, part du CA (barre), action, et un nuage de bulles
-   (une bulle par produit, taille = chiffre d'affaires). La case « forte » de chaque axe est la plus colorée. */
+/* Matrice de décision (cahier des charges) : 4 cases simples, sans graphique.
+   Disposition classique : haut = vend beaucoup par jour, droite = présent dans beaucoup de tickets.
+   Chaque case : nombre de produits, part du chiffre d'affaires, action, et ses 5 premiers produits.
+   Le classement des produits reste celui du back-end (seuils = moyennes de la boutique).
+   Clic sur une case = filtre la fiche ci-dessous ; clic sur un produit = sa fiche. */
 function MatrixGrid({ items, quadrants, seuils, active, onSelect, colors: col, labelsEn }: any) {
   const openP = useOpenProduct();
-  const MAXB = 16;
   const layout = [
-    { key: "Niche", row: 1, c: 1, Icon: IconGem, glow: "100% 0%" },
-    { key: "Star", row: 1, c: 2, Icon: IconStar, glow: "100% 0%" },
-    { key: "Dormant", row: 2, c: 1, Icon: IconBox, glow: "0% 100%" },
-    { key: "Trafic", row: 2, c: 2, Icon: IconBasket, glow: "100% 100%" },
+    { key: "Niche", Icon: IconGem, pos: tr("vend beaucoup · peu de tickets", "sells a lot · few transactions") },
+    { key: "Star", Icon: IconStar, pos: tr("vend beaucoup · beaucoup de tickets", "sells a lot · many transactions") },
+    { key: "Dormant", Icon: IconBox, pos: tr("vend peu · peu de tickets", "sells little · few transactions") },
+    { key: "Trafic", Icon: IconBasket, pos: tr("vend peu · beaucoup de tickets", "sells little · many transactions") },
   ];
-  const maxCa = Math.max(1, ...items.map((i: any) => i.ca_total || 0));
-  const byQuad = (k: string) => items.filter((i: any) => i.quadrant === k).sort((a: any, b: any) => b.ca_total - a.ca_total);
-  const short = (n: string) => n.replace("TRADITIONAL ", "TRAD. ").replace("PAIN AU CHOCOLAT", "PAIN CHOC.").replace("FORMULE ", "F. ");
+  const byQuad = (k: string) => (items || []).filter((i: any) => i.quadrant === k).sort((a: any, b: any) => (b.ca_total || 0) - (a.ca_total || 0));
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "42px 1fr", gridTemplateRows: "auto 34px", gap: 0, marginTop: 14 }}>
-      {/* Axe vertical : flèche dégradée */}
-      <div style={{ gridColumn: 1, gridRow: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "6px 0" }}>
-        <span style={{ fontSize: ".62rem", fontWeight: 800, color: INK }}>{tr("forte", "high")}</span>
-        <div style={{ flex: 1, width: 4, borderRadius: 4, margin: "6px 0", background: `linear-gradient(to top, var(--dk-line, #E2E5DD), ${ORANGE})`, position: "relative" }}>
-          <span style={{ position: "absolute", top: -6, left: -4, width: 0, height: 0, borderLeft: "6px solid transparent", borderRight: "6px solid transparent", borderBottom: `8px solid ${ORANGE}` }} />
-        </div>
-        <span style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", fontSize: ".66rem", fontWeight: 800, color: MUTED, letterSpacing: ".08em", textTransform: "uppercase", margin: "4px 0" }}>
-          {tr("Vitesse de vente", "Sales velocity")}
-        </span>
-        <span style={{ fontSize: ".62rem", fontWeight: 800, color: MUTED, marginTop: 6 }}>{tr("faible", "low")}</span>
-      </div>
-
-      {/* La matrice */}
-      <div style={{ gridColumn: 2, gridRow: 1, position: "relative", display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr", borderRadius: 20, overflow: "hidden", border: "1px solid var(--dk-line, #E3E4DD)", boxShadow: "0 10px 30px rgba(30,40,32,0.08)" }}>
-        {layout.map(({ key, row, c, Icon, glow }) => {
-          const list = byQuad(key);
+    <div style={{ marginTop: 12 }}>
+      <div className="mx-quad" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+        {layout.map(({ key, Icon, pos }) => {
           const d = quadrants[key] || {};
           const color = col[key];
-          const isActive = active === key;
-          const dim = active !== "Tous" && !isActive;
+          const list = byQuad(key);
+          const on = active === key;
+          const dim = active !== "Tous" && !on;
           return (
-            <button
-              key={key}
-              onClick={() => onSelect(key)}
-              style={{
-                gridColumn: c, gridRow: row, textAlign: "left", cursor: "pointer", border: "none",
-                borderRight: c === 1 ? "1px solid var(--dk-line, #E3E4DD)" : "none",
-                borderBottom: row === 1 ? "1px solid var(--dk-line, #E3E4DD)" : "none",
-                padding: "18px 20px 16px", minHeight: 260, position: "relative",
-                background: `radial-gradient(120% 120% at ${glow}, color-mix(in srgb, ${color} ${key === "Star" ? 22 : 13}%, var(--dk-surface, #fff)) 0%, var(--dk-surface, #fff) 70%)`,
-                opacity: dim ? 0.45 : 1, transition: "opacity .2s, box-shadow .2s",
-                boxShadow: isActive ? `inset 0 0 0 3px ${color}` : "none",
-                display: "flex", flexDirection: "column", gap: 10,
-              }}
-            >
-              {/* En-tête */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: 11, background: color, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 4px 12px color-mix(in srgb, ${color} 35%, transparent)` }}>
-                  <Icon size={18} color="#fff" />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: "1rem", fontWeight: 800, color: INK, lineHeight: 1.1 }}>{tr(d.label || key, labelsEn[key]?.label || key)}</div>
-                  <div style={{ fontSize: ".72rem", color: MUTED, fontWeight: 600, marginTop: 2 }}>{tr(d.action || "", labelsEn[key]?.action || "")}</div>
-                </div>
-                <div style={{ marginLeft: "auto", textAlign: "right" }}>
-                  <div style={{ fontSize: "2rem", fontWeight: 800, color, lineHeight: 1 }}>{fmt(d.nb || 0)}</div>
-                  <div style={{ fontSize: ".62rem", color: MUTED, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".06em" }}>{tr("produits", "products")}</div>
-                </div>
-              </div>
-
-              {/* Part du chiffre d'affaires */}
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".7rem", fontWeight: 700, color: INK, marginBottom: 4 }}>
-                  <span>{tr("Part du chiffre d'affaires", "Share of revenue")}</span>
-                  <span style={{ color }}>{fmt(d.part_ca || 0, 0)} %</span>
-                </div>
-                <div style={{ height: 8, borderRadius: 99, background: "color-mix(in srgb, var(--dk-ink, #1E2420) 7%, transparent)", overflow: "hidden" }}>
-                  <div style={{ width: `${Math.min(100, d.part_ca || 0)}%`, height: "100%", borderRadius: 99, background: `linear-gradient(90deg, color-mix(in srgb, ${color} 55%, transparent), ${color})` }} />
-                </div>
-              </div>
-
-              {/* Nuage de bulles : une bulle par produit, taille = chiffre d'affaires */}
-              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4 }}>
-                {list.slice(0, MAXB).map((p: any, i: number) => {
-                  const size = Math.round(26 + 70 * Math.sqrt((p.ca_total || 0) / maxCa));
-                  const showName = size >= 44;
-                  return (
-                    <div
-                      key={i}
-                      title={tr(
-                        `${p.article}\n${fmt(p.penetration_rate, 1)} % des tickets · ${fmt(p.daily_velocity, 0)} articles / jour de vente\n${fmt(p.ca_total)} € de CA${p.alerte_horaire ? `\n${p.alerte_horaire}` : ""}`,
-                        `${p.article}\n${fmt(p.penetration_rate, 1)}% of transactions · ${fmt(p.daily_velocity, 0)} items / selling day\n${fmt(p.ca_total)} € revenue${p.alerte_horaire ? `\n${p.alerte_horaire.replace("Remplir avant", "Restock before")}` : ""}`
-                      )}
-                      onClick={(e) => { e.stopPropagation(); openP(p.article); }}
-                      style={{
-                        cursor: "pointer",
-                        width: size, height: size, borderRadius: "50%", flexShrink: 0, position: "relative",
-                        background: `radial-gradient(circle at 30% 30%, color-mix(in srgb, ${color} 55%, #fff), ${color})`,
-                        opacity: 0.55 + 0.45 * Math.sqrt((p.ca_total || 0) / maxCa),
-                        display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center",
-                        color: "#fff", fontSize: Math.max(8, Math.min(11, size / 7.5)), fontWeight: 800, lineHeight: 1.05, padding: 4,
-                        boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
-                      }}
-                    >
-                      {showName ? short(p.article) : ""}
-                      {p.alerte_horaire && (
-                        <span style={{ position: "absolute", top: -3, right: -3, width: 16, height: 16, borderRadius: "50%", background: "#fff", color: ALERT, fontSize: 10, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 3px rgba(0,0,0,.2)" }}>⏰</span>
-                      )}
+            <div key={key} style={{
+              borderRadius: 14, padding: "14px 16px", position: "relative",
+              border: `1px solid ${on ? color : "var(--dk-line)"}`,
+              boxShadow: on ? `0 0 0 1px ${color}` : "none",
+              background: `color-mix(in srgb, ${color} ${key === "Star" ? 9 : 5}%, var(--dk-surface))`,
+              opacity: dim ? 0.5 : 1, transition: "opacity .15s, box-shadow .15s",
+            }}>
+              <button type="button" onClick={() => onSelect(key)} aria-pressed={on}
+                title={tr("Filtrer la fiche ci-dessous", "Filter the sheet below")}
+                style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ width: 30, height: 30, borderRadius: 9, background: color, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon size={15} color="#fff" />
+                  </span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: ".92rem", fontWeight: 800, color: INK, lineHeight: 1.15 }}>
+                      {tr(String(d.label || key).replace(/\s*\(.*\)/, ""), String(labelsEn[key]?.label || key).replace(/\s*\(.*\)/, ""))}
                     </div>
-                  );
-                })}
-                {list.length > MAXB && (
-                  <div style={{ fontSize: ".72rem", fontWeight: 800, color, padding: "4px 10px", borderRadius: 99, border: `1px dashed ${color}` }}>
-                    +{list.length - MAXB}
+                    <div style={{ fontSize: ".68rem", color: MUTED, fontWeight: 600 }}>{pos}</div>
                   </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12, whiteSpace: "nowrap" }}>
+                  <span className="num" style={{ fontSize: "1.6rem", fontWeight: 800, color: INK, lineHeight: 1 }}>{fmt(d.nb || 0)}</span>
+                  <span style={{ fontSize: ".74rem", color: MUTED, fontWeight: 600 }}>{tr("produits", "products")}</span>
+                  <span className="num" style={{ marginLeft: "auto", fontSize: "1rem", fontWeight: 800, color: INK }}>{fmt(d.part_ca || 0, 0)} %</span>
+                  <span style={{ fontSize: ".7rem", color: MUTED }}>{tr("du CA", "of revenue")}</span>
+                </div>
+                <div style={{ height: 5, borderRadius: 99, background: "var(--dk-soft)", marginTop: 6, overflow: "hidden" }}>
+                  <div style={{ width: `${Math.min(100, d.part_ca || 0)}%`, height: "100%", background: color, borderRadius: 99 }} />
+                </div>
+                <div style={{ fontSize: ".76rem", color: "var(--dk-ink2)", marginTop: 8, lineHeight: 1.35 }}>
+                  <b style={{ color: INK }}>{tr("À faire : ", "Action: ")}</b>{tr(d.action || "", labelsEn[key]?.action || "")}
+                </div>
+              </button>
+
+              <div style={{ marginTop: 10, borderTop: "1px solid var(--dk-line)" }}>
+                {list.slice(0, 5).map((p: any) => (
+                  <div key={p.article} onClick={() => openP(p.article)}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", cursor: "pointer", borderBottom: "1px dashed var(--dk-line)" }}>
+                    <span style={{ fontSize: ".76rem", fontWeight: 700, color: INK, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {trData(p.article)}
+                    </span>
+                    {p.alerte_horaire && (
+                      <span title={tr(p.alerte_horaire, String(p.alerte_horaire).replace("Remplir avant", "Restock before"))}
+                        style={{ fontSize: ".64rem", fontWeight: 800, color: ALERT }}>⏰ {String(p.alerte_horaire).replace(/[^0-9:h]/g, "")}</span>
+                    )}
+                    <span className="num" style={{ fontSize: ".72rem", color: MUTED, fontWeight: 600 }}>{fmt(p.ca_total)} €</span>
+                  </div>
+                ))}
+                {list.length > 5 && (
+                  <button type="button" onClick={() => onSelect(key)}
+                    style={{ all: "unset", cursor: "pointer", fontSize: ".72rem", fontWeight: 700, color: "var(--dk-accent)", marginTop: 6, display: "inline-block" }}>
+                    {tr(`Voir les ${fmt(list.length)} produits →`, `See all ${fmt(list.length)} products →`)}
+                  </button>
                 )}
               </div>
-            </button>
+            </div>
           );
         })}
-
-        {/* Croisement des moyennes */}
-        <div style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", background: "var(--dk-surface, #fff)", border: "1px solid var(--dk-line, #E3E4DD)", borderRadius: 99, padding: "4px 10px", fontSize: ".62rem", fontWeight: 800, color: MUTED, whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", pointerEvents: "none" }}>
-          {tr(`moyennes : ${fmt(seuils.penetration_moyenne || 0, 1)} % · ${fmt(seuils.vitesse_moyenne || 0, 1)} art./j`, `averages: ${fmt(seuils.penetration_moyenne || 0, 1)}% · ${fmt(seuils.vitesse_moyenne || 0, 1)} items/d`)}
-        </div>
       </div>
-
-      {/* Axe horizontal */}
-      <div style={{ gridColumn: 2, gridRow: 2, display: "flex", alignItems: "center", gap: 10, padding: "0 4px" }}>
-        <span style={{ fontSize: ".62rem", fontWeight: 800, color: MUTED }}>{tr("faible", "low")}</span>
-        <div style={{ flex: 1, height: 4, borderRadius: 4, background: `linear-gradient(to right, var(--dk-line, #E2E5DD), ${ORANGE})`, position: "relative" }}>
-          <span style={{ position: "absolute", right: -6, top: -4, width: 0, height: 0, borderTop: "6px solid transparent", borderBottom: "6px solid transparent", borderLeft: `8px solid ${ORANGE}` }} />
-          <span style={{ position: "absolute", left: "50%", top: 8, transform: "translateX(-50%)", fontSize: ".66rem", fontWeight: 800, color: MUTED, letterSpacing: ".08em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-            {tr("Présence dans les tickets", "Presence in transactions")}
-          </span>
-        </div>
-        <span style={{ fontSize: ".62rem", fontWeight: 800, color: INK }}>{tr("forte", "high")}</span>
-      </div>
-      <div style={{ gridColumn: 2, fontSize: ".7rem", color: MUTED, marginTop: 14 }}>
-        {tr("Une bulle = un produit ; plus elle est grande, plus il rapporte. Survolez une bulle pour ses chiffres. ⏰ = ventes concentrées sur une heure : remplir le rayon avant. Cliquez sur une case pour filtrer la fiche ci-dessous.", "One bubble = one product; the bigger, the more revenue. Hover a bubble for its figures. ⏰ = sales concentrated in one hour: restock beforehand. Click a box to filter the sheet below.")}
+      <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 10, lineHeight: 1.45 }}>
+        {tr(
+          `Frontières = moyennes de la boutique : présent dans ${fmt(seuils.penetration_moyenne || 0, 1)} % des tickets et ${fmt(seuils.vitesse_moyenne || 0, 1)} articles par jour de vente. ⏰ = remplir le rayon avant cette heure. Cliquez sur une case pour filtrer la fiche, sur un produit pour l'ouvrir.`,
+          `Boundaries = shop averages: in ${fmt(seuils.penetration_moyenne || 0, 1)}% of transactions and ${fmt(seuils.vitesse_moyenne || 0, 1)} items per selling day. ⏰ = restock before this hour. Click a box to filter the sheet, a product to open it.`
+        )}
       </div>
     </div>
   );
@@ -1566,7 +1534,7 @@ function PresenceCaChart({ items, height = 400 }: { items: any[]; height?: numbe
       {tr("Aucun produit ne correspond à ces filtres.", "No product matches these filters.")}
     </div>;
   }
-  const W = 820, H = height, L = 64, R = 24, T = 34, B = 46;
+  const W = 820, H = height, L = 70, R = 24, T = 44, B = 50;
   const pw = W - L - R, ph = H - T - B;
   const lg = Math.log10;
   const xMinP = Math.min(...pts.map((d) => d.penetration_rate));
@@ -1597,7 +1565,7 @@ function PresenceCaChart({ items, height = 400 }: { items: any[]; height?: numbe
   cand.forEach((d) => {
     const cx = X(d.penetration_rate), cy = Y(d.ca_total), r = rad(d.qty_total);
     const txt = String(d.article);
-    const w = Math.min(txt.length, 22) * 6.1;
+    const w = Math.min(txt.length, 22) * 7.1;
     const opts: { x: number; y: number; anchor: "start" | "end" }[] = [
       { x: cx + r + 4, y: cy + 4, anchor: "start" },
       { x: cx - r - 4, y: cy + 4, anchor: "end" },
@@ -1605,7 +1573,7 @@ function PresenceCaChart({ items, height = 400 }: { items: any[]; height?: numbe
       { x: cx - r - 2, y: cy + r + 11, anchor: "end" },
     ];
     for (const o of opts) {
-      const x1 = o.anchor === "start" ? o.x : o.x - w, x2 = x1 + w, y1 = o.y - 10, y2 = o.y + 3;
+      const x1 = o.anchor === "start" ? o.x : o.x - w, x2 = x1 + w, y1 = o.y - 12, y2 = o.y + 3;
       if (x1 < L || x2 > W - R || y1 < T - 4 || y2 > T + ph) continue;
       if (boxes.some((b) => !(x2 < b.x1 || x1 > b.x2 || y2 < b.y1 || y1 > b.y2))) continue;
       boxes.push({ x1, y1, x2, y2 });
@@ -1618,38 +1586,44 @@ function PresenceCaChart({ items, height = 400 }: { items: any[]; height?: numbe
   return (
     <div style={{ position: "relative" }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} onMouseLeave={() => setHover(null)}>
-        {/* bandes de statut */}
-        {STATUT_PEN.map((b) => {
-          const x1 = X(Math.max(b.from, xMin)), x2 = X(b.to);
-          if (x2 <= x1) return null;
-          return (
-            <g key={b.key}>
-              <rect x={x1} y={T} width={x2 - x1} height={ph} fill={b.color} opacity={0.07} />
-              <text x={(x1 + x2) / 2} y={T - 10} textAnchor="middle" fontSize={11} fontWeight={800} fill={b.color}>
-                {locale() === "en" ? b.en : b.short}
-              </text>
-              {b.from > 0 && <line x1={x1} x2={x1} y1={T - 4} y2={T + ph} stroke={b.color} strokeDasharray="4 4" opacity={0.6} />}
-            </g>
-          );
-        })}
+        {/* bandes de statut ; les noms des bandes étroites passent sur une 2e ligne au lieu de se chevaucher */}
+        {(() => {
+          const placed: { x1: number; x2: number; row: number }[] = [];
+          return STATUT_PEN.map((b) => {
+            const x1 = X(Math.max(b.from, xMin)), x2 = X(b.to);
+            if (x2 <= x1) return null;
+            const name = locale() === "en" ? b.en : b.short;
+            const w = name.length * 7.2 + 6, cx = Math.min(W - R - w / 2, Math.max(L + w / 2, (x1 + x2) / 2));
+            let row = 0;
+            while (placed.some((q) => q.row === row && !(cx + w / 2 < q.x1 || cx - w / 2 > q.x2))) row++;
+            placed.push({ x1: cx - w / 2, x2: cx + w / 2, row });
+            return (
+              <g key={b.key}>
+                <rect x={x1} y={T} width={x2 - x1} height={ph} fill={b.color} opacity={0.07} />
+                <text x={cx} y={T - 8 - row * 15} textAnchor="middle" fontSize={12.5} fontWeight={800} fill={b.color}>{name}</text>
+                {b.from > 0 && <line x1={x1} x2={x1} y1={T - 4} y2={T + ph} stroke={b.color} strokeDasharray="4 4" opacity={0.6} />}
+              </g>
+            );
+          });
+        })()}
         {/* grille */}
         {yTicks.map((v) => (
           <g key={`y${v}`}>
             <line x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} stroke="rgba(80,100,85,0.12)" />
-            <text x={L - 8} y={Y(v) + 4} textAnchor="end" fontSize={11} fill={MUTED}>{euroLbl(v)}</text>
+            <text x={L - 8} y={Y(v) + 4.5} textAnchor="end" fontSize={12.5} fontWeight={600} fill={MUTED}>{euroLbl(v)}</text>
           </g>
         ))}
         {xTicks.map((v) => (
           <g key={`x${v}`}>
             <line x1={X(v)} x2={X(v)} y1={T + ph} y2={T + ph + 5} stroke={MUTED} />
-            <text x={X(v)} y={T + ph + 18} textAnchor="middle" fontSize={11} fill={MUTED}>{pctLbl(v)}</text>
+            <text x={X(v)} y={T + ph + 19} textAnchor="middle" fontSize={12.5} fontWeight={600} fill={MUTED}>{pctLbl(v)}</text>
           </g>
         ))}
         <line x1={L} x2={W - R} y1={T + ph} y2={T + ph} stroke="rgba(80,100,85,0.35)" />
-        <text x={L + pw / 2} y={H - 6} textAnchor="middle" fontSize={11.5} fontWeight={700} fill={INK}>
+        <text x={L + pw / 2} y={H - 6} textAnchor="middle" fontSize={12.5} fontWeight={700} fill={INK}>
           {tr("Présence : part des tickets contenant le produit →", "Presence: share of transactions with the product →")}
         </text>
-        <text x={14} y={T + ph / 2} textAnchor="middle" fontSize={11.5} fontWeight={700} fill={INK} transform={`rotate(-90 14 ${T + ph / 2})`}>
+        <text x={16} y={T + ph / 2} textAnchor="middle" fontSize={12.5} fontWeight={700} fill={INK} transform={`rotate(-90 16 ${T + ph / 2})`}>
           {tr("Chiffre d'affaires →", "Revenue →")}
         </text>
         {/* points (les petits au-dessus des gros) */}
@@ -1662,7 +1636,7 @@ function PresenceCaChart({ items, height = 400 }: { items: any[]; height?: numbe
           );
         })}
         {labels.map(({ d, x, y, anchor }) => (
-          <text key={`l${d.article}`} x={x} y={y} textAnchor={anchor} fontSize={10.5} fontWeight={700} fill={INK}
+          <text key={`l${d.article}`} x={x} y={y} textAnchor={anchor} fontSize={12} fontWeight={700} fill={INK}
                 style={{ paintOrder: "stroke", stroke: "var(--dk-surface, #fff)", strokeWidth: 3, pointerEvents: "none" }}>
             {short(d.article)}
           </text>
@@ -1694,74 +1668,81 @@ function PresenceCaChart({ items, height = 400 }: { items: any[]; height?: numbe
   );
 }
 
-/* Rôle de chaque produit dans le panier (tickets à plusieurs produits).
-   Une ligne par produit : part habituelle du ticket (avec le seuil de 50 % du cahier des charges),
-   nombre de tickets à plusieurs produits où il apparaît, et son chiffre d'affaires dans ces tickets.
-   Tri au choix ; les 12 premiers sont affichés, « Voir tout » montre la liste complète. */
+/* Détail « Poids dans le panier » : un tableau simple, des chiffres seulement (plus de barres).
+   Filtre par rôle, tri par colonne, 15 lignes puis « Voir tout ». */
 function ContributionRows({ rows, seuil = 50 }: { rows: any[]; seuil?: number }) {
-  const [sort, setSort] = useState<"part" | "freq" | "ca">("part");
+  const openP = useOpenProduct();
+  const [sort, setSort] = useState<"part" | "freq" | "ca">("ca");
+  const [role, setRole] = useState<"all" | "gen" | "acc">("all");
   const [all, setAll] = useState(false);
   const key = sort === "part" ? "contribution_med" : sort === "freq" ? "nb_tickets_multi" : "ca_total_multi";
-  const sorted = [...(rows || [])].sort((a, b) => (b[key] || 0) - (a[key] || 0));
-  const shown = all ? sorted : sorted.slice(0, 12);
-  const mxF = Math.max(1, ...sorted.map((r) => r.nb_tickets_multi || 0));
-  const mxC = Math.max(1, ...sorted.map((r) => r.ca_total_multi || 0));
-  const head = (k: typeof sort, l: string) => (
-    <button onClick={() => setSort(k)} className="sort-pill" aria-pressed={sort === k}
-            style={{ border: "none", cursor: "pointer", padding: "5px 12px", borderRadius: 999, fontSize: ".74rem", fontWeight: 700,
-                     background: sort === k ? "var(--dk-pill, #1F2B23)" : "var(--dk-soft)", color: sort === k ? "#fff" : "var(--dk-ink2)" }}>
-      {l}{sort === k ? " ↓" : ""}
-    </button>
+  const isGen = (r: any) => (Number(r.contribution_med) || 0) >= seuil;
+  const filtered = (rows || []).filter((r) => role === "all" || (role === "gen" ? isGen(r) : !isGen(r)));
+  const sorted = [...filtered].sort((a, b) => (b[key] || 0) - (a[key] || 0));
+  const shown = all ? sorted : sorted.slice(0, 15);
+  const th = (k: typeof sort | null, l: string, align: "left" | "right" = "right") => (
+    <th style={{ textAlign: align, padding: "8px 10px", fontSize: ".68rem", fontWeight: 800, color: MUTED, textTransform: "uppercase", letterSpacing: ".05em", borderBottom: "1px solid var(--dk-line)", whiteSpace: "nowrap" }}>
+      {k ? (
+        <button type="button" onClick={() => setSort(k)} style={{ all: "unset", cursor: "pointer", color: sort === k ? INK : MUTED }}>
+          {l}{sort === k ? " ↓" : ""}
+        </button>
+      ) : l}
+    </th>
   );
-  const grid = "minmax(140px, 1.3fr) minmax(150px, 1.6fr) minmax(110px, 1fr) minmax(90px, 0.8fr)";
+  const nGen = (rows || []).filter(isGen).length, nAcc = (rows || []).length - nGen;
   return (
     <div>
-      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", margin: "4px 0 12px" }}>
-        <span style={{ fontSize: ".74rem", color: MUTED, marginRight: 4 }}>{tr("Trier par :", "Sort by:")}</span>
-        {head("part", tr("Part du ticket", "Share of basket"))}
-        {head("freq", tr("Fréquence", "Frequency"))}
-        {head("ca", tr("Chiffre d'affaires", "Revenue"))}
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", margin: "2px 0 10px" }}>
+        <div className="seg" role="group" aria-label={tr("Rôle", "Role")}>
+          <button type="button" className={role === "all" ? "on" : ""} onClick={() => setRole("all")}>{tr(`Tous (${rows.length})`, `All (${rows.length})`)}</button>
+          <button type="button" className={role === "gen" ? "on" : ""} onClick={() => setRole("gen")}>{tr(`Font le panier (${nGen})`, `Make the basket (${nGen})`)}</button>
+          <button type="button" className={role === "acc" ? "on" : ""} onClick={() => setRole("acc")}>{tr(`Accompagnent (${nAcc})`, `Go with (${nAcc})`)}</button>
+        </div>
+        <span style={{ fontSize: ".7rem", color: MUTED }}>{tr("Cliquez sur un titre de colonne pour trier.", "Click a column title to sort.")}</span>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: grid, gap: 14, fontSize: ".7rem", color: MUTED, fontWeight: 600, padding: "0 0 6px", borderBottom: "1px solid var(--dk-line)" }}>
-        <span>{tr("Produit", "Product")}</span>
-        <span>{tr(`Part habituelle du ticket (trait = ${seuil} %)`, `Typical share of basket (line = ${seuil}%)`)}</span>
-        <span>{tr("Tickets à plusieurs produits", "Multi-product transactions")}</span>
-        <span style={{ textAlign: "right" }}>{tr("CA dans ces tickets", "Revenue in them")}</span>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: ".8rem", minWidth: 560 }}>
+          <thead>
+            <tr>
+              {th(null, "#", "left")}
+              {th(null, tr("Produit", "Product"), "left")}
+              {th(null, tr("Rôle", "Role"), "left")}
+              {th("part", tr("Part du ticket", "Basket share"))}
+              {th("freq", tr("Tickets", "Transactions"))}
+              {th("ca", tr("CA dans ces tickets", "Revenue in them"))}
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r: any, i: number) => {
+              const g = isGen(r);
+              return (
+                <tr key={r.article} onClick={() => openP(r.article)} style={{ cursor: "pointer", background: i % 2 ? "var(--dk-soft)" : "transparent" }}>
+                  <td className="num" style={{ padding: "7px 10px", color: MUTED, fontWeight: 700, width: 28 }}>{i + 1}</td>
+                  <td style={{ padding: "7px 10px", fontWeight: 700, color: INK }}>{trData(r.article)}</td>
+                  <td style={{ padding: "7px 10px" }}>
+                    <span style={{ fontSize: ".66rem", fontWeight: 800, borderRadius: 99, padding: "2px 8px", color: INK, whiteSpace: "nowrap",
+                      background: g ? "color-mix(in srgb, var(--ch-1) 16%, var(--dk-surface))" : "color-mix(in srgb, var(--ch-3) 14%, var(--dk-surface))" }}>
+                      {g ? tr("Fait le panier", "Makes the basket") : tr("Accompagne", "Goes with")}
+                    </span>
+                  </td>
+                  <td className="num" style={{ padding: "7px 10px", textAlign: "right", fontWeight: sort === "part" ? 800 : 600, color: INK }}>{fmt(r.contribution_med, 0)} %</td>
+                  <td className="num" style={{ padding: "7px 10px", textAlign: "right", fontWeight: sort === "freq" ? 800 : 600, color: INK }}>{fmt(r.nb_tickets_multi)}</td>
+                  <td className="num" style={{ padding: "7px 10px", textAlign: "right", fontWeight: sort === "ca" ? 800 : 600, color: INK }}>{fmt(r.ca_total_multi)} €</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-      {shown.map((r, i) => {
-        const gen = r.contribution_med >= seuil;
-        return (
-          <div key={r.article} style={{ display: "grid", gridTemplateColumns: grid, gap: 14, alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--dk-line)" }}>
-            <span style={{ fontSize: ".8rem", fontWeight: 600, color: INK, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              <ProdName name={r.article} />
-            </span>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }} title={tr(`${fmt(r.contribution_med, 1)} % du ticket (moyenne ${fmt(r.contribution_moy, 1)} %)`, `${fmt(r.contribution_med, 1)}% of the basket (mean ${fmt(r.contribution_moy, 1)}%)`)}>
-              <div style={{ position: "relative", flex: 1, height: 10, borderRadius: 99, background: "var(--dk-grid)" }}>
-                <div style={{ width: `${Math.min(100, r.contribution_med)}%`, height: "100%", borderRadius: 99, background: gen ? "var(--ch-1)" : "var(--ch-soft)" }} />
-                <div style={{ position: "absolute", left: `${seuil}%`, top: -3, bottom: -3, width: 2, background: "var(--dk-ink2)", opacity: 0.5 }} />
-              </div>
-              <b className="num" style={{ fontSize: ".78rem", color: INK, width: 44, textAlign: "right" }}>{fmt(r.contribution_med, 0)} %</b>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }} title={tr(`${fmt(r.nb_tickets_multi)} tickets (${fmt(r.frequence_multi_pct, 1)} % des tickets à plusieurs produits)`, `${fmt(r.nb_tickets_multi)} transactions (${fmt(r.frequence_multi_pct, 1)}% of multi-product ones)`)}>
-              <div style={{ flex: 1, height: 10, borderRadius: 99, background: "var(--dk-grid)" }}>
-                <div style={{ width: `${(r.nb_tickets_multi / mxF) * 100}%`, height: "100%", borderRadius: 99, background: "var(--ch-2)" }} />
-              </div>
-              <span className="num" style={{ fontSize: ".76rem", color: "var(--dk-ink2)", width: 44, textAlign: "right" }}>{fmt(r.nb_tickets_multi)}</span>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <span className="num" style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>{fmt(r.ca_total_multi)} €</span>
-              <div style={{ height: 4, borderRadius: 99, background: "var(--dk-grid)", marginTop: 4 }}>
-                <div style={{ width: `${(r.ca_total_multi / mxC) * 100}%`, height: "100%", borderRadius: 99, background: "var(--ch-3)", marginLeft: "auto" }} />
-              </div>
-            </div>
-          </div>
-        );
-      })}
-      {sorted.length > 12 && (
-        <button className="link-btn" onClick={() => setAll((v) => !v)}>
-          {all ? tr("Afficher moins", "Show less") : tr(`Voir les ${sorted.length} produits`, `See all ${sorted.length} products`)}
+      {sorted.length > 15 && (
+        <button type="button" onClick={() => setAll(!all)} style={{ all: "unset", cursor: "pointer", fontSize: ".76rem", fontWeight: 700, color: "var(--dk-accent)", marginTop: 10, display: "inline-block" }}>
+          {all ? tr("Réduire", "Show less") : tr(`Voir les ${fmt(sorted.length)} produits`, `See all ${fmt(sorted.length)} products`)}
         </button>
       )}
+      <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 8 }}>
+        {tr(`Part du ticket = ce que le produit représente habituellement (médiane) dans la valeur d'un ticket à plusieurs produits. ${seuil} % ou plus = il fait le panier.`,
+            `Basket share = what the product usually (median) represents in a multi-product transaction. ${seuil}% or more = it makes the basket.`)}
+      </div>
     </div>
   );
 }
@@ -1774,7 +1755,7 @@ function AssocScatter({ rules, height = 440 }: { rules: any[]; height?: number }
   const openP = useOpenProduct();
   const pts = (rules || []).filter((r) => r.support > 0 && r.confidence > 0);
   if (!pts.length) return <div className="cs" style={{ padding: 30, textAlign: "center" }}>{tr("Aucune paire à afficher.", "No pair to show.")}</div>;
-  const W = 820, H = height, L = 56, R = 20, T = 20, B = 50;
+  const W = 820, H = height, L = 60, R = 20, T = 20, B = 52;
   const pw = W - L - R, ph = H - T - B;
   const nice = (v: number) => { const p = Math.pow(10, Math.floor(Math.log10(v))); return [1, 2, 2.5, 5, 10].map((m) => m * p).find((x) => x >= v) || v; };
   const xStep = nice(Math.max(...pts.map((d) => d.support)) / 4);
@@ -1794,11 +1775,17 @@ function AssocScatter({ rules, height = 440 }: { rules: any[]; height?: number }
     { x1: X(0), x2: X(xs), y1: Y(ys), y2: Y(0), c: Q4, t: tr("À ignorer", "To ignore"), s: tr("impact faible", "low impact"), ax: "start", px: X(0) + 10, py: Y(0) - 22 },
   ];
   const label = (d: any) => { const a = String(d.antecedent).split(",")[0].trim(), b = String(d.consequent).split(",")[0].trim(); const t = `${a} + ${b}`; return t.length > 30 ? t.slice(0, 29) + "…" : t; };
-  const boxes: any[] = []; const labels: any[] = [];
+  // Les noms des zones occupent leur place en premier : les étiquettes des paires les évitent
+  const boxes: any[] = zones.map((z) => {
+    const w = Math.max(z.t.length * 7.6, z.s.length * 6.4);
+    const x1 = z.ax === "end" ? z.px - w : z.px;
+    return { x1, x2: x1 + w, y1: z.py - 13, y2: z.py + 18 };
+  });
+  const labels: any[] = [];
   [...pts].sort((a, b) => b.lift - a.lift).slice(0, 7).forEach((d) => {
-    const cx = X(d.support), cy = Y(d.confidence), r = rad(d.lift), t = label(d), w = t.length * 6;
+    const cx = X(d.support), cy = Y(d.confidence), r = rad(d.lift), t = label(d), w = t.length * 7;
     for (const o of [{ x: cx + r + 5, y: cy + 4, a: "start" }, { x: cx - r - 5, y: cy + 4, a: "end" }, { x: cx, y: cy - r - 6, a: "middle" }, { x: cx, y: cy + r + 13, a: "middle" }]) {
-      const x1 = o.a === "start" ? o.x : o.a === "end" ? o.x - w : o.x - w / 2, x2 = x1 + w, y1 = o.y - 10, y2 = o.y + 3;
+      const x1 = o.a === "start" ? o.x : o.a === "end" ? o.x - w : o.x - w / 2, x2 = x1 + w, y1 = o.y - 12, y2 = o.y + 3;
       if (x1 < L || x2 > W - R || y1 < T || y2 > T + ph) continue;
       if (boxes.some((b) => !(x2 < b.x1 || x1 > b.x2 || y2 < b.y1 || y1 > b.y2))) continue;
       boxes.push({ x1, y1, x2, y2 }); labels.push({ d, t, ...o }); break;
@@ -1810,19 +1797,15 @@ function AssocScatter({ rules, height = 440 }: { rules: any[]; height?: number }
     <div style={{ position: "relative" }}>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} onMouseLeave={() => setHover(null)}>
         {zones.map((z, i) => (
-          <g key={i}>
-            <rect x={z.x1} y={z.y1} width={Math.max(0, z.x2 - z.x1)} height={Math.max(0, z.y2 - z.y1)} fill={z.c} opacity={i === 0 ? 0.1 : 0.05} rx={6} />
-            <text x={z.px} y={z.py} textAnchor={z.ax as any} fontSize={12} fontWeight={800} fill={z.c}>{z.t}</text>
-            <text x={z.px} y={z.py + 14} textAnchor={z.ax as any} fontSize={10} fill={MUTED}>{z.s}</text>
-          </g>
+          <rect key={i} x={z.x1} y={z.y1} width={Math.max(0, z.x2 - z.x1)} height={Math.max(0, z.y2 - z.y1)} fill={z.c} opacity={i === 0 ? 0.1 : 0.05} rx={6} />
         ))}
-        {yt.map((v) => (<g key={`y${v}`}><line x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} stroke="rgba(80,100,85,0.12)" /><text x={L - 8} y={Y(v) + 4} textAnchor="end" fontSize={11} fill={MUTED}>{fmt(v)} %</text></g>))}
-        {xt.map((v) => (<g key={`x${v}`}><line x1={X(v)} x2={X(v)} y1={T} y2={T + ph} stroke="rgba(80,100,85,0.08)" /><text x={X(v)} y={T + ph + 18} textAnchor="middle" fontSize={11} fill={MUTED}>{fmt(v, xStep < 1 ? 1 : 0)} %</text></g>))}
+        {yt.map((v) => (<g key={`y${v}`}><line x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} stroke="rgba(80,100,85,0.12)" /><text x={L - 8} y={Y(v) + 4.5} textAnchor="end" fontSize={12.5} fontWeight={600} fill={MUTED}>{fmt(v)} %</text></g>))}
+        {xt.map((v) => (<g key={`x${v}`}><line x1={X(v)} x2={X(v)} y1={T} y2={T + ph} stroke="rgba(80,100,85,0.08)" /><text x={X(v)} y={T + ph + 19} textAnchor="middle" fontSize={12.5} fontWeight={600} fill={MUTED}>{fmt(v, xStep < 1 ? 1 : 0)} %</text></g>))}
         <line x1={X(xs)} x2={X(xs)} y1={T} y2={T + ph} stroke="var(--dk-ink2)" strokeDasharray="4 4" opacity={0.35} />
         <line x1={L} x2={W - R} y1={Y(ys)} y2={Y(ys)} stroke="var(--dk-ink2)" strokeDasharray="4 4" opacity={0.35} />
         <line x1={L} x2={W - R} y1={T + ph} y2={T + ph} stroke="rgba(80,100,85,0.35)" />
-        <text x={L + pw / 2} y={H - 8} textAnchor="middle" fontSize={11.5} fontWeight={700} fill={INK}>{tr("Fréquence : % des tickets qui contiennent la paire →", "Frequency: % of transactions with the pair →")}</text>
-        <text x={14} y={T + ph / 2} textAnchor="middle" fontSize={11.5} fontWeight={700} fill={INK} transform={`rotate(-90 14 ${T + ph / 2})`}>{tr("Probabilité d'achat du 2ᵉ produit →", "Probability of buying the 2nd →")}</text>
+        <text x={L + pw / 2} y={H - 8} textAnchor="middle" fontSize={12.5} fontWeight={700} fill={INK}>{tr("Fréquence : % des tickets qui contiennent la paire →", "Frequency: % of transactions with the pair →")}</text>
+        <text x={16} y={T + ph / 2} textAnchor="middle" fontSize={12.5} fontWeight={700} fill={INK} transform={`rotate(-90 16 ${T + ph / 2})`}>{tr("Probabilité d'achat du 2ᵉ produit →", "Probability of buying the 2nd →")}</text>
         {[...pts].sort((a, b) => a.lift - b.lift).map((d, i) => {
           const on = hover === d;
           return (
@@ -1832,8 +1815,17 @@ function AssocScatter({ rules, height = 440 }: { rules: any[]; height?: number }
           );
         })}
         {labels.map((l, i) => (
-          <text key={i} x={l.x} y={l.y} textAnchor={l.a} fontSize={10.5} fontWeight={700} fill={INK}
+          <text key={i} x={l.x} y={l.y} textAnchor={l.a} fontSize={12} fontWeight={700} fill={INK}
                 style={{ paintOrder: "stroke", stroke: "var(--dk-surface, #fff)", strokeWidth: 3, pointerEvents: "none" }}>{l.t}</text>
+        ))}
+        {/* Noms des zones par-dessus les bulles, avec un halo : toujours lisibles */}
+        {zones.map((z, i) => (
+          <g key={`zt${i}`} style={{ pointerEvents: "none" }}>
+            <text x={z.px} y={z.py} textAnchor={z.ax as any} fontSize={13} fontWeight={800} fill={z.c}
+                  style={{ paintOrder: "stroke", stroke: "var(--dk-surface, #fff)", strokeWidth: 4 }}>{z.t}</text>
+            <text x={z.px} y={z.py + 15} textAnchor={z.ax as any} fontSize={11.5} fill={MUTED}
+                  style={{ paintOrder: "stroke", stroke: "var(--dk-surface, #fff)", strokeWidth: 4 }}>{z.s}</text>
+          </g>
         ))}
       </svg>
       {hover && (
@@ -1972,22 +1964,27 @@ const QUAD_EN_ACTION: Record<string, string> = {
 
 /* Ventes moyennes par jour de la semaine : tous les jours, saison touristique, jours d'événement */
 function DowGroupedBars({ rows }: { rows: any[] }) {
-  const W = 900, H = 260, padL = 44, padR = 10, padT = 16, padB = 46;
-  const series = [
+  // Repère à la taille d'une demi-carte (le texte garde sa taille réelle) ; graduations rondes
+  const W = 560, H = 300, padL = 46, padR = 8, padT = 14, padB = 62;
+  const allSeries = [
     { key: "all", label: tr("Tous les jours", "All days"), color: MUTED },
     { key: "touristic", label: tr("Saison touristique", "Tourist season"), color: ORANGE },
     { key: "event", label: tr("Jours d'événement", "Event days"), color: PEACH },
   ];
-  const max = Math.max(1, ...rows.flatMap((r) => series.map((s) => Number(r[s.key]) || 0))) * 1.1;
+  // Une série sans aucune valeur (ex. pas de saison touristique chez ce client) n'est ni dessinée ni en légende
+  const series = allSeries.filter((s) => rows.some((r) => r[s.key] != null && Number(r[s.key]) > 0));
+  const scale = niceScale(Math.max(1, ...rows.flatMap((r) => series.map((s) => Number(r[s.key]) || 0))) * 1.05, 4);
+  const max = scale.max;
   const gw = (W - padL - padR) / Math.max(rows.length, 1);
-  const bw = (gw * 0.75) / series.length;
+  const bw = (gw * 0.78) / Math.max(series.length, 1);
   const y = (v: number) => padT + (H - padT - padB) * (1 - v / max);
+  const short = (d: string) => trData(d).slice(0, 3) + ".";
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 260 }} preserveAspectRatio="xMidYMid meet">
-      {[0.25, 0.5, 0.75, 1].map((t, i) => (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }} preserveAspectRatio="xMidYMid meet">
+      {scale.ticks.map((v, i) => (
         <g key={i}>
-          <line x1={padL} x2={W - padR} y1={y(t * max)} y2={y(t * max)} stroke="var(--dk-line, #ECEDE7)" />
-          <text x={padL - 6} y={y(t * max) + 3} textAnchor="end" fontSize="10" fill={MUTED} fontWeight="700">{fmt(t * max)}</text>
+          <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke="var(--dk-line, #ECEDE7)" />
+          <text x={padL - 7} y={y(v) + 4.5} textAnchor="end" fontSize="12.5" fill={MUTED} fontWeight="700">{fmtAxisNum(v)}</text>
         </g>
       ))}
       {rows.map((r, i) => (
@@ -1995,21 +1992,21 @@ function DowGroupedBars({ rows }: { rows: any[] }) {
           {series.map((s, j) => {
             const v = r[s.key];
             if (v == null) return null;
-            const x = padL + i * gw + gw * 0.125 + j * bw;
+            const x = padL + i * gw + gw * 0.11 + j * bw;
             return (
               <rect key={j} x={x} y={y(v)} width={bw - 2} height={y(0) - y(v)} rx={2} fill={s.color} fillOpacity={0.9}>
                 <title>{`${trData(r.day)} · ${s.label} : ${fmt(v)} ${tr("articles", "items")}`}</title>
               </rect>
             );
           })}
-          <text x={padL + i * gw + gw / 2} y={H - padB + 16} textAnchor="middle" fontSize="11" fill={INK} fontWeight="700">{trData(r.day)}</text>
+          <text x={padL + i * gw + gw / 2} y={H - padB + 18} textAnchor="middle" fontSize="13" fill={INK} fontWeight="700">{short(r.day)}</text>
         </g>
       ))}
-      <g transform={`translate(${padL}, ${H - 8})`}>
+      <g transform={`translate(${padL}, ${H - 10})`}>
         {series.map((s, j) => (
-          <g key={j} transform={`translate(${j * 170}, 0)`}>
-            <rect x="0" y="-10" width="12" height="12" rx="2" fill={s.color} />
-            <text x="18" y="0" fontSize="11" fill={INK} fontWeight="700">{s.label}</text>
+          <g key={j} transform={`translate(${j * 168}, 0)`}>
+            <rect x="0" y="-11" width="13" height="13" rx="2" fill={s.color} />
+            <text x="19" y="0" fontSize="12.5" fill={INK} fontWeight="700">{s.label}</text>
           </g>
         ))}
       </g>
@@ -2084,7 +2081,7 @@ function ProductSearch({ value, onChange, onSubmit, names, active, onPick }: {
           {sugg.map((n, i) => (
             <div key={n} onMouseDown={(e) => { e.preventDefault(); pick(n); }} onMouseEnter={() => setHi(i)}
                  style={{ padding: "8px 12px", borderRadius: 8, cursor: "pointer", fontSize: ".82rem", color: INK,
-                          background: i === hi ? "var(--dk-soft, #F3F5EF)" : "transparent" }}>
+                          background: i === hi ? "var(--dk-soft, #F4F1FC)" : "transparent" }}>
               {bold(n)}
             </div>
           ))}
@@ -2145,6 +2142,8 @@ export default function ProduitsPage() {
   useEffect(() => {
     fetchDataPeriod().then((p) => setYears((p?.annees || []).slice().sort((a, b) => b - a))).catch(() => setYears([]));
   }, []);
+  // Périodes affichées sous les titres : l'onglet Matrice / Présence suit les boutons d'année, les autres couvrent tout l'historique
+  const scopeAllYears = years.length > 1 ? tr(`${Math.min(...years)} et ${Math.max(...years)}`, `${Math.min(...years)} and ${Math.max(...years)}`) : years.length ? String(years[0]) : tr("toute la période", "whole period");
   const periodLabel = years.length ? (years.length > 1 ? `${Math.min(...years)} – ${Math.max(...years)}` : String(years[0])) : "—";
 
   // ── MATRICE states ──
@@ -2159,7 +2158,10 @@ export default function ProduitsPage() {
   const [penCats, setPenCats] = useState<string[]>([]);
   const [penStatuts, setPenStatuts] = useState<string[]>([]);
   const [penSelected, setPenSelected] = useState<string | null>(null);
-  const [yearPen, setYearPen] = useState<string>("Toutes");
+  // Année : choisie dans la barre du haut (une seule ici : ces analyses portent sur une année entière ou tout l'historique)
+  const [per] = useSelectedPeriod();
+  const yearPen = per.annee === "Toutes" ? "Toutes" : per.annee.split(",").sort().slice(-1)[0];
+  const scopeSelYears = yearPen === "Toutes" ? scopeAllYears : yearPen;
 
   // ── VEL states ──
   const [velData, setVelData] = useState<any>(null);
@@ -2241,10 +2243,10 @@ export default function ProduitsPage() {
   const TABS = [
     { id: "matrix", label: tr("Que faire de chaque produit", "What to do with each product"), sub: tr("matrice de décision", "decision matrix"), Icon: IconScatter, color: ORANGE },
     { id: "pen", label: tr("Présence dans les tickets", "Presence in transactions"), sub: tr("Part des tickets avec le produit", "Share of transactions with the product"), Icon: IconTarget, color: ORANGE },
-    { id: "vel", label: tr("Rythme de vente", "Sales pace"), sub: tr("par jour et par heure (vitesse)", "per day and hour (velocity)"), Icon: IconBolt, color: "var(--dk-accent-deep, #2A7148)" },
+    { id: "vel", label: tr("Rythme de vente", "Sales pace"), sub: tr("par jour et par heure (vitesse)", "per day and hour (velocity)"), Icon: IconBolt, color: "var(--dk-accent-deep, #43309E)" },
     { id: "ticket", label: tr("Poids dans le panier", "Weight in the basket"), sub: tr("Rôle dans les paniers", "Role in baskets"), Icon: IconTicketPerc, color: PEACH },
-    { id: "freq", label: tr("Régularité de vente", "Sales regularity"), sub: tr("Semaines avec vente", "Weeks with sales"), Icon: IconRepeat, color: "var(--dk-accent-deep, #3E8E5E)" },
-    { id: "assoc", label: tr("Achetés ensemble", "Bought together"), sub: tr("associations de produits", "product associations"), Icon: IconLink2, color: "var(--dk-accent-deep, #1F5E3A)" },
+    { id: "freq", label: tr("Régularité de vente", "Sales regularity"), sub: tr("Semaines avec vente", "Weeks with sales"), Icon: IconRepeat, color: "var(--dk-accent-deep, #43309E)" },
+    { id: "assoc", label: tr("Achetés ensemble", "Bought together"), sub: tr("associations de produits", "product associations"), Icon: IconLink2, color: "var(--dk-accent-deep, #43309E)" },
   ] as const;
 
   return (
@@ -2257,99 +2259,30 @@ export default function ProduitsPage() {
                      letterSpacing:"-0.03em", lineHeight:1.1, margin:0 }}>
           {tr("Analyse ", "Product ")}<span style={{ color: ORANGE }}>{tr("Produits", "Analysis")}</span>
         </h1>
-        <p style={{ color:MUTED, fontSize:"0.82rem", marginTop:"6px",
-                    maxWidth:"640px", lineHeight:1.5 }}>
+        <p className="page-lead">
+          <span className="page-lead-ic" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.3-2.4 3.6M12 17h.01" /></svg></span>
+          <span>
           {tr("Quels produits comptent, lesquels font venir les clients, lesquels se vendent ensemble, et lesquels revoir.", "Which products matter, which bring customers in, which sell together, and which to review.")}
+          </span>
         </p>
       </div>
 
-      {/* ── L'HISTOIRE EN BREF (tous les produits, toute la période) ── */}
-      {(() => {
-        if (!allItems.length) return null;
-        const caTot = allItems.reduce((a, i) => a + (i.ca_total || 0), 0) || 1;
-        const stars = allItems.filter((i) => i.quadrant === "Star").sort((a, b) => b.ca_total - a.ca_total);
-        const starShare = stars.reduce((a, i) => a + i.ca_total, 0) / caTot * 100;
-        const present = [...allItems].sort((a, b) => b.penetration_rate - a.penetration_rate)[0];
-        const dormant = allItems.filter((i) => i.dormant_strict);
-        const dorm = dormant.length ? dormant : allItems.filter((i) => i.quadrant === "Dormant");
-        const dormShare = dorm.reduce((a, i) => a + i.ca_total, 0) / caTot * 100;
-        const names = (arr: any[], n: number) => arr.slice(0, n).map((i) => i.article).join(", ");
-        const restock = stars.filter((i) => i.alerte_horaire);
-        const pair = storyPair;
-        const points = [
-          stars.length ? { icon: StoryIcons.star, label: tr("Les incontournables", "The must-haves"),
-            text: tr(`${names(stars, 3)}${stars.length > 3 ? ` et ${stars.length - 3} autres` : ""} : présents dans beaucoup de tickets et vendus en quantité.`,
-                     `${names(stars, 3)}${stars.length > 3 ? ` and ${stars.length - 3} more` : ""}: in many transactions and sold in volume.`) } : null,
-          present ? { icon: StoryIcons.basket, label: tr("Le plus acheté", "Most bought"),
-            text: tr(`${present.article} est dans ${fmt(present.penetration_rate)} % des tickets : c'est le produit qui fait venir les clients.`,
-                     `${present.article} is in ${fmt(present.penetration_rate)}% of transactions: it is what brings customers in.`) } : null,
-          pair ? { icon: StoryIcons.link, label: tr("Achetés ensemble", "Bought together"),
-            text: tr(`Quand un client prend ${pair.antecedent}, il prend aussi ${pair.consequent} ${fmt(pair.confidence / 10, 0)} fois sur 10.`,
-                     `When a customer takes ${pair.antecedent}, they also take ${pair.consequent} ${fmt(pair.confidence / 10, 0)} times out of 10.`) } : null,
-          dorm.length ? { icon: StoryIcons.down, label: tr("À revoir", "To review"),
-            text: tr(`${dorm.length} produits se vendent peu et rarement (${fmt(dormShare, 1)} % du chiffre), par exemple ${names([...dorm].sort((a, b) => a.ca_total - b.ca_total), 2)}.`,
-                     `${dorm.length} products sell little and rarely (${fmt(dormShare, 1)}% of revenue), e.g. ${names([...dorm].sort((a, b) => a.ca_total - b.ca_total), 2)}.`) } : null,
-        ].filter(Boolean) as any[];
-        const headline = stars.length
-          ? tr(`${stars.length} produits font ${fmt(starShare)} % du chiffre d'affaires : ce sont eux qu'il ne faut jamais manquer.`,
-               `${stars.length} products make ${fmt(starShare)}% of revenue: these must never run out.`)
-          : tr(`${allItems.length} produits vendus sur la période.`, `${allItems.length} products sold over the period.`);
-        const todoParts = [
-          stars.length ? tr(`garder ${names(stars, 2)} toujours en rayon${restock[0] ? ` (remplir ${restock[0].article} ${String(restock[0].alerte_horaire).replace("Remplir ", "").toLowerCase()})` : ""}`,
-                            `keep ${names(stars, 2)} always on the shelf${restock[0] ? ` (restock ${restock[0].article} ${String(restock[0].alerte_horaire).replace("Remplir avant", "before")})` : ""}`) : "",
-          pair ? tr(`placer ${pair.consequent} à côté de ${pair.antecedent}`, `place ${pair.consequent} next to ${pair.antecedent}`) : "",
-          dorm.length ? tr(`réduire ou arrêter les produits à revoir`, `reduce or drop the products to review`) : "",
-        ].filter(Boolean);
-        const todo = todoParts.length ? todoParts.join(" ; ").replace(/^./, (c) => c.toUpperCase()) + "." : undefined;
-        return <PageStory headline={headline} points={points} todo={todo}
-          links={[{ href: "/alertes", label: tr("Que préparer demain ?", "What to prepare tomorrow?") }, { href: "/performance", label: tr("Voir la performance", "See performance") }]} />;
-      })()}
 
       {/* ── MINI KPIs + FILTRE ANNEE ── */}
-      <div style={{ margin: "0 28px 12px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14,
-                      padding:"14px 18px", borderRadius:"14px",
-                      background:"var(--dk-surface, #fff)",
-                      border:"1px solid var(--dk-line, rgba(120,140,120,0.18))",
-                      boxShadow:"0 2px 12px rgba(0,0,0,0.06)" }}>
-          <div>
-            <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>
-              {tr("Références", "Products")}
-            </div>
-            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: INK }}>
-              {tab === "matrix" && matrixData?.items ? fmt(matrixData.items.length) : tab === "pen" && penData ? fmt(penData.kpis?.total_articles) : tab === "freq" && freqData ? fmt(freqData.nb_produits) : "—"}
-            </div>
+      {/* Indicateurs de l'onglet (même style compact que les autres pages) + période en boutons */}
+      <div className="sw">
+        {/* Barre de période (les chiffres clés sont dans le bandeau et dans chaque onglet) */}
+        <div className="cc" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "12px 18px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: ".75rem", fontWeight: 700, color: INK, textTransform: "uppercase", letterSpacing: ".05em" }}>
+            <IconCalendarDays size={16} color={ORANGE} />
+            {tr("Période analysée", "Period analysed")}
           </div>
-          <div>
-            <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>
-              {tab === "assoc" ? tr("Associations", "Associations") : tab === "vel" ? tr("Articles / jour (moy.)", "Items / day (avg.)") : tab === "ticket" ? tr("Tickets à plusieurs produits", "Multi-product transactions") : tab === "pen" ? tr("Présence max", "Max presence") : tab === "matrix" ? tr("Incontournables (Stars)", "Must-haves (Stars)") : tr("Vendus chaque semaine", "Sold every week")}
-            </div>
-            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: ORANGE }}>
-              {tab === "assoc" && assocData ? fmt(assocData.nb_total_regles) :
-                tab === "ticket" && ticketData ? `${ticketData.stats?.pct_multi?.toFixed(0) || 0}%` :
-                tab === "pen" && penData ? `${Number(penData.kpis?.pen_max || 0).toFixed(0)}%` :
-                tab === "vel" && velData?.dow_velocity?.length ? `${fmt(velData.dow_velocity.reduce((s: number, d: any) => s + (d.all || 0), 0) / velData.dow_velocity.length, 0)}${tr("/j", "/d")}` :
-                tab === "matrix" && matrixData?.quadrants?.Star ? fmt(matrixData.quadrants.Star.nb || 0) :
-                tab === "freq" && freqData ? fmt(freqData.nb_quotidiens || 0) : "—"}
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>
-              {tr("Période", "Period")}
-            </div>
-            {tab === "matrix" || tab === "pen" ? (
-              <select
-                value={yearPen}
-                onChange={(e) => setYearPen(e.target.value)}
-                style={{ fontSize: ".85rem", fontWeight: 800, padding: "5px 10px", borderRadius: 8, border: "1px solid var(--dk-line, #E3E4DD)", background: "var(--dk-surface, #FAFAF7)", color: INK }}
-              >
-                <option value="Toutes">{periodLabel}</option>
-                {years.length > 1 && years.map((y) => <option key={y} value={String(y)}>{y}</option>)}
-              </select>
-            ) : (
-              <div style={{ fontSize: "1rem", fontWeight: 800, color: INK, padding: "6px 0" }}>{periodLabel}</div>
-            )}
-          </div>
+          <span className="scope-chip strong">{tab === "matrix" || tab === "pen" ? (yearPen === "Toutes" ? periodLabel : yearPen) : periodLabel}</span>
+          <span style={{ fontSize: ".7rem", color: MUTED }}>
+            {tab === "matrix" || tab === "pen"
+              ? tr("Changez l'année en haut à droite (« Période ») : les chiffres de cet onglet se mettent à jour.", "Change the year top right (\"Period\"): this tab's figures update.")
+              : tr("Cet onglet couvre toute la période des données.", "This tab covers the whole data period.")}
+          </span>
         </div>
       </div>
 
@@ -2370,17 +2303,17 @@ export default function ProduitsPage() {
                   style={{
                     width: 32, height: 32, borderRadius: 9,
                     display: "flex", alignItems: "center", justifyContent: "center",
-                    background: active ? `color-mix(in srgb, ${t.color} 8%, transparent)` : "var(--dk-page, #F1F1EC)",
+                    background: active ? "rgba(255,255,255,.2)" : "var(--dk-page, #F1EEF9)",
                     flexShrink: 0,
                   }}
                 >
-                  <Icon size={16} color={active ? t.color : MUTED} />
+                  <Icon size={16} color={active ? "#fff" : MUTED} />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
-                  <span style={{ fontSize: ".82rem", fontWeight: 800, color: active ? INK : "var(--dk-ink2, #4A524C)", lineHeight: 1.2, overflowWrap: "anywhere" }}>
+                  <span style={{ fontSize: ".82rem", fontWeight: 800, color: active ? "#fff" : "var(--dk-ink2, #3A3655)", lineHeight: 1.2, overflowWrap: "anywhere" }}>
                     {t.label}
                   </span>
-                  <span style={{ fontSize: ".64rem", color: MUTED, lineHeight: 1.3, marginTop: 2 }}>{t.sub}</span>
+                  <span style={{ fontSize: ".64rem", color: active ? "rgba(255,255,255,.8)" : MUTED, lineHeight: 1.3, marginTop: 2 }}>{t.sub}</span>
                 </div>
               </button>
             );
@@ -2431,7 +2364,7 @@ export default function ProduitsPage() {
         return (
           <>
             <div className="sw">
-              <div className="grid-main">
+              <div>
                 <div className="cc hero-card">
                   <ChartAssistantButton chartType="product_decision_matrix" chartData={{
                     nb_produits: (matrixData.items || []).length,
@@ -2444,7 +2377,8 @@ export default function ProduitsPage() {
                     userQuestion="Explique cette matrice de décision des produits" position="top-right" onOpenChat={openChat} />
                   <CardHeader
                     title={tr("Matrice de décision", "Decision matrix")}
-                    sub={tr("Chaque produit est classé selon sa présence dans les tickets (horizontal) et ce qu'il vend par jour de vente (vertical). Cliquez sur une case pour filtrer la fiche, ou sur une bulle pour ouvrir la fiche du produit.", "Each product is placed by its presence in transactions (horizontal) and what it sells per selling day (vertical). Click a box to filter the sheet, or a bubble to open the product sheet.")}
+                    scope={{ period: scopeSelYears, calc: tr("Produits classés selon la moyenne de la boutique ; CA = total de la période", "Products sorted vs the shop average; revenue = period total"), unit: tr("produits · €", "products · €") }}
+                    sub={tr("Les produits répartis en 4 groupes selon leur présence dans les tickets et ce qu'ils vendent par jour, avec l'action pour chaque groupe.", "Products split into 4 groups by presence in transactions and daily sales, with the action for each group.")}
                     icon={<IconGrid size={16} color={ORANGE} />}
                   />
                   <MatrixGrid
@@ -2456,47 +2390,6 @@ export default function ProduitsPage() {
                     colors={{ Star: Q1, Niche: Q2, Trafic: Q3, Dormant: Q4 }}
                     labelsEn={QUAD_EN}
                   />
-                  <Takeaway>
-                    {tr(
-                      `${fmt(q.Star?.nb || 0)} produits Stars réalisent ${fmt(q.Star?.part_ca || 0, 0)} % du chiffre d'affaires : ce sont eux qu'il ne faut jamais manquer. Frontières : présence moyenne ${fmt(seuils.penetration_moyenne || 0, 1)} % des tickets, ${fmt(seuils.vitesse_moyenne || 0, 1)} articles par jour de vente.`,
-                      `${fmt(q.Star?.nb || 0)} Star products make ${fmt(q.Star?.part_ca || 0, 0)}% of revenue: these must never run out. Boundaries: average presence ${fmt(seuils.penetration_moyenne || 0, 1)}% of transactions, ${fmt(seuils.vitesse_moyenne || 0, 1)} items per selling day.`
-                    )}
-                  </Takeaway>
-                </div>
-                <div className="side-col">
-                  {/* Les Stars et leur action : ce qu'il ne faut jamais manquer */}
-                  <div className="cc">
-                    <ChartAssistantButton chartType="matrix_stars" chartData={{ stars: stars.slice(0, 20) }} chartName="MatrixStars"
-                      userQuestion="Explique la liste des produits Stars" position="top-right" onOpenChat={openChat} />
-                    <div className="ct" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ width: 26, height: 26, borderRadius: "50%", background: Q1, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><IconStar size={14} color="#fff" /></span>
-                      {tr("Les Stars à ne jamais manquer", "Stars never to run out of")}
-                    </div>
-                    <div className="cs">{tr("Classées par chiffre d'affaires · cliquez pour la fiche", "Ranked by revenue · click for the sheet")}</div>
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      {[...stars].sort((a: any, b: any) => b.ca_total - a.ca_total).slice(0, 7).map((st: any, i: number) => (
-                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid var(--dk-line)" }}>
-                          <span className="num" style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--dk-soft)", color: MUTED, fontSize: ".68rem", fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{i + 1}</span>
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            <div style={{ fontSize: ".82rem", fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><ProdName name={st.article} /></div>
-                            <div style={{ fontSize: ".7rem", color: MUTED }}>
-                              {fmt(st.penetration_rate, 1)} % {tr("des tickets", "of transactions")} · {fmt(st.ca_total)} €
-                            </div>
-                          </div>
-                          {st.alerte_horaire && (
-                            <span title={tr(st.alerte_horaire, String(st.alerte_horaire).replace("Remplir avant", "Restock before"))} style={{ fontSize: ".66rem", fontWeight: 800, color: ALERT, background: "color-mix(in srgb, var(--dk-alert) 10%, transparent)", padding: "3px 8px", borderRadius: 99, whiteSpace: "nowrap" }}>
-                              ⏰ {String(st.alerte_horaire).replace(/[^0-9:h]/g, "")}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                      {stars.length === 0 && <div className="cs">{tr("Aucun produit Star.", "No Star product.")}</div>}
-                    </div>
-                    <div style={{ fontSize: ".76rem", color: "var(--dk-ink2)", marginTop: 10, lineHeight: 1.45 }}>
-                      <b>{tr("Action : ", "Action: ")}</b>{tr("zéro rupture ; remplir le rayon avant l'heure indiquée par ⏰.", "no stock-outs; restock before the hour shown by ⏰.")}
-                    </div>
-                  </div>
-                  <RetainCard max={3} />
                 </div>
               </div>
             </div>
@@ -2536,7 +2429,7 @@ export default function ProduitsPage() {
                     </thead>
                     <tbody>
                       {rows.map((r: any, i: number) => (
-                        <tr key={i} style={{ borderBottom: "1px solid var(--dk-surface, #FCFCFA)" }}>
+                        <tr key={i} style={{ borderBottom: "1px solid var(--dk-surface, #FFFFFF)" }}>
                           <td style={{ padding: "7px 6px", fontWeight: 700, color: INK }}><ProdName name={r.article} /></td>
                           <td style={{ padding: "7px 6px", color: MUTED }}>{trData(r.category)}</td>
                           <td style={{ padding: "7px 6px", textAlign: "right", color: INK }}>{fmt(r.penetration_rate, 1)} %</td>
@@ -2547,7 +2440,7 @@ export default function ProduitsPage() {
                               {tr(r.categorie_strategique, QUAD_EN[r.quadrant]?.label || r.categorie_strategique)}
                             </span>
                           </td>
-                          <td style={{ padding: "7px 6px", color: "var(--dk-ink2, #4A524C)" }}>
+                          <td style={{ padding: "7px 6px", color: "var(--dk-ink2, #3A3655)" }}>
                             {tr(r.action, QUAD_EN[r.quadrant]?.action || r.action)}
                             {r.alerte_horaire && (
                               <span style={{ marginLeft: 6, fontWeight: 800, color: ALERT }}>· {tr(r.alerte_horaire, r.alerte_horaire.replace("Remplir avant", "Restock before"))}</span>
@@ -2590,7 +2483,7 @@ export default function ProduitsPage() {
         <>
           {/* Filters bar */}
           <div className="cc" style={{ margin: "0 28px 14px", padding: "16px 20px", borderRadius:"14px",
-          background: "var(--dk-soft, #F5F6F1)",
+          background: "var(--dk-soft, #F4F1FC)",
           border:"1px solid var(--dk-line, rgba(140,160,140,.25))",
           boxShadow:"0 4px 16px rgba(0,0,0,0.15)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -2645,128 +2538,78 @@ export default function ProduitsPage() {
             </div>
           )}
           {(penData.items || []).length > 0 && (<>
-          {/* KPIs 4-up */}
-          <div className="sw">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 14 }}>
-              <div className="cc">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, ${ORANGE} 8%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <IconBox size={15} color={ORANGE} />
-                  </div>
-                  <div style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>{tr("Total Références", "Total Products")}</div>
-                </div>
-                <div style={{ fontSize: "1.75rem", fontWeight: 800, color: INK, lineHeight: 1, marginTop: 10 }}>{fmt(penData.kpis?.total_articles)}</div>
-                <div className="cs" style={{ marginTop: 4 }}>{(penCats.length || penStatuts.length || searchPen) ? tr("Correspondant aux filtres", "Matching the filters") : tr(`Vendues sur ${yearPen === "Toutes" ? periodLabel : yearPen}`, `Sold in ${yearPen === "Toutes" ? periodLabel : yearPen}`)}</div>
-              </div>
-              <div className="cc">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, ${OK} 8%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <IconTrendUp size={15} color={OK} />
-                  </div>
-                  <div style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>{tr("Produit le plus présent", "Most present product")}</div>
-                </div>
-                <div style={{ fontSize: "1.75rem", fontWeight: 800, color: OK, lineHeight: 1, marginTop: 10 }}>{Number(penData.kpis?.pen_max || 0).toFixed(0)}%</div>
-                <div className="cs" style={{ marginTop: 4 }}>{tr(`${(penData.items || [])[0]?.article || ""} : part des tickets qui le contiennent`, `${(penData.items || [])[0]?.article || ""}: share of transactions that include it`)}</div>
-              </div>
-              <div className="cc">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, ${PEACH} 13%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <IconScale size={15} color={ORANGE} />
-                  </div>
-                  <div style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>{tr("Présence médiane", "Median presence")}</div>
-                </div>
-                <div style={{ fontSize: "1.75rem", fontWeight: 800, color: ORANGE, lineHeight: 1, marginTop: 10 }}>{Number(penData.kpis?.pen_median || 0).toFixed(1)}%</div>
-                <div className="cs" style={{ marginTop: 4 }}>{tr("La moitié des produits sont dans moins de tickets", "Half of the products appear in fewer transactions")}</div>
-              </div>
-              <div className="cc">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, ${WARN} 8%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <IconTrophy size={15} color={WARN} />
-                  </div>
-                  <div style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>{tr("Leaders et produits cœur", "Leaders and core products")}</div>
-                </div>
-                <div style={{ fontSize: "1.75rem", fontWeight: 800, color: WARN, lineHeight: 1, marginTop: 10 }}>
-                  {fmt((penData.kpis?.status_counts?.["Leader (Indispensable)"] || 0) + (penData.kpis?.status_counts?.["Produit Cœur (Core)"] || 0))}
-                </div>
-                <div className="cs" style={{ marginTop: 4 }}>{tr("Présents dans au moins 30 % des tickets", "In at least 30% of transactions")}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Row 1: Ranked bar + Scatter Pen × CA */}
-          <div className="sec-title">
-            <IconBar size={14} color={ORANGE} /> {tr("Présence et chiffre d'affaires", "Presence and revenue")}
-          </div>
-          <div className="sw">
-            <div className="grid-main">
-              <div className="cc hero-card">
-                <ChartAssistantButton chartType="penetration_scatter_ca" chartData={{ items: penData.items?.slice(0, 120) || [], filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationScatterCA"
-                  userQuestion="Explique ce graphique de présence × chiffre d'affaires" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Présence × Chiffre d'affaires : où investir ?", "Presence × Revenue: where to invest?")}
-                  sub={tr("Chaque point est un produit. À droite : présent dans beaucoup de tickets ; en haut : rapporte beaucoup. Survolez un point pour ses chiffres.", "Each dot is a product. Right: in many transactions; top: high revenue. Hover a dot for its figures.")}
-                  icon={<IconTarget size={16} color={ORANGE} />}
-                />
-<PresenceCaChart items={penData.items || []} height={500} />
-                {(() => {
-                  const it = penData.items || [];
-                  if (!it.length) return null;
-                  const topCa = [...it].sort((a: any, b: any) => b.ca_total - a.ca_total)[0];
-                  const topPen = it[0];
-                  const tot = it.reduce((a: number, x: any) => a + (x.ca_total || 0), 0) || 1;
-                  const med = [...it].map((x: any) => x.penetration_rate).sort((a: number, b: number) => a - b)[Math.floor(it.length / 2)];
-                  const caCut = [...it].map((x: any) => x.ca_total).sort((a: number, b: number) => b - a)[Math.max(0, Math.floor(it.length * 0.2) - 1)];
-                  const occ = it.filter((x: any) => x.penetration_rate < med && x.ca_total >= caCut).slice(0, 2).map((x: any) => x.article);
-                  const part = fmt((topCa.ca_total / tot) * 100, 0);
-                  const fr = topCa.article === topPen.article
-                    ? `${topCa.article} est à la fois le plus présent et celui qui rapporte le plus (${part} % du chiffre d'affaires affiché).`
-                    : `Le plus présent est ${topPen.article} (${fmt(topPen.penetration_rate, 1)} % des tickets) ; celui qui rapporte le plus est ${topCa.article} (${part} % du chiffre d'affaires affiché).`;
-                  const en = topCa.article === topPen.article
-                    ? `${topCa.article} is both the most present product and the top earner (${part}% of the revenue shown).`
-                    : `The most present is ${topPen.article} (${fmt(topPen.penetration_rate, 1)}% of transactions); the top earner is ${topCa.article} (${part}% of the revenue shown).`;
-                  return (
+          {/* Présence : une seule liste claire « combien de clients prennent ce produit ? »
+              (les 4 tuiles et le nuage de points présence × CA ont été retirés : trop lourds, et la matrice le montre déjà). */}
+          {(() => {
+            const it: any[] = penData.items || [];
+            const med = Number(penData.kpis?.pen_median || 0);
+            const over5 = it.filter((x: any) => Number(x.penetration_rate) >= 5).length;
+            return (
+              <div className="sw">
+                <div className="cc">
+                  <ChartAssistantButton chartType="penetration_ranking" chartData={{ items: it.slice(0, 30), filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationRanking"
+                    userQuestion="Explique quels produits les clients prennent le plus souvent" position="top-right" onOpenChat={openChat} />
+                  <CardHeader
+                    title={tr("Combien de clients prennent chaque produit ?", "How many customers take each product?")}
+                    scope={{ period: scopeSelYears, calc: tr("Sur tous les tickets : combien de clients prennent le produit", "Across all transactions: how many customers take the product"), unit: tr("clients", "customers") }}
+                    sub={(it.length > 1 && it[0].penetration_rate >= 2 * it[1].penetration_rate)
+                      ? tr(`Un seul produit attire vraiment les clients ; ensuite, chaque produit n'est pris que par une petite partie d'entre eux (la moitié des produits : moins de ${fmt(med, 1)} % des tickets).`,
+                           `One product really draws customers; after it, each product is taken by only a small share of them (half of the products: under ${fmt(med, 1)}% of transactions).`)
+                      : tr(`Les produits que le plus de clients prennent ; la moitié des produits sont dans moins de ${fmt(med, 1)} % des tickets.`,
+                           `The products most customers take; half of the products are in under ${fmt(med, 1)}% of transactions.`)}
+                    icon={<IconTarget size={16} color={ORANGE} />}
+                  />
+                  {/* Compact : les 6 produits qui attirent le plus de clients, en pastilles « 1 sur N » sur une ligne.
+                      La liste complète reste repliée sous « Voir le détail ». */}
+                  {(() => {
+                    const oneIn = (p: number) => fmt(Math.max(1, Math.round(100 / Math.max(p, 0.01))));
+                    return (
+                      <>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                          {it.slice(0, 5).map((r: any, i: number) => (
+                            <button key={r.article} type="button" onClick={() => openProduct(r.article)}
+                              title={tr(`${fmt(r.penetration_rate, 1)} % des tickets · ${fmt(r.ca_total)} € de CA`, `${fmt(r.penetration_rate, 1)}% of transactions · €${fmt(r.ca_total)} revenue`)}
+                              style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", borderRadius: 99, padding: "5px 6px 5px 12px",
+                                border: "1px solid var(--dk-line)", background: "var(--dk-surface)", fontSize: ".78rem", fontWeight: 700, color: INK }}>
+                              {trData(r.article)}
+                              <span className="num" style={{ fontSize: ".72rem", fontWeight: 800, borderRadius: 99, padding: "2px 8px",
+                                background: i === 0 ? "var(--dk-accent)" : "var(--dk-soft)", color: i === 0 ? "#fff" : "var(--dk-ink2)" }}>
+                                {tr(`1 sur ${oneIn(Number(r.penetration_rate) || 0)}`, `1 in ${oneIn(Number(r.penetration_rate) || 0)}`)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                        <Details label={tr(`Voir le détail : les ${fmt(Math.min(it.length, 30))} produits les plus pris`, `See details: the ${fmt(Math.min(it.length, 30))} most taken products`)}>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", columnGap: 24 }}>
+                            {it.slice(0, 30).map((r: any, i: number) => (
+                              <div key={r.article} onClick={() => openProduct(r.article)}
+                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: "1px solid var(--dk-line)", cursor: "pointer", fontSize: ".78rem" }}>
+                                <span className="num" style={{ width: 20, color: MUTED, fontWeight: 700 }}>{i + 1}</span>
+                                <span style={{ flex: 1, minWidth: 0, fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{trData(r.article)}</span>
+                                <span className="num" style={{ color: "var(--dk-ink2)", whiteSpace: "nowrap" }}>{tr(`1 sur ${oneIn(Number(r.penetration_rate) || 0)}`, `1 in ${oneIn(Number(r.penetration_rate) || 0)}`)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </Details>
+                      </>
+                    );
+                  })()}
+                  {it.length > 1 && (
                     <Takeaway>
                       {tr(
-                        fr + (occ.length ? ` ${occ.join(" et ")} : peu de tickets mais un chiffre d'affaires élevé, ce sont des achats d'occasion ou à prix élevé.` : ""),
-                        en + (occ.length ? ` ${occ.join(" and ")}: few transactions but high revenue — occasional or high-price purchases.` : "")
+                        `${it[0].article} est dans ${fmt(it[0].penetration_rate, 1)} % des tickets (environ 1 client sur ${fmt(100 / Math.max(it[0].penetration_rate, 0.01), 0)}), ${it[0].penetration_rate >= 2 * it[1].penetration_rate ? "loin devant" : "devant"} ${it[1].article} (${fmt(it[1].penetration_rate, 1)} %).${it[0].penetration_rate >= 30 ? " Une rupture sur ce produit toucherait une grande partie des clients." : ""}`,
+                        `${it[0].article} is in ${fmt(it[0].penetration_rate, 1)}% of transactions (about 1 customer in ${fmt(100 / Math.max(it[0].penetration_rate, 0.01), 0)}), ${it[0].penetration_rate >= 2 * it[1].penetration_rate ? "far ahead of" : "ahead of"} ${it[1].article} (${fmt(it[1].penetration_rate, 1)}%).${it[0].penetration_rate >= 30 ? " A stock-out on it would affect a large share of customers." : ""}`
                       )}
                     </Takeaway>
-                  );
-                })()}
+                  )}
+                  <ExpertNote>
+                    Taux de pénétration (penetration_rate) = tickets contenant le produit / tickets uniques × 100, ticket = (date_id, ticket_number), dédoublonnage intra-ticket. Statuts (config.py, cahier) : ≥ 50 % Leader, ≥ 30 % Cœur, ≥ 10 % Régulier, sinon Niche. indice_categorie = taux / moyenne des taux de la catégorie (normalisation par catégorie, §7). API : /api/products/penetration.
+                  </ExpertNote>
+                </div>
               </div>
-              <div className="side-col">
-              <div className="cc">
-                <ChartAssistantButton chartType="penetration_ranking" chartData={{ items: penData.items, filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationRanking"
-                  userQuestion="Explique le classement selon le taux de pénétration" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Produits les plus présents dans les tickets", "Products most present in transactions")}
-                  sub={tr("Les 8 références les plus présentes · cliquez pour la fiche", "The 8 most present products · click for the sheet")}
-                  icon={<IconTarget size={16} color={ORANGE} />}
-                />
-                <RankedRows
-                  rows={penData.items || []}
-                  valueKey="penetration_rate"
-                  subKey="category"
-                  colorKey={(r, i) => pctColor(Number(r.penetration_rate) || 0)}
-                  maxShow={8}
-                  unit="%"
-                />
-                {(penData.items || []).length > 1 && (
-                  <Takeaway>
-                    {tr(
-                      `${(penData.items || [])[0].article} est dans ${fmt((penData.items || [])[0].penetration_rate, 1)} % des tickets (environ 1 client sur ${fmt(100 / Math.max((penData.items || [])[0].penetration_rate, 0.01), 0)}), ${(penData.items || [])[0].penetration_rate >= 2 * (penData.items || [])[1].penetration_rate ? "loin devant" : "devant"} ${(penData.items || [])[1].article} (${fmt((penData.items || [])[1].penetration_rate, 1)} %).${(penData.items || [])[0].penetration_rate >= 30 ? " Une rupture sur ce produit toucherait une grande partie des clients." : ""}`,
-                      `${(penData.items || [])[0].article} is in ${fmt((penData.items || [])[0].penetration_rate, 1)}% of transactions (about 1 customer in ${fmt(100 / Math.max((penData.items || [])[0].penetration_rate, 0.01), 0)}), ${(penData.items || [])[0].penetration_rate >= 2 * (penData.items || [])[1].penetration_rate ? "far ahead of" : "ahead of"} ${(penData.items || [])[1].article} (${fmt((penData.items || [])[1].penetration_rate, 1)}%).${(penData.items || [])[0].penetration_rate >= 30 ? " A stock-out on it would affect a large share of customers." : ""}`
-                    )}
-                  </Takeaway>
-                )}
-                <ExpertNote>
-                  Taux de pénétration (penetration_rate) = tickets contenant le produit / tickets uniques × 100, ticket = (date_id, ticket_number), dédoublonnage intra-ticket. Statuts (config.py, cahier) : ≥ 50 % Leader, ≥ 30 % Cœur, ≥ 10 % Régulier, sinon Niche. indice_categorie = taux / moyenne des taux de la catégorie (normalisation par catégorie, §7). API : /api/products/penetration.
-                </ExpertNote>
-              </div>
-                <RetainCard max={3} />
-              </div>
-            </div>
-          </div>
+            );
+          })()}
+          <div className="sw"><RetainCard max={4} style={{ marginBottom: 16 }} /></div>
 
           {/* Row 2: Répartition statuts + Évolution hebdomadaire (équilibré) — Cachés si recherche/catégorie trop restrictive */}
           {(() => {
@@ -2779,10 +2622,8 @@ export default function ProduitsPage() {
               <>
                 {showGlobalStats && (
                   <>
-                    <div className="sec-title">
-                      <IconDonutPie size={14} color={ORANGE} /> {tr("Comment la présence évolue dans le temps", "How presence changes over time")}
-                    </div>
                     <div className="sw">
+                      <Details label={tr("Voir le détail : comment la présence évolue dans le temps", "See details: how presence changes over time")}>
                       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 0.55fr) minmax(0, 1.45fr)", gap: 12, marginBottom: 14 }}>
                         {!isSearchActive && penStatuts.length === 0 && (
                           <div className="cc">
@@ -2842,6 +2683,7 @@ export default function ProduitsPage() {
                           })()}
                         </div>
                       </div>
+                      </Details>
                     </div>
                   </>
                 )}
@@ -2942,7 +2784,7 @@ export default function ProduitsPage() {
                   ))}
                 </div>
                 {penSelected && (
-                  <div style={{ padding: 14, borderRadius: 12, background: "var(--dk-soft, #F7F8F4)" }}>
+                  <div style={{ padding: 14, borderRadius: 12, background: "var(--dk-soft, #F4F1FC)" }}>
                     {(() => {
                       const trend = (penData.weekly_trend || []).find((w: any) => w.article === penSelected);
                       const p = (penData.items || []).find((x: any) => x.article === penSelected);
@@ -2996,7 +2838,7 @@ export default function ProduitsPage() {
                         </div>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: ".78rem", fontWeight: 800, color: INK, marginBottom: 2 }}>{r.title}</div>
-                          <div style={{ fontSize: ".68rem", color: "var(--dk-ink2, #4A524C)", lineHeight: 1.35 }}>{r.desc}</div>
+                          <div style={{ fontSize: ".68rem", color: "var(--dk-ink2, #3A3655)", lineHeight: 1.35 }}>{r.desc}</div>
                         </div>
                       </div>
                     );
@@ -3025,7 +2867,7 @@ export default function ProduitsPage() {
                   userQuestion="Explique la vitesse de vente par jour de la semaine" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Articles vendus selon le jour de la semaine", "Items sold by day of the week")}
-                  sub={tr("Moyenne par jour d'ouverture", "Average per opening day")}
+                  scope={{ period: scopeAllYears, calc: tr("Moyenne d'un jour ouvert (ex. : un lundi habituel), tous produits", "Average of one open day (e.g. a typical Monday), all products"), unit: tr("articles par jour", "items per day") }}
                   icon={<IconCalendarDays size={16} color={ORANGE} />}
                 />
                 <DowGroupedBars rows={velData.dow_velocity || []} />
@@ -3053,7 +2895,7 @@ export default function ProduitsPage() {
                   userQuestion="Explique la distribution horaire de la vitesse" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Articles vendus à chaque heure", "Items sold at each hour")}
-                  sub={tr(`Total sur ${periodLabel}, toutes les journées`, `Total over ${periodLabel}, all days`)}
+                  scope={{ period: scopeAllYears, calc: tr("Total de chaque heure sur la période (pas une moyenne)", "Total of each hour over the period (not an average)"), unit: tr("articles", "items") }}
                   icon={<IconBar size={16} color={ORANGE} />}
                 />
                 <SimpleBar rows={velData.hourly_distribution || []} labelKey="heure_label" valueKey="global_qte_per_hour" unit={tr("u.", "u.")} color={PEACH} height={200} />
@@ -3071,10 +2913,8 @@ export default function ProduitsPage() {
             </div>
           </div>
 
-          <div className="sec-title">
-            <IconAlert size={14} color={ORANGE} /> {tr("Remplissage des rayons", "Shelf restocking")}
-          </div>
           <div className="sw">
+            <Details label={tr("Voir le détail : remplissage des rayons", "See details: shelf restocking")}>
             <div className="grid-main">
               <div className="cc">
                 <ChartAssistantButton chartType="velocity_hourly_concentration" chartData={{ macro_items: velItems, seuil_pic_horaire_pct: velData.seuil_pic_horaire_pct }} chartName="VelocityHourlyConcentration"
@@ -3118,6 +2958,7 @@ export default function ProduitsPage() {
                   userQuestion="Explique le tableau de surveillance horaire" position="top-right" onOpenChat={openChat} />
                 <CardHeader
                   title={tr("Vitesse et heure de pointe par produit", "Velocity and peak hour by product")}
+                  scope={{ period: scopeAllYears, calc: tr("Vitesse = moyenne par jour où le produit a été vendu", "Velocity = average per day the product sold"), unit: tr("articles par jour", "items per day") }}
                   sub={tr("Les 12 produits les plus vendus par jour", "The 12 best-selling products per day")}
                   icon={<IconScale size={16} color={ORANGE} />}
                 />
@@ -3137,7 +2978,7 @@ export default function ProduitsPage() {
                       {velItems.slice(0, 12).map((p: any, i: number) => {
                         const alerte = !!p.alerte_replissage_avant;
                         return (
-                          <tr key={i} style={{ borderBottom: "1px solid var(--dk-surface, #FCFCFA)" }}>
+                          <tr key={i} style={{ borderBottom: "1px solid var(--dk-surface, #FFFFFF)" }}>
                             <td style={{ padding: "8px 4px", fontWeight: 700, color: INK }}><ProdName name={p.article} /></td>
                             <td style={{ padding: "8px 4px", textAlign: "right", fontWeight: 600, color: INK }}>{fmt(p.daily_velocity, 1)}</td>
                             <td style={{ padding: "8px 4px", textAlign: "right", color: INK }}>{fmt(p.stock_securite, 0)}</td>
@@ -3156,6 +2997,7 @@ export default function ProduitsPage() {
                 </div>
               </div>
             </Details>
+            </Details>
           </div>
         </>
       )}
@@ -3165,115 +3007,111 @@ export default function ProduitsPage() {
           ══════════════════════════════════════════════ */}
       {tab === "ticket" && ticketData && !loading && (
         <>
-          <div className="sw">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 14 }}>
-              <div className="cc">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, ${ORANGE} 8%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <IconTicketPerc size={15} color={ORANGE} />
+          {/* Poids dans le panier : deux listes courtes (le rôle de chaque produit) au lieu d'un grand tableau à 3 barres.
+              Le tableau complet reste disponible, replié. */}
+          {(() => {
+            const st = ticketData.stats || {};
+            const dist = st.distribution_par_statut || {};
+            const caMulti = Number(st.ca_total_multi) || 1;
+            const items = ticketAll || [];
+            const gens = items.filter((r: any) => r.statut_contribution === "Générateur de chiffre")
+              .sort((a: any, b: any) => (Number(b.ca_total_multi) || 0) - (Number(a.ca_total_multi) || 0));
+            const accs = items.filter((r: any) => r.statut_contribution !== "Générateur de chiffre")
+              .sort((a: any, b: any) => (Number(b.nb_tickets_multi) || 0) - (Number(a.nb_tickets_multi) || 0));
+            const SHOW = 7;
+            const cols = [
+              {
+                key: "Générateur de chiffre", color: "var(--ch-1)", list: gens,
+                title: tr("Font le panier", "Make the basket"),
+                what: tr("Ils pèsent au moins la moitié du ticket : le client vient pour eux. À ne jamais manquer.", "They weigh at least half the basket: customers come for them. Never run out."),
+                sortNote: tr("classés par chiffre d'affaires", "ranked by revenue"),
+                val: (r: any) => tr(`${fmt(r.contribution_med, 0)} % du ticket`, `${fmt(r.contribution_med, 0)}% of basket`),
+                sub: (r: any) => `${fmt(r.ca_total_multi)} €`,
+              },
+              {
+                key: "Accessoire", color: "var(--ch-3)", list: accs,
+                title: tr("Accompagnent un achat", "Go with a purchase"),
+                what: tr("Pris en plus d'un autre produit : ils complètent le panier. À garder bien visibles, près des produits qui font le panier.", "Taken on top of another product: they complete the basket. Keep them visible, near the products that make the basket."),
+                sortNote: tr("classés par nombre de tickets", "ranked by number of transactions"),
+                val: (r: any) => tr(`${fmt(r.nb_tickets_multi)} tickets`, `${fmt(r.nb_tickets_multi)} transactions`),
+                sub: (r: any) => tr(`${fmt(r.contribution_med, 0)} % du ticket`, `${fmt(r.contribution_med, 0)}% of basket`),
+              },
+            ];
+            return (
+              <div className="sw">
+                <div className="cc">
+                  <ChartAssistantButton chartType="ticket_role_distribution" chartData={{ distribution: dist, stats: st, generateurs: gens.slice(0, 10), accessoires: accs.slice(0, 10) }} chartName="TicketRoles"
+                    userQuestion="Explique le rôle des produits dans le panier et quoi en faire" position="top-right" onOpenChat={openChat} />
+                  <CardHeader
+                    title={tr("Quel rôle joue chaque produit dans le panier ?", "What role does each product play in the basket?")}
+                    scope={{ period: scopeAllYears, calc: tr("Tickets à plusieurs produits seulement · part du ticket = valeur habituelle (médiane)", "Multi-product transactions only · basket share = typical value (median)"), unit: tr("% du ticket · tickets · €", "% of basket · transactions · €") }}
+                    sub={tr(`${fmt(st.pct_multi || 0, 0)} % des tickets contiennent plusieurs produits (${fmt(st.nb_multi || 0)} tickets). Dans ces paniers, un produit joue l'un de ces deux rôles.`,
+                            `${fmt(st.pct_multi || 0, 0)}% of transactions hold several products (${fmt(st.nb_multi || 0)}). In these baskets, a product plays one of two roles.`)}
+                    icon={<IconTicketPerc size={16} color={ORANGE} />}
+                  />
+                  <div className="g2" style={{ marginTop: 8 }}>
+                    {cols.map((c) => {
+                      const d = dist[c.key] || {};
+                      return (
+                        <div key={c.key} style={{ borderRadius: 14, border: "1px solid var(--dk-line)", padding: "14px 16px", background: `color-mix(in srgb, ${c.color} 5%, var(--dk-surface))` }}>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                            <span className="num" style={{ fontSize: "1.6rem", fontWeight: 800, color: INK, lineHeight: 1 }}>{fmt(d.nb || c.list.length)}</span>
+                            <span style={{ fontSize: ".95rem", fontWeight: 800, color: INK }}>{c.title}</span>
+                            <span className="num" style={{ marginLeft: "auto", fontSize: ".78rem", fontWeight: 700, color: "var(--dk-ink2)" }}>
+                              {tr(`${fmt(((Number(d.ca) || 0) / caMulti) * 100, 0)} % du CA de ces paniers`, `${fmt(((Number(d.ca) || 0) / caMulti) * 100, 0)}% of these baskets' revenue`)}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: ".76rem", color: "var(--dk-ink2)", margin: "6px 0 10px", lineHeight: 1.4 }}>{c.what}</div>
+                          <div style={{ fontSize: ".64rem", fontWeight: 800, color: MUTED, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 2 }}>{c.sortNote}</div>
+                          {c.list.slice(0, SHOW).map((r: any, i: number) => (
+                            <div key={r.article} onClick={() => openProduct(r.article)}
+                              style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--dk-line)", cursor: "pointer" }}>
+                              <span className="num" style={{ width: 18, fontSize: ".7rem", fontWeight: 800, color: MUTED }}>{i + 1}</span>
+                              <span style={{ flex: 1, minWidth: 0, fontSize: ".8rem", fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{trData(r.article)}</span>
+                              <span style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                                <span className="num" style={{ fontSize: ".78rem", fontWeight: 800, color: INK }}>{c.val(r)}</span>
+                                <span className="num" style={{ fontSize: ".68rem", color: MUTED, marginLeft: 8 }}>{c.sub(r)}</span>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>{tr("Tickets à plusieurs produits", "Transactions with several products")}</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 10 }}>
-                  <div style={{ fontSize: "1.9rem", fontWeight: 800, color: ORANGE, lineHeight: 1 }}>{fmt(ticketData.stats?.nb_multi)}</div>
-                  <div style={{ fontSize: ".85rem", fontWeight: 700, color: MUTED }}>
-                    ({Number(ticketData.stats?.pct_multi || 0).toFixed(1)}%)
-                  </div>
-                </div>
-                <div className="cs" style={{ marginTop: 4 }}>{tr("Le client a pris au moins deux produits différents", "The customer bought at least two different products")}</div>
-              </div>
-              <div className="cc">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: "var(--dk-page, #F1F1EC)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <IconBox size={15} color={MUTED} />
-                  </div>
-                  <div style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>{tr("Tickets à un seul produit", "Single-product transactions")}</div>
-                </div>
-                <div style={{ fontSize: "1.9rem", fontWeight: 800, color: INK, lineHeight: 1, marginTop: 10 }}>{fmt(ticketData.stats?.nb_mono)}</div>
-                <div className="cs" style={{ marginTop: 4 }}>{tr("Une ou plusieurs unités d'un seul produit", "One or more units of a single product")}</div>
-              </div>
-              <div className="cc">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, ${PEACH} 13%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <IconCash size={15} color={ORANGE} />
-                  </div>
-                  <div style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>{tr("Total Transactions", "Total Transactions")}</div>
-                </div>
-                <div style={{ fontSize: "1.9rem", fontWeight: 800, color: INK, lineHeight: 1, marginTop: 10 }}>{fmt(ticketData.stats?.nb_total)}</div>
-                <div className="cs" style={{ marginTop: 4 }}>{tr("Base d'analyse complète", "Full analysis base")}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="sec-title">
-            <IconTrophy size={14} color={ORANGE} /> {tr("Ce que chaque produit apporte au panier", "What each product brings to the basket")}
-          </div>
-          <div className="sw">
-            <div className="grid-main">
-              <div className="cc hero-card">
-                <ChartAssistantButton chartType="ticket_contribution_top20" chartData={{ top20: ticketTop, stats: ticketData.stats }} chartName="TicketContributionTop20"
-                  userQuestion="Explique les produits qui contribuent le plus au ticket" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Rôle de chaque produit dans le panier", "Each product's role in the basket")}
-                  sub={tr("Tickets à plusieurs produits : part habituelle du produit dans la valeur du ticket, fréquence et chiffre d'affaires. Cliquez sur un nom pour la fiche.", "Multi-product transactions: the product's typical share of basket value, frequency and revenue. Click a name for the sheet.")}
-                  icon={<IconTrophy size={16} color={WARN} />}
-                />
-                <ContributionRows rows={ticketAll} />
-                {ticketTop[0] && (
-                  <Takeaway>
-                    {tr(
-                      `Quand il est acheté avec d'autres produits, ${ticketTop[0].article} représente habituellement ${fmt(ticketTop[0].contribution_med, 0)} % du ticket : c'est un produit qui fait le panier.`,
-                      `When bought with other products, ${ticketTop[0].article} usually makes ${fmt(ticketTop[0].contribution_med, 0)}% of the basket: it drives the basket value.`
-                    )}
-                  </Takeaway>
-                )}
-                {(() => {
-                  const t = ticketTop;
-                  if (!t.length) return null;
-                  const f = [...t].sort((a: any, b: any) => b.nb_tickets_multi - a.nb_tickets_multi)[0];
-                  return (
+                  {gens[0] && (
                     <Takeaway>
                       {tr(
-                        `${f.article} est le produit le plus souvent présent dans les paniers à plusieurs produits (${fmt(f.nb_tickets_multi)} tickets) : le bon point de départ pour une offre groupée.`,
-                        `${f.article} is the product most often in multi-product baskets (${fmt(f.nb_tickets_multi)} transactions): the right starting point for a bundle.`
+                        `Quand il est acheté avec d'autres produits, ${gens[0].article} représente habituellement ${fmt(gens[0].contribution_med, 0)} % du ticket : c'est un produit qui fait le panier.`,
+                        `When bought with other products, ${gens[0].article} usually makes ${fmt(gens[0].contribution_med, 0)}% of the basket: it drives the basket value.`
                       )}
                     </Takeaway>
-                  );
-                })()}
-                <ExpertNote>
-                  Ticket contribution = total_revenue de la ligne / total du ticket × 100, sur les tickets à ≥ 2 produits distincts (clé date_id + ticket_number) ; contribution_med = PERCENTILE_CONT(0.5) ; produits avec ≥ 10 tickets. Rôle : « Générateur de chiffre » si médiane ≥ 50 % (CONTRIBUTION_GENERATEUR_SEUIL_PCT), sinon « Accessoire ». ca_total_multi = CA du produit dans les tickets multi-produits.
-                </ExpertNote>
+                  )}
+                  {accs[0] && (
+                    <Takeaway>
+                      {tr(
+                        `${accs[0].article} est le produit le plus présent dans les paniers à plusieurs produits (${fmt(accs[0].nb_tickets_multi)} tickets) : il accompagne presque tous les achats.`,
+                        `${accs[0].article} is the product most present in multi-product baskets (${fmt(accs[0].nb_tickets_multi)} transactions): it goes with almost every purchase.`
+                      )}
+                    </Takeaway>
+                  )}
+                  <ExpertNote>
+                    Ticket contribution = total_revenue de la ligne / total du ticket × 100, sur les tickets à ≥ 2 produits distincts (clé date_id + ticket_number) ; contribution_med = PERCENTILE_CONT(0.5) ; produits avec ≥ 10 tickets. Rôle : « Générateur de chiffre » si médiane ≥ 50 % (CONTRIBUTION_GENERATEUR_SEUIL_PCT), sinon « Accessoire ». ca_total_multi = CA du produit dans les tickets multi-produits.
+                  </ExpertNote>
+                </div>
               </div>
-              <div className="side-col">
-                {(() => {
-                  const dist = ticketData.stats?.distribution_par_statut || {};
-                  const roles = [
-                    { k: "Générateur de chiffre", en: "Revenue driver", d: tr("au moins 50 % du ticket quand il est acheté avec d'autres produits", "at least 50% of the basket when bought with other products"), c: "var(--ch-1)" },
-                    { k: "Accessoire", en: "Accessory", d: tr("moins de 50 % du ticket : il accompagne un autre achat", "under 50% of the basket: it goes with another purchase"), c: "var(--ch-soft)" },
-                  ];
-                  return (
-                    <div className="cc">
-                      <ChartAssistantButton chartType="ticket_role_distribution" chartData={{ distribution: ticketData.stats?.distribution_par_statut, nb_produits: ticketData.stats?.nb_produits_analysables }} chartName="TicketRoles"
-                        userQuestion="Explique la répartition des produits entre les deux rôles dans le panier" position="top-right" onOpenChat={openChat} />
-                      <div className="ct">{tr("Deux rôles dans le panier", "Two roles in the basket")}</div>
-                      <div className="cs">{tr(`Sur les ${fmt(ticketData.stats?.nb_produits_analysables || ticketAll.length)} produits présents dans au moins 10 tickets à plusieurs produits (règle du cahier des charges)`, `Out of the ${fmt(ticketData.stats?.nb_produits_analysables || ticketAll.length)} products in at least 10 multi-product transactions (specification rule)`)}</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        {roles.map((r) => (
-                          <div key={r.k} style={{ display: "flex", gap: 12, alignItems: "center", padding: "10px 12px", borderRadius: 14, background: "var(--dk-soft)" }}>
-                            <span className="num" style={{ fontSize: "1.6rem", fontWeight: 800, color: r.c, minWidth: 40, textAlign: "center" }}>{fmt(dist[r.k]?.nb || 0)}</span>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: ".84rem", fontWeight: 700, color: INK }}>{tr(r.k, r.en)}</div>
-                              <div style={{ fontSize: ".72rem", color: MUTED, lineHeight: 1.4 }}>{r.d}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-                <RetainCard max={3} />
+            );
+          })()}
+
+          <div className="sw"><RetainCard max={4} style={{ marginBottom: 16 }} /></div>
+
+          <div className="sw">
+            <Details label={tr(`Voir le détail : les ${fmt(ticketAll.length)} produits (part du ticket, tickets, CA)`, `See details: all ${fmt(ticketAll.length)} products (basket share, transactions, revenue)`)}>
+              <div className="cc">
+                <ChartAssistantButton chartType="ticket_contribution_top20" chartData={{ top20: ticketTop, stats: ticketData.stats }} chartName="TicketContributionTop20"
+                  userQuestion="Explique les produits qui contribuent le plus au ticket" position="top-right" onOpenChat={openChat} />
+                <ContributionRows rows={ticketAll} />
               </div>
-            </div>
+            </Details>
           </div>
 
           {/* Sections « Stratégie & Synthèse » (donut des rôles, tuiles) et « Matrice de décision » (nuage illisible, doublon du précédent) retirées. */}
@@ -3286,69 +3124,77 @@ export default function ProduitsPage() {
           ══════════════════════════════════════════════ */}
       {SHOW_FREQ_TAB && tab === "freq" && freqData && !loading && (
         <>
-          <div className="sw">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 14 }}>
-              <div className="cc">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, ${ORANGE} 8%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <IconCalendarDays size={15} color={ORANGE} />
-                  </div>
-                  <div style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>{tr("Semaines d'activité", "Active weeks")}</div>
-                </div>
-                <div style={{ fontSize: "1.9rem", fontWeight: 800, color: INK, lineHeight: 1, marginTop: 10 }}>{fmt(freqData.total_sem)}</div>
-                <div className="cs" style={{ marginTop: 4 }}>{tr("Semaines couvertes par les ventes", "Weeks covered by sales")}</div>
-              </div>
-              <div className="cc">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, ${PEACH} 13%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <IconBox size={15} color={ORANGE} />
-                  </div>
-                  <div style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>{tr("Total Références", "Total Products")}</div>
-                </div>
-                <div style={{ fontSize: "1.9rem", fontWeight: 800, color: ORANGE, lineHeight: 1, marginTop: 10 }}>{fmt(freqData.nb_produits)}</div>
-                <div className="cs" style={{ marginTop: 4 }}>{tr("Produits avec historique", "Products with history")}</div>
-              </div>
-              <div className="cc">
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, ${OK} 8%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <IconStar size={15} color={OK} />
-                  </div>
-                  <div style={{ fontSize: ".78rem", fontWeight: 700, color: INK }}>{tr("Produits Quotidiens", "Daily Products")}</div>
-                </div>
-                <div style={{ fontSize: "1.9rem", fontWeight: 800, color: OK, lineHeight: 1, marginTop: 10 }}>
-                  {fmt((freqData.status_distribution || {})["Quotidien"] || 0)}
-                </div>
-                <div className="cs" style={{ marginTop: 4 }}>{tr(`Vendus toutes les semaines · ${fmt(freqData.part_ca_quotidiens || 0, 1)} % du CA`, `Sold every week · ${fmt(freqData.part_ca_quotidiens || 0, 1)}% of revenue`)}</div>
-              </div>
-            </div>
-          </div>
-
           <div className="sec-title">
             <IconRepeat size={14} color={ORANGE} /> {tr("Vendus chaque semaine ou de temps en temps ?", "Sold every week or now and then?")}
           </div>
           <div className="sw">
-            <div className="g2">
+            <div className="grid-main">
               <div className="cc">
                 <ChartAssistantButton chartType="frequency_top20" chartData={{ items: freqItems.slice(0, 20), total_sem: freqData.total_sem }} chartName="FrequencyTop20"
                   userQuestion="Explique les produits vendus le plus régulièrement" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Produits vendus le plus régulièrement", "Most regularly sold products")}
-                  sub={tr("Top 20 : part des semaines avec au moins une vente", "Top 20: share of weeks with at least one sale")}
-                  icon={<IconTrophy size={16} color={ORANGE} />}
-                />
-                <RankedRows
-                  rows={freqItems}
-                  valueKey="repurchase_freq_pct"
-                  colorKey={(r) => statutColor(r.statut_frequence)}
-                  maxShow={20}
-                  unit="%"
-                />
-                <Takeaway>
-                  {tr(
-                    `${fmt(freqData.nb_quotidiens || 0)} produits se vendent toutes les semaines sans exception et font ${fmt(freqData.part_ca_quotidiens || 0, 0)} % du chiffre d'affaires : ce sont les produits à ne jamais manquer.`,
-                    `${fmt(freqData.nb_quotidiens || 0)} products sell every single week and make ${fmt(freqData.part_ca_quotidiens || 0, 0)}% of revenue: these must never run out.`
-                  )}
-                </Takeaway>
+                {(() => {
+                  // Deux listes utiles au lieu d'un classement où tout le monde est à 100 % :
+                  // 1) les produits vendus toutes les semaines (noms seulement) ;
+                  // 2) les gros vendeurs qui ne se vendent PAS toutes les semaines (saisonniers, événements).
+                  const byCa = (a: any, b: any) => (Number(b.ca_total) || 0) - (Number(a.ca_total) || 0);
+                  const every = freqItems.filter((r: any) => Number(r.repurchase_freq_pct) >= 100).sort(byCa);
+                  const notEvery = freqItems.filter((r: any) => Number(r.repurchase_freq_pct) < 100).sort(byCa).slice(0, 6);
+                  const SHOW = 12;
+                  return (
+                    <>
+                      <CardHeader
+                        title={tr("Qui se vend toutes les semaines ?", "What sells every week?")}
+                        scope={{ period: scopeAllYears, calc: tr("% des semaines avec au moins une vente du produit", "% of weeks with at least one sale"), unit: tr("% des semaines", "% of weeks") }}
+                        sub={tr(`Sur ${fmt(freqData.total_sem || 0)} semaines de ventes · classés par chiffre d'affaires`, `Over ${fmt(freqData.total_sem || 0)} weeks of sales · ranked by revenue`)}
+                        icon={<IconTrophy size={16} color={ORANGE} />}
+                      />
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "4px 0 8px" }}>
+                        <span className="num" style={{ fontSize: "1.5rem", fontWeight: 800, color: INK }}>{fmt(every.length)}</span>
+                        <span style={{ fontSize: ".8rem", color: "var(--dk-ink2)", fontWeight: 600 }}>
+                          {tr(`produits vendus chaque semaine, sans exception · ${fmt(freqData.part_ca_quotidiens || 0, 0)} % du CA`, `products sold every single week · ${fmt(freqData.part_ca_quotidiens || 0, 0)}% of revenue`)}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {every.slice(0, SHOW).map((r: any) => (
+                          <button key={r.article} type="button" onClick={() => openProduct(r.article)}
+                            style={{ fontSize: ".72rem", fontWeight: 700, color: INK, background: "var(--dk-soft)", border: "1px solid var(--dk-line)", borderRadius: 99, padding: "4px 10px", cursor: "pointer" }}>
+                            {trData(r.article)}
+                          </button>
+                        ))}
+                        {every.length > SHOW && (
+                          <span style={{ fontSize: ".72rem", fontWeight: 700, color: MUTED, padding: "4px 6px" }}>
+                            {tr(`et ${every.length - SHOW} autres`, `and ${every.length - SHOW} more`)}
+                          </span>
+                        )}
+                      </div>
+
+                      {notEvery.length > 0 && (
+                        <>
+                          <div style={{ fontSize: ".7rem", fontWeight: 800, color: MUTED, textTransform: "uppercase", letterSpacing: ".06em", margin: "18px 0 6px" }}>
+                            {tr("Gros vendeurs qui ne se vendent pas toutes les semaines", "Big sellers that don't sell every week")}
+                          </div>
+                          {notEvery.map((r: any) => {
+                            const pct = Number(r.repurchase_freq_pct) || 0;
+                            return (
+                              <div key={r.article} onClick={() => openProduct(r.article)} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 70px", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--dk-line)", cursor: "pointer" }}>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontSize: ".8rem", fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{trData(r.article)}</div>
+                                  <div style={{ fontSize: ".68rem", color: MUTED }}>{fmt(r.ca_total)} € · {trData(r.category)}</div>
+                                </div>
+                                <div style={{ height: 6, borderRadius: 99, background: "var(--dk-soft)", overflow: "hidden" }}>
+                                  <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", borderRadius: 99, background: statutColor(r.statut_frequence) }} />
+                                </div>
+                                <div className="num" style={{ fontSize: ".76rem", fontWeight: 800, color: INK, textAlign: "right" }}>
+                                  {fmt(pct, 0)} %<span style={{ fontWeight: 600, color: MUTED, fontSize: ".64rem" }}> {tr("sem.", "wks")}</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
                 <ExpertNote>
                   Repurchase frequency (repurchase_freq_pct) = semaines ISO avec vente (week_iso, année incluse) / semaines de la période des ventes × 100 ({fmt(freqData.total_sem || 0)} semaines). Classes : 100 % Quotidien, ≥ 75 % Régulier, ≥ 50 % Cyclique, sinon Sporadique. Fidélité du marché envers le produit, sans identifiant client.
                 </ExpertNote>
@@ -3357,7 +3203,8 @@ export default function ProduitsPage() {
                 <ChartAssistantButton chartType="frequency_distribution" chartData={{ status_distribution: freqData.status_distribution, nb_produits: freqData.nb_produits }} chartName="FrequencyDistribution"
                   userQuestion="Explique la répartition des produits selon leur régularité" position="top-right" onOpenChat={openChat} />
                 <CardHeader
-                  title={tr("Répartition des produits selon leur régularité de vente", "Products by sales regularity")}
+                  title={tr("Produits par régularité de vente", "Products by sales regularity")}
+                  scope={{ period: scopeAllYears, calc: tr("Part des produits dans chaque classe", "Share of products in each class"), unit: tr("% des produits", "% of products") }}
                   sub={tr("Classes de régularité", "Regularity classes")}
                   icon={<IconDonutPie size={16} color={ORANGE} />}
                 />
@@ -3369,8 +3216,15 @@ export default function ProduitsPage() {
                       .filter((k) => sc[k] != null)
                       .map((k) => ({ category: k, taux_moyen: (Number(sc[k]) / tot) * 100, nb_articles: Number(sc[k]) }));
                   })()}
-                  height={250}
+                  height={120}
+                  scaleMax={100}
                 />
+                <div style={{ display: "grid", gap: 6, marginTop: 14, fontSize: ".72rem", color: "var(--dk-ink2)", lineHeight: 1.35 }}>
+                  <div><b>{tr("Quotidien", "Daily")}</b> : {tr("vendu toutes les semaines", "sold every week")}</div>
+                  <div><b>{tr("Régulier", "Regular")}</b> : {tr("au moins 3 semaines sur 4", "at least 3 weeks out of 4")}</div>
+                  <div><b>{tr("Cyclique", "Cyclical")}</b> : {tr("au moins 1 semaine sur 2", "at least 1 week out of 2")}</div>
+                  <div><b>{tr("Sporadique", "Sporadic")}</b> : {tr("moins d'une semaine sur 2 (saison, fêtes)", "under 1 week out of 2 (season, holidays)")}</div>
+                </div>
                 {(() => {
                   const sc: Record<string, number> = freqData.status_distribution || {};
                   const tot = Object.values(sc).reduce((a, b) => a + Number(b), 0) || 1;
@@ -3389,10 +3243,8 @@ export default function ProduitsPage() {
 
           <div className="sw"><RetainCard max={6} style={{ marginBottom: 16 }} /></div>
 
-          <div className="sec-title">
-            <IconGrid size={14} color={ORANGE} /> {tr("Par famille de produits", "By product family")}
-          </div>
           <div className="sw">
+            <Details label={tr("Voir le détail : par famille de produits", "See details: by product family")}>
             <div>
               <div className="cc">
                 <ChartAssistantButton chartType="frequency_by_category" chartData={{ items: freqItems }} chartName="FrequencyByCategory"
@@ -3417,6 +3269,7 @@ export default function ProduitsPage() {
                   })).sort((a, b) => b.taux_moyen - a.taux_moyen)}
                   color={PEACH}
                   height={260}
+                  scaleMax={100}
                 />
                 {(() => {
                   const acc: Record<string, { t: number; c: number }> = {};
@@ -3432,6 +3285,7 @@ export default function ProduitsPage() {
               </div>
 
             </div>
+            </Details>
           </div>
 
           {/* Graphique « Top 8 produits quotidiens » retiré : ses courbes étaient dessinées
@@ -3444,141 +3298,79 @@ export default function ProduitsPage() {
           ══════════════════════════════════════════════ */}
       {tab === "assoc" && assocData && !loading && (
         <>
-          {/* Filters */}
-          <div className="cc" style={{ margin: "0 28px 14px", padding: "14px 16px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <IconFilter size={16} color={ORANGE} />
-                <span style={{ fontSize: ".78rem", fontWeight: 800, color: INK }}>{tr("Paramètres des associations", "Association settings")}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <label style={{ fontSize: ".68rem", fontWeight: 700, color: MUTED }}>{tr("Tri :", "Sort:")}</label>
-                <select
-                  value={assocSort}
-                  onChange={(e) => setAssocSort(e.target.value)}
-                  style={{ fontSize: ".72rem", fontWeight: 700, padding: "6px 12px", borderRadius: 10, border: "1px solid var(--dk-line, #E3E4DD)", background: "var(--dk-surface, #FAFAF7)", outline: "none", color: INK }}
-                >
-                  <option value="Lift ↓">{tr("Force du lien ↓", "Link strength ↓")}</option>
-                  <option value="Confiance ↓">{tr("Probabilité d'achat ↓", "Purchase probability ↓")}</option>
-                  <option value="Support ↓">{tr("Fréquence de la paire ↓", "Pair frequency ↓")}</option>
-                </select>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <label style={{ fontSize: ".68rem", fontWeight: 700, color: MUTED }}>{tr("Nb règles :", "No. of rules:")}</label>
-                <select
-                  value={String(assocTopN)}
-                  onChange={(e) => setAssocTopN(Number(e.target.value))}
-                  style={{ fontSize: ".72rem", fontWeight: 700, padding: "6px 12px", borderRadius: 10, border: "1px solid var(--dk-line, #E3E4DD)", background: "var(--dk-surface, #FAFAF7)", outline: "none", color: INK }}
-                >
-                  <option value="15">Top 15</option>
-                  <option value="25">Top 25</option>
-                  <option value="50">Top 50</option>
-                  <option value="100">Top 100</option>
-                </select>
-              </div>
-              <div style={{ marginLeft: "auto", display: "flex", gap: 14 }}>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: ".60rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em" }}>{tr("Fréquence min", "Min frequency")}</div>
-                  <div style={{ fontSize: ".82rem", fontWeight: 800, color: INK }}>1%</div>
-                </div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: ".60rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em" }}>{tr("Probabilité min", "Min probability")}</div>
-                  <div style={{ fontSize: ".82rem", fontWeight: 800, color: INK }}>30%</div>
-                </div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: ".60rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em" }}>{tr("Force min", "Min strength")}</div>
-                  <div style={{ fontSize: ".82rem", fontWeight: 800, color: ORANGE }}>1.2×</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Opportunité principale */}
-          {assocData.pct_tickets_mono ? (
-            <div className="sw">
-              <div className="cc" style={{ marginBottom: 12, borderLeft: `4px solid ${ORANGE}`, fontSize: ".82rem", color: INK }}>
-                <strong>{fmt(assocData.pct_tickets_mono)} %</strong> {tr("des tickets ne contiennent qu'un seul produit : c'est la marge de progression du panier. Les paires ci-dessous indiquent quoi proposer.", "of transactions contain a single product: that is the room to grow the basket. The pairs below show what to suggest.")}
-              </div>
-            </div>
-          ) : null}
-
-          {/* KPIs */}
-          <div className="sw">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 14 }}>
-              {[
-                { lbl: tr("Groupes associés", "Associated groups"), val: fmt(assocData.nb_total_regles), sub: tr("Chaque groupe de produits compté une fois", "Each product group counted once"), icon: IconLink2, color: ORANGE },
-                { lbl: tr("Lien le plus fort", "Strongest link"), val: `${Math.max(...assocRules.map((r: any) => Number(r.lift) || 0), 1).toFixed(2)}×`, sub: tr("Fois plus souvent que le hasard", "Times more often than chance"), icon: IconBolt, color: "var(--dk-accent-deep, #2A7148)" },
-                { lbl: tr("Probabilité max", "Max probability"), val: `${Math.max(...assocRules.map((r: any) => Number(r.confidence) || 0), 0).toFixed(1)}%`, sub: tr("Clients du 1er produit qui prennent le 2e", "Customers of the 1st product who also take the 2nd"), icon: IconTrendUp, color: OK },
-                { lbl: tr("Paire la plus fréquente", "Most frequent pair"), val: `${Math.max(...assocRules.map((r: any) => Number(r.support) || 0), 0).toFixed(1)}%`, sub: tr("Part des tickets qui la contiennent", "Share of transactions containing it"), icon: IconDonutPie, color: WARN },
-              ].map((k, i) => {
-                const Ic = k.icon;
-                return (
-                  <div key={i} className="cc">
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ width: 30, height: 30, borderRadius: 8, background: `color-mix(in srgb, ${k.color} 8%, transparent)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Ic size={15} color={k.color} />
-                      </div>
-                      <div style={{ fontSize: ".72rem", fontWeight: 700, color: INK }}>{k.lbl}</div>
-                    </div>
-                    <div style={{ fontSize: "1.75rem", fontWeight: 800, color: k.color, lineHeight: 1, marginTop: 10 }}>{k.val}</div>
-                    <div className="cs" style={{ marginTop: 4 }}>{k.sub}</div>
+          {/* Achetés ensemble : une liste de paires en phrases simples, chacune avec son action.
+              (Le nuage de bulles, les réglages de tri et les 4 tuiles chiffrées ont été retirés : trop lourds pour 7 paires.) */}
+          {(() => {
+            const pts = assocRules.filter((r: any) => Number(r.support) > 0 && Number(r.confidence) > 0);
+            const q = (arr: number[], p: number) => { const a = [...arr].sort((x, y) => x - y); return a[Math.min(a.length - 1, Math.floor(p * a.length))] ?? 0; };
+            const sT = q(pts.map((r: any) => Number(r.support)), 0.7);
+            const cT = q(pts.map((r: any) => Number(r.confidence)), 0.7);
+            const actionOf = (r: any) => {
+              const hiS = Number(r.support) >= sT, hiC = Number(r.confidence) >= cT;
+              if (hiS && hiC) return { t: tr("Offre groupée", "Bundle deal"), c: Q1 };
+              if (hiC) return { t: tr("Suggérer en caisse", "Suggest at the till"), c: Q2 };
+              if (hiS) return { t: tr("Placer côte à côte", "Place side by side"), c: Q3 };
+              return { t: tr("À tester", "Worth a try"), c: Q4 };
+            };
+            const names = (s: string) => String(s || "").split(/\s*,\s*/).map((x) => trData(x));
+            const sorted = [...pts].sort((a: any, b: any) => (Number(b.lift) || 0) - (Number(a.lift) || 0));
+            return (
+              <div className="sw">
+                <div className="cc">
+                  <ChartAssistantButton chartType="association_top12" chartData={{ rules: sorted.slice(0, 10) }} chartName="AssociationTop12"
+                    userQuestion="Explique les produits achetés ensemble et quoi en faire" position="top-right" onOpenChat={openChat} />
+                  <CardHeader
+                    title={tr("Quoi vendre ensemble ?", "What to sell together?")}
+                    scope={{ period: scopeAllYears, calc: tr("Tous les tickets de la période", "All transactions in the period"), unit: tr("% des clients · % des tickets", "% of customers · % of transactions") }}
+                    sub={assocData.pct_tickets_mono
+                      ? tr(`${fmt(assocData.pct_tickets_mono)} % des tickets ne contiennent qu'un seul produit : ces paires disent quoi proposer en plus. Classées de la plus forte à la plus faible.`,
+                           `${fmt(assocData.pct_tickets_mono)}% of transactions hold a single product: these pairs show what to suggest. Strongest first.`)
+                      : tr("Classées de la plus forte à la plus faible.", "Strongest first.")}
+                    icon={<IconLink2 size={16} color={ORANGE} />}
+                  />
+                  {sorted.length === 0 && <div className="cs" style={{ padding: 20 }}>{tr("Aucune paire à afficher.", "No pair to show.")}</div>}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 10, marginTop: 6 }}>
+                    {sorted.map((r: any, i: number) => {
+                      const a = names(r.antecedent), b = names(r.consequent);
+                      const act = actionOf(r);
+                      return (
+                        <div key={i} onClick={() => openProduct(r.antecedent.split(",")[0].trim())}
+                          style={{ border: "1px solid var(--dk-line)", borderRadius: 12, padding: "12px 14px", cursor: "pointer", background: "var(--dk-surface)", display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                            <div style={{ fontSize: ".84rem", fontWeight: 800, color: INK, lineHeight: 1.3, flex: 1 }}>
+                              {[...a, ...b].join(" + ")}
+                            </div>
+                            <span className="num" style={{ fontSize: ".78rem", fontWeight: 800, color: INK, whiteSpace: "nowrap" }}>×{fmt(r.lift, 1)}</span>
+                          </div>
+                          <div style={{ fontSize: ".76rem", color: "var(--dk-ink2)", lineHeight: 1.4 }}>
+                            {tr(
+                              `${fmt(r.confidence, 0)} % des clients qui prennent ${a.join(" et ")} prennent aussi ${b.join(" et ")}.`,
+                              `${fmt(r.confidence, 0)}% of customers who buy ${a.join(" and ")} also take ${b.join(" and ")}.`
+                            )}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                            <span style={{ fontSize: ".68rem", fontWeight: 800, color: INK, background: `color-mix(in srgb, ${act.c} 16%, var(--dk-surface))`, border: `1px solid color-mix(in srgb, ${act.c} 40%, transparent)`, borderRadius: 99, padding: "2px 9px" }}>
+                              {act.t}
+                            </span>
+                            <span style={{ fontSize: ".68rem", color: MUTED }}>
+                              {tr(`dans ${fmt(r.support, 1)} % des tickets`, `in ${fmt(r.support, 1)}% of transactions`)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="sec-title">
-            <IconScatter size={14} color={ORANGE} /> {tr("Quelles paires mettre en avant ?", "Which pairs to promote?")}
-          </div>
-          <div className="sw">
-            <div className="grid-main stretch">
-              <div className="cc hero-card" style={{ minHeight: 440 }}>
-                <ChartAssistantButton chartType="association_scatter" chartData={{ rules: assocRules }} chartName="AssociationScatter"
-                  userQuestion="Explique ce graphique des associations à promouvoir" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Paires à promouvoir en priorité", "Pairs to promote first")}
-                  sub={tr("Chaque bulle est une paire de produits. En haut à droite : paires fréquentes et probables, à proposer en offre groupée. Survolez une bulle pour le détail.", "Each bubble is a product pair. Top right: frequent and likely pairs, to offer as a bundle. Hover a bubble for details.")}
-                  icon={<IconTarget size={16} color={ORANGE} />}
-                />
-                <AssocScatter rules={assocRules} height={460} />
+                  <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 10, lineHeight: 1.45 }}>
+                    {tr("×2,5 = achetés ensemble 2,5 fois plus souvent que par hasard. Offre groupée : paire fréquente et très probable · Suggérer en caisse : rare mais très probable · Placer côte à côte : fréquente mais moins probable. Cliquez sur une paire pour la fiche du produit.",
+                        "×2.5 = bought together 2.5 times more often than by chance. Bundle deal: frequent and very likely · Suggest at the till: rare but very likely · Place side by side: frequent but less likely. Click a pair for the product sheet.")}
+                  </div>
+                  <ExpertNote>
+                    Apriori (mlxtend, notebook). support = P(A ∩ B) ; confidence = P(B | A) ; lift = P(A ∩ B) / (P(A) × P(B)). Seuils : support ≥ 1 %, confiance ≥ 30 %, lift ≥ 1,2. Règles A → B et B → A regroupées (un groupe de produits = une ligne) : {fmt(assocData.nb_total_regles || 0)} groupes pour {fmt(assocData.nb_regles_brutes || 0)} règles. Action : fréquence et probabilité comparées au 70e centile des paires.
+                  </ExpertNote>
+                </div>
               </div>
-              <div className="cc" style={{ minHeight: 440 }}>
-                <ChartAssistantButton chartType="association_top12" chartData={{ rules: assocRules.slice(0, 10) }} chartName="AssociationTop12"
-                  userQuestion="Explique les 10 liens les plus forts" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Les 10 paires les plus fortes", "The 10 strongest pairs")}
-                  sub={tr(`Sur ${fmt(assocData.nb_total_regles)} groupes de produits associés`, `Out of ${fmt(assocData.nb_total_regles)} associated product groups`)}
-                  icon={<IconBolt size={16} color={ORANGE} />}
-                />
-                <RankedRows
-                  labelKey="pair"
-                  rows={assocRules.map((r: any) => ({
-                    pair: `${r.antecedent} → ${r.consequent}`,
-                    lift: Number(r.lift) || 0,
-                  }))}
-                  valueKey="lift"
-                  colorKey={(r, i) => {
-                    const v = Number((assocRules[i] || {}).lift) || 0;
-                    return v >= 3 ? ORANGE : v >= 2 ? PEACH : LIGHT;
-                  }}
-                  maxShow={10}
-                  unit="×"
-                />
-                {assocRules[0] && (
-                  <Takeaway>
-                    {tr(
-                      `${assocRules[0].antecedent} et ${assocRules[0].consequent} : achetés ensemble ${fmt(assocRules[0].lift, 1)} fois plus souvent que par hasard. À proposer ensemble en caisse ou en formule.`,
-                      `${assocRules[0].antecedent} and ${assocRules[0].consequent}: bought together ${fmt(assocRules[0].lift, 1)} times more often than by chance. Suggest them together at the till or as a deal.`
-                    )}
-                  </Takeaway>
-                )}
-                <ExpertNote>
-                  Apriori (mlxtend, notebook). support = P(A ∩ B) ; confidence = P(B | A) ; lift = P(A ∩ B) / (P(A) × P(B)). Seuils : support ≥ 1 %, confiance ≥ 30 %, lift ≥ 1,2. Règles A → B et B → A regroupées (un groupe de produits = une ligne) : {fmt(assocData.nb_total_regles || 0)} groupes pour {fmt(assocData.nb_regles_brutes || 0)} règles. Tri : {assocSort}.
-                </ExpertNote>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Histogramme et matrice du Lift retirés : difficiles à lire, ils répétaient la liste ci-dessus. */}
 
@@ -3586,10 +3378,8 @@ export default function ProduitsPage() {
 
           <div className="sw"><RetainCard max={6} style={{ marginBottom: 16 }} /></div>
 
-          <div className="sec-title">
-            <IconSparkles size={14} color={ORANGE} /> {tr("Synthèse & Plan d'action", "Summary & Action plan")}
-          </div>
           <div className="sw">
+            <Details label={tr("Voir le détail : synthèse et plan d'action", "See details: summary and action plan")}>
             <div>
               <div className="cc">
                 <ChartAssistantButton chartType="associations_table" chartData={{ rules: assocRules, nb_total_regles: assocData.nb_total_regles }} chartName="AssociationsRecommendations"
@@ -3614,7 +3404,7 @@ export default function ProduitsPage() {
                         </div>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: ".78rem", fontWeight: 800, color: INK, marginBottom: 2 }}>{r.title}</div>
-                          <div style={{ fontSize: ".68rem", color: "var(--dk-ink2, #4A524C)", lineHeight: 1.4 }}>{r.desc}</div>
+                          <div style={{ fontSize: ".68rem", color: "var(--dk-ink2, #3A3655)", lineHeight: 1.4 }}>{r.desc}</div>
                         </div>
                       </div>
                     );
@@ -3622,6 +3412,7 @@ export default function ProduitsPage() {
                 </div>
               </div>
             </div>
+            </Details>
           </div>
         </>
       )}

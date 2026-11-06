@@ -5,13 +5,16 @@
 // (en articles et en euros), la part de la production vendue et les produits épuisés.
 // API : GET/POST /api/production, GET /api/production/summary (backend/engines/production_engine.py).
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchProduction, saveProduction, fetchProductionSummary } from "@/lib/api";
 import { tr, trData, locale } from "@/lib/i18n";
 import { ExpertNote } from "@/components/Expert";
+import { TrayEditor } from "@/components/TrayEditor";
+import { planTrays, piecesToTrays, traysToPieces, TrayInfo } from "@/lib/trays";
+import { useSelectedDay } from "@/lib/selectedDay";
 
 type Row = { product_id: number; article: string; category: string; sold: number; usual: number | null; suggested: number | null;
-  prix: number | null; produced: number | null; leftover: number | null };
+  prix: number | null; produced: number | null; leftover: number | null; tray: TrayInfo | null };
 type Entry = { produced: string; leftover: string };
 
 const fmt = (n: number, d = 0) => Number(n || 0).toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -29,6 +32,10 @@ export default function StockPage() {
   const [fam, setFam] = useState("Toutes");
   const [q, setQ] = useState("");
   const [summary, setSummary] = useState<any>(null);
+  // Saisie en plaques : les produits qui ont une taille de plaque se saisissent en plaques, les autres restent en pièces.
+  // Les valeurs tapées sont dans l'unité affichée ; tout calcul et l'enregistrement passent en pièces.
+  const [inTrays, setInTrays] = useState(false);
+  const trayMode = useRef(false);
 
   const load = useCallback((date?: string) => {
     setData(null); setError(null); setStatus(null);
@@ -36,13 +43,19 @@ export default function StockPage() {
       if (d?.ok === false) { setError(d.message); return; }
       setData(d); setDs(d.date);
       const e: Record<number, Entry> = {};
-      (d.items || []).forEach((r: Row) => { e[r.product_id] = { produced: r.produced != null ? String(r.produced) : "", leftover: r.leftover != null ? String(r.leftover) : "" }; });
+      const show = (r: Row, v: number | null) => (v == null ? "" : String(trayMode.current && r.tray && r.tray.rounding !== "none" ? piecesToTrays(v, r.tray.pieces) : v));
+      (d.items || []).forEach((r: Row) => { e[r.product_id] = { produced: show(r, r.produced), leftover: show(r, r.leftover) }; });
       setEntries(e); setDirty(false);
     }).catch(() => setError(tr("Impossible de contacter le backend. Vérifiez qu'il est lancé (start-all.ps1).", "Cannot reach the backend. Check that it is running (start-all.ps1).")));
   }, []);
   const loadSummary = useCallback(() => { fetchProductionSummary(14).then(setSummary).catch(() => setSummary(null)); }, []);
 
-  useEffect(() => { load(); loadSummary(); }, [load, loadSummary]);
+  // Jour choisi dans la barre du haut : la saisie s'ouvre sur ce jour (sauf s'il reste des saisies non enregistrées)
+  const [selDay, , selReady] = useSelectedDay();
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+  useEffect(() => { loadSummary(); }, [loadSummary]);
+  useEffect(() => { if (!selReady || dirtyRef.current) return; load(selDay || undefined); }, [load, selDay, selReady]);
 
   // Prévenir avant de quitter la page avec des saisies non enregistrées
   useEffect(() => {
@@ -60,22 +73,65 @@ export default function StockPage() {
     setDirty(true); setStatus(null);
   };
 
+  // Plaque utilisée pour saisir cette ligne (null = pièces) : seulement en mode « plaques » et si le produit en a une
+  const trayOf = (r: Row): TrayInfo | null => (r.tray && r.tray.rounding !== "none" ? r.tray : null);
+  const unitTray = (r: Row): TrayInfo | null => (inTrays ? trayOf(r) : null);
+  const toPieces = (r: Row, v: number | null) => { const t = unitTray(r); return v == null || isNaN(v) || !t ? v : traysToPieces(v, t.pieces); };
+
   // Quantité proposée pour « Préparé » : la quantité conseillée si une prévision existe pour ce jour,
-  // sinon au moins ce qui a été vendu en caisse (et l'habitude du jour)
+  // sinon au moins ce qui a été vendu en caisse (et l'habitude du jour). En plaques : plaques entières selon l'arrondi du produit.
   const proposal = (r: Row) => Math.ceil(r.suggested ?? Math.max(r.sold || 0, r.usual || 0));
+  const proposalText = (r: Row) => {
+    const v = proposal(r), t = unitTray(r);
+    if (!(v > 0)) return "";
+    return String(t ? (planTrays(v, t)?.trays ?? piecesToTrays(v, t.pieces)) : v);
+  };
   const fillSuggested = () => {
     setEntries((p) => {
       const n = { ...p };
-      shown.forEach((r) => { if (!n[r.product_id]?.produced) { const v = proposal(r); if (v > 0) n[r.product_id] = { ...(n[r.product_id] || { leftover: "" }), produced: String(v) }; } });
+      shown.forEach((r) => { if (!n[r.product_id]?.produced) { const v = proposalText(r); if (v) n[r.product_id] = { ...(n[r.product_id] || { leftover: "" }), produced: v }; } });
       return n;
     });
     setDirty(true); setStatus(null);
   };
 
+  // Passer de pièces à plaques (et inversement) : les valeurs déjà tapées sont converties, pas perdues
+  const toggleUnit = () => {
+    const next = !inTrays;
+    setEntries((p) => {
+      const n = { ...p };
+      items.forEach((r) => {
+        const t = trayOf(r), e = n[r.product_id];
+        if (!t || !e) return;
+        const conv = (s: string) => { const v = num(s); return v == null || isNaN(v) ? s : String(next ? piecesToTrays(v, t.pieces) : traysToPieces(v, t.pieces)); };
+        n[r.product_id] = { produced: conv(e.produced), leftover: conv(e.leftover) };
+      });
+      return n;
+    });
+    trayMode.current = next; setInTrays(next);
+  };
+
+  // Une taille de plaque vient d'être changée dans l'éditeur : mettre la ligne à jour et garder la saisie en cours juste
+  const onTrayChanged = (pid: number, before: TrayInfo | null, after: TrayInfo | null) => {
+    const usesBefore = inTrays && before && before.rounding !== "none" ? before : null;
+    const usesAfter = inTrays && after && after.rounding !== "none" ? after : null;
+    setEntries((p) => {
+      const e = p[pid];
+      if (!e || (!usesBefore && !usesAfter)) return p;
+      const conv = (s: string) => {
+        const v = num(s); if (v == null || isNaN(v)) return s;
+        const pieces = usesBefore ? traysToPieces(v, usesBefore.pieces) : v;
+        return String(usesAfter ? piecesToTrays(pieces, usesAfter.pieces) : pieces);
+      };
+      return { ...p, [pid]: { produced: conv(e.produced), leftover: conv(e.leftover) } };
+    });
+    setData((d: any) => d ? { ...d, items: d.items.map((i: Row) => i.product_id === pid ? { ...i, tray: after } : i) } : d);
+  };
+
   // Calculs en direct
   const lineOf = (r: Row) => {
     const e = entries[r.product_id] || { produced: "", leftover: "" };
-    const p = num(e.produced), l = num(e.leftover);
+    const p = toPieces(r, num(e.produced)), l = toPieces(r, num(e.leftover));   // toujours en pièces
     const bad = (p != null && (isNaN(p) || p < 0)) || (l != null && (isNaN(l) || l < 0)) || (p != null && l != null && l > p);
     return { p, l, bad };
   };
@@ -137,6 +193,11 @@ export default function StockPage() {
               {fams.map((f) => <option key={f} value={f}>{f === "Toutes" ? tr("Toutes les familles", "All families") : trData(f)}</option>)}
             </select>
             <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Chercher un produit…", "Search a product…")} />
+            {items.some((r) => trayOf(r)) && (
+              <button type="button" className="prep-print-btn" onClick={toggleUnit} aria-pressed={inTrays}>
+                {inTrays ? tr("Saisie en plaques : oui", "Entry in trays: on") : tr("Saisir en plaques", "Enter in trays")}
+              </button>
+            )}
             <button type="button" className="prep-print-btn" onClick={fillSuggested} disabled={!items.length}>{tr("Remplir « Préparé »", "Fill in “Made”")}</button>
           </div>
         </div>
@@ -191,9 +252,14 @@ export default function StockPage() {
                             <td><b>{r.article}</b><small>{trData(r.category)}</small></td>
                             <td className="num">{fmt(r.sold)}</td>
                             <td className="num">{r.usual ? fmt(r.usual) : "—"}</td>
-                            <td className="num">{r.suggested != null ? fmt(Math.ceil(r.suggested)) : "—"}</td>
-                            <td><input className="stock-in" inputMode="decimal" value={e.produced} onChange={(ev) => set(r.product_id, "produced", ev.target.value)} placeholder={String(proposal(r) || "")} aria-label={tr(`Préparé : ${r.article}`, `Made: ${r.article}`)} /></td>
-                            <td><input className="stock-in" inputMode="decimal" value={e.leftover} onChange={(ev) => set(r.product_id, "leftover", ev.target.value)} placeholder="0" aria-label={tr(`Restant : ${r.article}`, `Left: ${r.article}`)} /></td>
+                            <td className="num">
+                              {r.suggested != null ? fmt(Math.ceil(r.suggested)) : "—"}
+                              {trayOf(r) && r.suggested != null && planTrays(Math.ceil(r.suggested), trayOf(r)) && (
+                                <small style={{ display: "block", color: "var(--dk-muted)" }}>{`= ${fmt(planTrays(Math.ceil(r.suggested), trayOf(r))!.trays)} ${tr("pl.", "tr.")}`}</small>
+                              )}
+                            </td>
+                            <td><input className="stock-in" inputMode="decimal" value={e.produced} onChange={(ev) => set(r.product_id, "produced", ev.target.value)} placeholder={proposalText(r)} aria-label={tr(`Préparé : ${r.article}`, `Made: ${r.article}`)} />{unitTray(r) && <small style={{ marginLeft: 4, color: "var(--dk-muted)" }}>{tr("pl.", "tr.")}</small>}</td>
+                            <td><input className="stock-in" inputMode="decimal" value={e.leftover} onChange={(ev) => set(r.product_id, "leftover", ev.target.value)} placeholder="0" aria-label={tr(`Restant : ${r.article}`, `Left: ${r.article}`)} />{unitTray(r) && <small style={{ marginLeft: 4, color: "var(--dk-muted)" }}>{tr("pl.", "tr.")}</small>}</td>
                             <td>{res}</td>
                           </tr>
                         );
@@ -203,7 +269,7 @@ export default function StockPage() {
                 </div>
               )}
               <ExpertNote>
-                Table daily_production (date_id, product_id, produced, leftover), créée automatiquement par le backend. Vendu (caisse) = SUM(quantity) de fact_ticket_lines ce jour-là. D'habitude = médiane des 8 derniers mêmes jours de semaine ouverts. Conseillé = borne haute de la prévision par produit, seulement pour les jours couverts par la dernière prévision. Invendus € = restant × prix moyen des 90 derniers jours de ventes. Une ligne vidée est effacée à l'enregistrement.
+                Table daily_production (date_id, product_id, produced, leftover), créée automatiquement par le backend. Vendu (caisse) = SUM(quantity) de fact_ticket_lines ce jour-là. D'habitude = médiane des 8 derniers mêmes jours de semaine ouverts. Conseillé = quantité anti-gaspillage de la prévision par produit (backend/engines/quantity_engine.py : niveau 1 − coût / prix, corrigé par cette saisie), seulement pour les jours couverts par la dernière prévision. Invendus € = restant × prix moyen des 90 derniers jours de ventes. Une ligne vidée est effacée à l'enregistrement. Saisie en plaques : pour les produits qui ont une taille de plaque (table product_tray_sizes), les quantités tapées sont des plaques et sont converties en pièces (plaques × pièces par plaque) à l'enregistrement ; daily_production reste en pièces.
               </ExpertNote>
             </div>
           </div>
@@ -235,6 +301,8 @@ export default function StockPage() {
               </div>
             </>
           )}
+
+          <TrayEditor onChanged={onTrayChanged} />
 
           {/* Barre d'enregistrement (toujours visible en bas) */}
           <div className="stock-save">

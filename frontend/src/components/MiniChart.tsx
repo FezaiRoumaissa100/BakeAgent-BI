@@ -2,17 +2,17 @@
 import { HourlyData } from "@/types/kpis";
 import { useEffect, useRef } from "react";
 
-const ORANGE = "var(--ch-1, #2E7D4F)";
-const PEACH  = "var(--ch-soft, #8EB08A)";
-const LIGHT  = "var(--dk-accent-pale, #D6E1D3)";
-const MUTED  = "var(--dk-muted, #6E756F)";
+const ORANGE = "var(--ch-1, #7357D9)";
+const PEACH  = "var(--ch-soft, #C4B8F4)";
+const LIGHT  = "var(--dk-accent-pale, #E4DEFA)";
+const MUTED  = "var(--dk-muted, #5E5A78)";
 
 // Le canvas ne comprend pas var(--x) : on lit la vraie couleur du thème (clair ou sombre)
 function resolveColor(c: string): string {
   const m = /^var\((--[\w-]+)(?:,\s*([^)]+))?\)$/.exec(c.trim());
   if (!m || typeof window === "undefined") return c;
   const v = getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim();
-  return v || (m[2] || "#2E7D4F").trim();
+  return v || (m[2] || "#7357D9").trim();
 }
 
 function sparkline(canvas: HTMLCanvasElement, data: number[], colorIn: string) {

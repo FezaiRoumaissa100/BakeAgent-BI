@@ -9,9 +9,26 @@ vendue, et les produits épuisés (restant = 0 : la demande était peut-être pl
 from datetime import date, datetime, timedelta
 from statistics import median
 from db.db import sql_fetch_all, sql_fetch_one, get_connection
+from config import CRENEAUX_HORAIRES, CRENEAUX_JOURS_OUVERTS, CRENEAUX_POIDS_BOUTIQUE, is_produced
+from engines.tray_engine import tray_map
+from engines.quantity_engine import apprentissage, quantite
 
 _ready = False
 
+
+
+def _sans_jours_particuliers(ds, days):
+    """Retire de « l'habitude » les jours fériés et événements courts (Réveillon, Noël…), sauf si le jour
+    affiché en est un lui-même. S'il ne reste presque rien, on garde la liste d'origine."""
+    try:
+        from engines.calendar_engine import special_days
+        if special_days([ds]):
+            return list(days)
+        sp = special_days(list(days))
+        kept = [d for d in days if d not in sp]
+        return kept if len(kept) >= 3 else list(days)
+    except Exception:
+        return list(days)
 
 def ensure_table():
     global _ready
@@ -48,7 +65,7 @@ def _prices(end):
 
 def get_production_day(ds: date):
     """Liste à remplir pour un jour : produits vendus ces 4 dernières semaines, avec ventes de la caisse ce jour-là,
-    quantité habituelle (médiane des 8 derniers mêmes jours de semaine), quantité conseillée (prévision, si elle existe)
+    quantité habituelle (médiane des 8 derniers mêmes jours de semaine), quantité conseillée (prévision au niveau anti-gaspillage, voir quantity_engine.py)
     et ce qui a déjà été saisi."""
     ensure_table()
     prods = sql_fetch_all("""
@@ -59,13 +76,15 @@ def get_production_day(ds: date):
         WHERE f.date_id > %s AND f.date_id <= %s
         GROUP BY 1, 2, 3 HAVING SUM(f.quantity) > 0
     """, (ds - timedelta(days=28), ds))
+    prods = [p for p in prods if is_produced(p["article_name"], p["category"])]     # ni boissons, ni confiserie, ni découpe
     sold = {r["product_id"]: float(r["q"] or 0) for r in sql_fetch_all(
         "SELECT product_id, SUM(quantity) AS q FROM fact_ticket_lines WHERE date_id = %s GROUP BY 1", (ds,))}
     # Habitude : les 8 derniers mêmes jours de la semaine OÙ LA BOUTIQUE ÉTAIT OUVERTE (cherchés sur 26 semaines)
     cand = [ds - timedelta(days=7 * k) for k in range(1, 27)]
     open_days = sorted({r["date_id"] for r in sql_fetch_all(
         f"SELECT DISTINCT date_id FROM fact_ticket_lines WHERE date_id IN ({', '.join(['%s'] * len(cand))})", tuple(cand))},
-        reverse=True)[:8]
+        reverse=True)
+    open_days = _sans_jours_particuliers(ds, open_days)[:8]
     hist = {}
     if open_days:
         for r in sql_fetch_all(f"""SELECT product_id, date_id, SUM(quantity) AS q FROM fact_ticket_lines
@@ -73,16 +92,23 @@ def get_production_day(ds: date):
             hist.setdefault(r["product_id"], []).append(float(r["q"] or 0))
     sugg = {}
     try:
-        run = sql_fetch_one("SELECT run_id FROM product_forecast_runs ORDER BY run_id DESC LIMIT 1")
+        # Calcul « normal » (moins de 30 jours) : le calcul à 30 jours ne sert qu'à prolonger la vue longue
+        run = sql_fetch_one("SELECT run_id FROM product_forecast_runs WHERE horizon < 30 ORDER BY run_id DESC LIMIT 1") \
+            or sql_fetch_one("SELECT run_id FROM product_forecast_runs ORDER BY run_id DESC LIMIT 1")
         if run:
-            for r in sql_fetch_all("SELECT product_id, yhat_upper FROM product_forecasts WHERE run_id = %s AND ds = %s",
-                                   (run["run_id"], ds)):
-                sugg[r["product_id"]] = _f(r["yhat_upper"])
+            fc = sql_fetch_all("""SELECT product_id, yhat, yhat_lower, yhat_upper, is_ferme FROM product_forecasts
+                                   WHERE run_id = %s AND ds = %s""", (run["run_id"], ds))
+            ap = apprentissage({p["product_id"]: (p["category"], p["article_name"]) for p in prods})
+            for r in fc:
+                if r["product_id"] in ap and not r["is_ferme"]:
+                    sugg[r["product_id"]] = quantite(_f(r["yhat"]), _f(r["yhat_upper"]), ap[r["product_id"]]["niveau"],
+                                                     _f(r["yhat_lower"]))
     except Exception:
         sugg = {}
     entered = {r["product_id"]: r for r in sql_fetch_all(
         "SELECT product_id, produced, leftover, updated_at FROM daily_production WHERE date_id = %s", (ds,))}
     prix = _prices(ds)
+    trays = tray_map()
 
     items = []
     for p in prods:
@@ -97,6 +123,7 @@ def get_production_day(ds: date):
             "prix": round(prix[pid], 2) if pid in prix else None,
             "produced": _f(e["produced"]) if e else None, "leftover": _f(e["leftover"]) if e else None,
             "q28": float(p["q28"] or 0),
+            "tray": trays.get(pid),      # {pieces, rounding, estimate} ou None : saisie possible en plaques
         })
     # Familles les plus vendues d'abord (pains, viennoiseries… avant les boissons), puis produits par volume
     cat_tot = {}
@@ -107,6 +134,46 @@ def get_production_day(ds: date):
     return {"date": ds.isoformat(), "items": items, "nb_saisis": len(entered),
             "last_sales_day": (last_sales_day() or ds).isoformat(),
             "updated_at": last.strftime("%Y-%m-%d %H:%M") if last else None}
+
+
+def get_slot_plan(ds: date):
+    """Plan par tranche horaire : pour chaque produit, la part de ses ventes faite habituellement à chaque tranche
+    (mêmes jours de la semaine que « ds », les derniers jours où la boutique était ouverte). Le tableau de bord applique
+    ces parts à la quantité à préparer, ce qui donne une quantité par fournée. Un produit peu vendu emprunte en partie
+    le profil de toute la boutique (poids CRENEAUX_POIDS_BOUTIQUE) ; un produit sans vente n'a pas de profil propre."""
+    edges = list(CRENEAUX_HORAIRES)
+    n_slots = len(edges) + 1
+
+    def slot(h):
+        return sum(1 for e in edges if h >= e)
+
+    cand = [ds - timedelta(days=7 * k) for k in range(1, 27)]
+    days = sorted({r["date_id"] for r in sql_fetch_all(
+        f"SELECT DISTINCT date_id FROM fact_ticket_lines WHERE date_id IN ({', '.join(['%s'] * len(cand))})", tuple(cand))},
+        reverse=True)
+    days = _sans_jours_particuliers(ds, days)[:CRENEAUX_JOURS_OUVERTS]
+    if not days:
+        return {"available": False, "date": ds.isoformat(), "edges": edges}
+    rows = sql_fetch_all(f"""SELECT product_id, hour, SUM(quantity) AS q FROM fact_ticket_lines
+                             WHERE hour IS NOT NULL AND date_id IN ({', '.join(['%s'] * len(days))}) GROUP BY 1, 2""", tuple(days))
+    per, shop = {}, [0.0] * n_slots
+    for r in rows:
+        k, q = slot(int(r["hour"])), float(r["q"] or 0)
+        per.setdefault(r["product_id"], [0.0] * n_slots)[k] += q
+        shop[k] += q
+    tot = sum(shop)
+    if tot <= 0:
+        return {"available": False, "date": ds.isoformat(), "edges": edges}
+    shop_share = [s / tot for s in shop]
+    items = []
+    for pid, c in per.items():
+        n = sum(c)
+        if n <= 0:
+            continue
+        sh = [(c[k] + CRENEAUX_POIDS_BOUTIQUE * shop_share[k]) / (n + CRENEAUX_POIDS_BOUTIQUE) for k in range(n_slots)]
+        items.append({"product_id": pid, "shares": [round(x, 4) for x in sh], "n": n})
+    return {"available": True, "date": ds.isoformat(), "edges": edges, "shop_shares": [round(x, 4) for x in shop_share],
+            "history_days": [d.isoformat() for d in sorted(days)], "items": items}
 
 
 def save_production_day(ds: date, rows: list):

@@ -2,12 +2,15 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { ExpertNote } from "@/components/Expert";
+import { Details, Scope } from "@/components/Ui";
 import { ProductForecastSection } from "@/components/ProductForecast";
 import { t as txt } from "@/lib/texts";
 import { colors } from "@/lib/theme";
 import { fetchForecast } from "@/lib/api";
+import { niceScale, robustCap, fmtAxisNum } from "@/lib/chartScale";
+import { useBox } from "@/lib/useBox";
 import { tr, trData, locale } from "@/lib/i18n";
-import { PageStory, StoryIcons } from "@/components/PageStory";
+import { StoryIcons } from "@/components/PageStory";
 import {
   IconSparkline as IconChartLine,
   IconBolt as IconZap,
@@ -68,7 +71,7 @@ export default function PrevisionsPage() {
   // Visualization toggles
   const [showObserved, setShowObserved] = useState(true);
   const [showPredicted, setShowPredicted] = useState(true);
-  const [showConfidence, setShowConfidence] = useState(true);
+  const [showConfidence] = useState(false);
 
   // Debounce du champ recherche produit (350ms)
   useEffect(() => {
@@ -119,6 +122,10 @@ export default function PrevisionsPage() {
   const forecast = data?.forecast || data?.forecast_14j || [];
   // Historique affiché : 3 fois l'horizon (21 jours avant une prévision à 7 jours, 42 avant 14 jours)
   const history = (data?.history || []).slice(-horizon * 3);
+  // Période affichée sous le titre du graphique : jours réels puis jours prévus
+  const dmy = (ds?: string) => (ds ? `${ds.slice(8, 10)}/${ds.slice(5, 7)}/${ds.slice(0, 4)}` : "");
+  const isCA = String(forecastInfo?.type || "").toLowerCase().includes("ca") || String(forecastInfo?.unit || "").includes("€");
+  const unitPerDay = isCA ? tr("€ par jour", "€ per day") : tr("articles par jour", "items per day");
   const forecastSeason = data?.forecast_season || [];
   // Période réelle de la prévision saisonnière (ex. « juin – septembre 2026 »)
   const seasonLabel = (() => {
@@ -144,12 +151,49 @@ export default function PrevisionsPage() {
                      letterSpacing:"-0.03em", lineHeight:1.1, margin:0 }}>
           {tr("Prévisions", "Sales")} <span style={{ color: ORANGE }}>{tr("Ventes", "Forecasts")}</span>
         </h1>
-        <p style={{ color:MUTED, fontSize:"0.82rem", marginTop:"6px",
-                    maxWidth:"640px", lineHeight:1.5 }}>
+        <p className="page-lead">
+          <span className="page-lead-ic" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.3-2.4 3.6M12 17h.01" /></svg></span>
+          <span>
           {forecastType === "ca"
             ? tr(`Combien la boutique devrait encaisser (€) dans les ${horizon} prochains jours ; la prévision de la saison plus bas reste en articles.`, `How much the shop should take in (€) over the next ${horizon} days; the season forecast below stays in items.`)
             : tr(`Combien d'articles la boutique devrait vendre dans les ${horizon} prochains jours, et sur la prochaine saison.`, `How many items the shop should sell over the next ${horizon} days, and over the next season.`)}
+          </span>
         </p>
+      </div>
+
+      {/* Horizon : 7 ou 14 jours (prévision jour par jour J+1 à J+14). Les filtres produit, catégorie, saison et
+          événement restent retirés : la prévision porte sur toute la boutique (le détail par produit est plus bas). */}
+      <div className="sw">
+        <div className="cc" style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", padding: "12px 18px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.75rem", fontWeight: 700, color: INK, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <IconCalendarDays size={16} color={ORANGE} />
+            {tr("Horizon", "Horizon")}
+          </div>
+          <div className="seg" role="group" aria-label={tr("Horizon", "Horizon")}>
+            {[7, 14, 30].map((h) => {
+              // 30 jours seulement si la dernière prévision calculée les contient (relancer forecasting\pipeline.py sinon)
+              const off = h > (data?.forecast_info?.max_horizon ?? 14);
+              return (
+                <button key={h} type="button" onClick={() => setHorizon(h)} disabled={off} className={horizon === h ? "on" : ""} aria-pressed={horizon === h}
+                  title={off ? tr("Disponible après le prochain calcul de la prévision (python forecasting\\pipeline.py)", "Available after the next forecast run (python forecasting\\pipeline.py)") : undefined}
+                  style={off ? { opacity: 0.45, cursor: "not-allowed" } : undefined}>
+                  {tr(`${h} jours`, `${h} days`)}
+                </button>
+              );
+            })}
+          </div>
+          <div className="seg" role="group" aria-label={tr("Unité", "Unit")}>
+            {[["articles", tr("Articles", "Items")], ["ca", tr("Chiffre d'affaires (€)", "Revenue (€)")]].map(([k, lbl]) => (
+              <button key={k} type="button" onClick={() => setForecastType(k)} className={forecastType === k ? "on" : ""} aria-pressed={forecastType === k}>{lbl}</button>
+            ))}
+          </div>
+          <span style={{ fontSize: "0.7rem", color: MUTED }}>
+            {horizon > 14 && data?.prophet_metrics?.long?.wape_jour != null
+              ? tr(`Les 14 premiers jours sont les plus fiables ; au-delà, l'écart moyen mesuré sur 30 jours est d'environ ${fmt(data.prophet_metrics.long.wape_jour * 100)} % par jour.`,
+                   `The first 14 days are the most reliable; beyond that, the average error measured over 30 days is about ${fmt(data.prophet_metrics.long.wape_jour * 100)}% per day.`)
+              : tr("Jour par jour jusqu'à 14 ou 30 jours ; plus loin, voir la prévision de la saison plus bas.", "Day by day up to 14 or 30 days; further ahead, see the season forecast below.")}
+          </span>
+        </div>
       </div>
 
       {/* ── L'HISTOIRE EN BREF : ce que disent les prévisions, avant les graphiques ── */}
@@ -165,7 +209,6 @@ export default function PrevisionsPage() {
         const evo = lyTot > 0 && withLy.length >= Math.ceil(open.length / 2) ? (fcLy / lyTot - 1) * 100 : null;
         const pk = open.reduce((m: any, f: any) => (f.yhat > m.yhat ? f : m), open[0]);
         const low = open.reduce((m: any, f: any) => (f.yhat < m.yhat ? f : m), open[0]);
-        const closed = forecast.filter((f: any) => f.is_ferme);
         const dayName = (f: any) => { const t = new Date(String(f.ds) + "T12:00:00").toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" }); return t; };
         // Saison : mois le plus chargé
         const byMonth: Record<string, number> = {};
@@ -175,22 +218,20 @@ export default function PrevisionsPage() {
         const errW = prophetMetrics.erreur_semaine != null ? Number(prophetMetrics.erreur_semaine) * 100 : null;
         const errD = prophetMetrics.mdape_cv != null ? Number(prophetMetrics.mdape_cv) : null;
         const points = [
-          { icon: StoryIcons.trend, label: tr("Le jour le plus chargé", "Busiest day"),
-            text: tr(`${dayName(pk)} : ${u(pk.yhat)} prévus${pk.last_year ? ` (${u(pk.last_year)} l'an dernier le même jour de la semaine)` : ""}.`,
-                     `${dayName(pk)}: ${u(pk.yhat)} forecast${pk.last_year ? ` (${u(pk.last_year)} last year on the same weekday)` : ""}.`) },
+          { icon: StoryIcons.trend, label: tr("Jour le plus chargé", "Busiest day"),
+            value: u(pk.yhat),
+            text: `${dayName(pk)}${pk.last_year ? tr(` · ${fmt(pk.last_year)} l'an dernier`, ` · ${fmt(pk.last_year)} last year`) : ""}` },
           { icon: StoryIcons.down, label: tr("Le plus calme", "Quietest"),
-            text: closed.length
-              ? tr(`${dayName(low)} (${u(low.yhat)}) ; ${closed.length} jour(s) de fermeture prévu(s) : ${closed.map(dayName).join(", ")}.`,
-                   `${dayName(low)} (${u(low.yhat)}); ${closed.length} closing day(s) expected: ${closed.map(dayName).join(", ")}.`)
-              : tr(`${dayName(low)} : ${u(low.yhat)} prévus.`, `${dayName(low)}: ${u(low.yhat)} forecast.`) },
-          bestM ? { icon: StoryIcons.calendar, label: tr("La saison à venir", "Coming season"),
-            text: tr(`${monthName(bestM[0])} sera le mois le plus chargé de la saison (${fmt(bestM[1])} articles prévus).`,
-                     `${monthName(bestM[0])} will be the busiest month of the season (${fmt(bestM[1])} items forecast).`) } : null,
+            value: u(low.yhat),
+            text: dayName(low) },
+          bestM ? { icon: StoryIcons.calendar, label: tr("Mois le plus chargé", "Busiest month"),
+            value: tr(`${fmt(bestM[1])} articles`, `${fmt(bestM[1])} items`),
+            text: tr(`${monthName(bestM[0])}, saison à venir`, `${monthName(bestM[0])}, coming season`) } : null,
           errW != null || errD != null ? { icon: StoryIcons.shield, label: tr("Fiabilité", "Reliability"),
+            value: `± ${fmt(errW != null ? errW : (errD || 0))} %`,
             text: errW != null
-              ? tr(`Sur une semaine entière, la prévision s'écarte en moyenne d'environ ${fmt(errW)} % de la réalité ; un jour pris seul, d'environ ${fmt(errD || 0)} %.`,
-                   `Over a whole week the forecast is off by about ${fmt(errW)}% on average; for a single day, about ${fmt(errD || 0)}%.`)
-              : tr(`Un jour donné, la prévision s'écarte en moyenne d'environ ${fmt(errD || 0)} % de la réalité.`, `On a given day the forecast is off by about ${fmt(errD || 0)}% on average.`) } : null,
+              ? tr(`d'écart sur une semaine · ± ${fmt(errD || 0)} % sur un jour seul`, `off over a week · ± ${fmt(errD || 0)}% for a single day`)
+              : tr("d'écart moyen sur un jour", "average daily error") } : null,
         ].filter(Boolean) as any[];
         const headline = evo !== null
           ? tr(`${horizon} prochains jours : environ ${u(total)}, soit ${fmt(Math.abs(evo))} % ${evo >= 0 ? "de plus" : "de moins"} que les mêmes jours l'an dernier.`,
@@ -198,228 +239,49 @@ export default function PrevisionsPage() {
           : tr(`${horizon} prochains jours : environ ${u(total)} sur ${open.length} jours d'ouverture.`, `Next ${horizon} days: about ${u(total)} over ${open.length} open days.`);
         const todo = tr(`Prévoir fournées et personnel du ${dayName(pk)} dès la veille ; la quantité à préparer produit par produit est dans Alertes & Stock.`,
                         `Plan batches and staff for ${dayName(pk)} the day before; the quantity to prepare per product is in Alerts & Stock.`);
-        return <PageStory headline={headline} points={points} todo={todo}
-          links={[{ href: "/alertes", label: tr("Liste à préparer", "Preparation list") }, { href: "/stock", label: tr("Saisir le stock", "Enter stock") }]} />;
-      })()}
-
-      {/* ── WARNING BANNER ── */}
-      <div className="sw">
-        <div style={{ 
-          background: "rgba(212,165,42,0.06)", 
-          borderLeft: "4px solid var(--ch-moss)", 
-          padding: "16px 20px", 
-          borderRadius: "0 12px 12px 0", 
-          fontSize: "0.75rem", 
-          color: "var(--dk-ink2, #2F3A32)", 
-          marginBottom: "8px",
-          display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap"
-        }}>
-          <IconAlert size={14} color="var(--ch-moss)" />
-          <strong>{tr("À savoir :", "Good to know:")}</strong>
-          <span style={{ flex: "1 1 320px", minWidth: 0 }}>{tr("Les prévisions représentent les valeurs estimées par le modèle à partir des données historiques. Elles ne constituent pas une mesure du stock réel ou des invendus physiques.", "Forecasts are values estimated by the model from historical data. They do not measure actual stock or physical unsold items.")}</span>
-        </div>
-      </div>
-
-      {/* Horizon : 7 ou 14 jours (prévision jour par jour J+1 à J+14). Les filtres produit, catégorie, saison et
-          événement restent retirés : la prévision porte sur toute la boutique (le détail par produit est plus bas). */}
-      <div className="sw">
-        <div className="cc" style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", padding: "12px 18px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "0.75rem", fontWeight: 700, color: INK, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            <IconCalendarDays size={16} color={ORANGE} />
-            {tr("Horizon", "Horizon")}
-          </div>
-          {[7, 14].map((h) => (
-            <button
-              key={h}
-              onClick={() => setHorizon(h)}
-              style={{
-                padding: "6px 14px", fontSize: "0.75rem", fontWeight: 700, borderRadius: "8px", cursor: "pointer",
-                border: horizon === h ? "1px solid var(--dk-pill, #1E2420)" : "1px solid var(--dk-line, #E3E4DD)",
-                background: horizon === h ? "var(--dk-pill, #1E2420)" : "var(--dk-surface, #FAFAF7)",
-                color: horizon === h ? "white" : INK,
-              }}
-            >
-              {tr(`${h} jours`, `${h} days`)}
-            </button>
-          ))}
-          <span style={{ width: 1, height: 22, background: "var(--dk-line)", margin: "0 4px" }} />
-          <div style={{ fontSize: "0.75rem", fontWeight: 700, color: INK, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            {tr("En", "In")}
-          </div>
-          {[["articles", tr("Articles", "Items")], ["ca", tr("Chiffre d'affaires (€)", "Revenue (€)")]].map(([k, lbl]) => (
-            <button
-              key={k}
-              onClick={() => setForecastType(k)}
-              style={{
-                padding: "6px 14px", fontSize: "0.75rem", fontWeight: 700, borderRadius: "8px", cursor: "pointer",
-                border: forecastType === k ? "1px solid var(--dk-pill, #1E2420)" : "1px solid var(--dk-line, #E3E4DD)",
-                background: forecastType === k ? "var(--dk-pill, #1E2420)" : "var(--dk-surface, #FAFAF7)",
-                color: forecastType === k ? "white" : INK,
-              }}
-            >
-              {lbl}
-            </button>
-          ))}
-          <span style={{ fontSize: "0.7rem", color: MUTED }}>
-            {tr("Jour par jour sur 14 jours ; plus loin, voir la prévision de la saison plus bas.", "Day by day over 14 days; further ahead, see the season forecast below.")}
-          </span>
-        </div>
-      </div>
-
-      {/* ── VISUALIZATION TOGGLES ── */}
-      <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <IconSettings size={18} color={ORANGE} />
-        {tr("Afficher", "Show")}
-      </div>
-      <div className="sw">
-        <div className="cc" style={{ 
-          padding:"16px 20px", borderRadius:"14px",
-          background: "var(--dk-soft, #F5F6F1)",
-          border:"1px solid var(--dk-line, rgba(140,160,140,.25))",
-          boxShadow:"0 4px 16px rgba(0,0,0,0.15)"
-        }}>
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-            <Toggle 
-              label={tr("Ventes réelles", "Actual sales")} 
-              checked={showObserved} 
-              onChange={setShowObserved}
-              icon={<IconEye size={16} />}
-            />
-            <Toggle 
-              label={tr("Prévision", "Forecast")} 
-              checked={showPredicted} 
-              onChange={setShowPredicted}
-              icon={<IconZap size={16} />}
-            />
-            <Toggle 
-              label={tr("Fourchette basse – haute", "Low – high range")} 
-              checked={showConfidence} 
-              onChange={setShowConfidence}
-              icon={<IconActivity size={16} />}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ── KEY METRICS ── */}
-      <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <IconTarget size={18} color={ORANGE} />
-        {tr("Les chiffres à retenir", "Key figures")}
-      </div>
-      <div className="sw">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
-          <MetricCard 
-            icon={<IconCalendarDays size={24} color={ORANGE} />}
-            title={tr("Horizon", "Horizon")}
-            subtitle={tr("Fenêtre de prévision", "Forecast window")}
-            value={tr(`${horizon} Jours`, `${horizon} Days`)}
-            color={INK}
-          />
-          <MetricCard 
-            icon={<IconChartLine size={24} color={ORANGE} />}
-            title={tr(`Total Prévu (${horizon}j)`, `Forecast total (${horizon}d)`)}
-            subtitle={tr(`${forecastInfo.label} cumulés`, `Cumulative ${trData(forecastInfo.label).toLowerCase()}`)}
-            value={fmt(metrics.total_prevision || metrics.total_prevision_14j)}
-            unit={trData(forecastInfo.unit)}
-            color={ORANGE}
-          />
-          <MetricCard 
-            icon={<IconBar size={24} color={ORANGE} />}
-            title={tr("Même période l'an dernier", "Same period last year")}
-            subtitle={metrics.moy_jour_periode
-              ? tr(`${forecastInfo.label} par jour ouvert · ${metrics.moy_jour_periode}`, `${trData(forecastInfo.label)} per open day · ${metrics.moy_jour_periode}`)
-              : tr(`${forecastInfo.label} par jour ouvert`, `${trData(forecastInfo.label)} per open day`)}
-            value={metrics.moy_jour_periode ? fmt(metrics.moy_jour_historique) : "—"}
-            unit={trData(forecastInfo.unit)}
-            color={INK}
-          />
-          <MetricCard 
-            icon={<IconPercent size={24} color={OK} />}
-            title={txt.forecast.reliability}
-            subtitle={txt.forecast.reliabilitySub}
-            value={prophetMetrics.mdape_cv != null ? `± ${Math.round(Number(prophetMetrics.mdape_cv))} %` : "—"}
-            color={OK}
-          />
-        </div>
-      </div>
-
-      {/* Bloc « Métriques Prophet » retiré : erreur d'entraînement et erreurs par horizon
-          étaient déduites de l'erreur médiane par multiplication, pas mesurées. */}
-
-      {/* ── FORECAST CALENDAR ── */}
-      <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <IconCalendarDays size={18} color={ORANGE} />
-        {tr("Jour par jour", "Day by day")}
-      </div>
-      <div className="sw">
-        <div className="cc" style={{ paddingRight: 46 }}>
-          <ChartAssistantButton chartType="forecast_daily_cards" chartData={{ forecast, horizon, filtres_page: { horizon, type: forecastType, produit: product, categorie: category, saison: season, evenement: event } }} chartName="ForecastDailyCards"
-            userQuestion="Explique la prévision jour par jour" position="top-right" onOpenChat={openChat} />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "12px", paddingTop: "8px" }}>
-            {forecast.map((day: any, i: number) => {
-              const isFerme = day.is_ferme === 1;
-              return (
-                <div key={i} style={{ 
-                  padding: "12px", 
-                  borderRadius: "12px", 
-                  border: isFerme ? "1px dashed var(--dk-line, #E3E4DD)" : "1px solid rgba(46,125,79,0.3)", 
-                  background: isFerme ? "var(--dk-surface, #FAFAF7)" : "var(--dk-surface, #FFFFFF)", 
-                  textAlign: "center", 
-                  display: "flex", 
-                  flexDirection: "column", 
-                  gap: "8px" 
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.6rem", fontWeight: 700, color: MUTED, textTransform: "uppercase" }}>
-                    <span>{tr(day.horizon, String(day.horizon ?? "").replace(/^J\+/, "D+"))}</span>
-                    <span>{trData(day.jour_semaine)?.slice(0, 3)}</span>
-                  </div>
-                  <div style={{ fontSize: "0.75rem", fontWeight: 800, color: INK }}>{day.date_fr}</div>
-                  {isFerme ? (
-                    <div style={{ margin: "12px 0", fontSize: "0.8rem", fontWeight: 700, color: MUTED }}>
-                      <IconAlert size={20} color={MUTED} />
-                      <div style={{ marginTop: "4px" }}>{tr("FERMÉ", "CLOSED")}</div>
-                    </div>
-                  ) : (
-                    <div style={{ margin: "8px 0" }}>
-                      <div style={{ fontSize: "1.3rem", fontWeight: 800, color: ORANGE }}>{fmt(day.yhat)}</div>
-                      {showConfidence && (
-                        <div style={{ fontSize: "0.6rem", fontWeight: 600, color: MUTED, marginTop: "2px" }}>
-                          [{fmt(day.yhat_lower)} – {fmt(day.yhat_upper)}]
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div style={{ fontSize: "0.6rem", fontWeight: 700, color: MUTED }}>
-                    {isFerme ? tr("Repos", "Day off") : trData(forecastInfo.unit)}
-                  </div>
+        // Résumé en une ligne (sans grand bandeau) : la phrase clé, puis la note « À savoir » en petit
+        return (
+          <div className="sw">
+            <div className="fc-sum">
+              <span className="fc-sum-ic" aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8" /><path d="M14 7h7v7" /></svg>
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div className="fc-sum-h">{headline}</div>
+                <div className="fc-sum-n">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
+                  {tr("Ce sont des estimations à partir des ventes passées, pas un comptage du stock.", "These are estimates based on past sales, not a stock count.")}
                 </div>
-              );
-            })}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* ── HISTORY + FORECAST CHART ── */}
       <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <IconChartLine size={18} color={ORANGE} />
         {tr("Avant et après aujourd'hui", "Before and after today")}
       </div>
+      <>
       <div className="sw">
-        <div className="cc" style={{ minHeight: "900px" }}>
+        {/* Graphique (2/3) + chiffres à retenir à côté (1/3) */}
+        <div className="fc-layout">
+        <div className="cc">
           <ChartAssistantButton chartType="forecast" chartData={{ history, forecast, showObserved, showPredicted, showConfidence, horizon, filtres_page: { horizon, type: forecastType, produit: product, categorie: category, saison: season, evenement: event } }} chartName="ForecastChart"
             userQuestion="Explique cette prévision de demande" position="top-right" onOpenChat={openChat} />
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: "6px" }}>
             <div>
               <div className="ct">{tr("Ventes récentes et prévision", "Recent sales and forecast")}</div>
-              <div className="cs">{tr("Ventes réelles des derniers jours, puis prévision jour par jour avec sa fourchette", "Actual sales over recent days, then the day-by-day forecast with its range")}</div>
-            </div>
-            <div style={{ display: "flex", gap: "16px", fontSize: "0.7rem", fontWeight: 700, paddingRight: "28px" }}>
-              {showObserved && <span style={{ display: "flex", alignItems: "center", gap: "6px", color: INK }}><div style={{ width: "8px", height: "8px", borderRadius: "50%", background: INK }} />{tr("Historique", "History")}</span>}
-              {showPredicted && <span style={{ display: "flex", alignItems: "center", gap: "6px", color: ORANGE }}><div style={{ width: "8px", height: "8px", borderRadius: "50%", background: ORANGE }} />{tr("Prévision", "Forecast")}</span>}
+              <Scope period={history.length && forecast.length
+                  ? tr(`Réel ${dmy(history[0].ds)} → ${dmy(history[history.length - 1].ds)} · Prévu ${dmy(forecast[0].ds)} → ${dmy(forecast[forecast.length - 1].ds)}`,
+                       `Actual ${dmy(history[0].ds)} → ${dmy(history[history.length - 1].ds)} · Forecast ${dmy(forecast[0].ds)} → ${dmy(forecast[forecast.length - 1].ds)}`)
+                  : undefined}
+                calc={tr("Ventes de toute la boutique", "Whole-shop sales")} unit={unitPerDay} />
             </div>
           </div>
           
-          <div style={{ height: "800px", width: "100%", marginTop: "12px" }}>
+          <div style={{ height: "300px", width: "100%" }}>
             {history.length > 0 && forecast.length > 0 ? (
               <ForecastChart 
                 history={history} 
@@ -427,6 +289,16 @@ export default function PrevisionsPage() {
                 showObserved={showObserved}
                 showPredicted={showPredicted}
                 showConfidence={showConfidence}
+                unit={forecastType === "ca" ? "€" : tr("articles", "items")}
+                controls={(
+            <div className="seg" role="group" aria-label={tr("Afficher", "Show")} style={{ flex: "none" }}>
+              {([[tr("Ventes réelles", "Actual sales"), showObserved, setShowObserved, INK], [tr("Prévision", "Forecast"), showPredicted, setShowPredicted, ORANGE]] as [string, boolean, (v: boolean) => void, string][]).map(([lbl, on, set, c]) => (
+                <button key={lbl} type="button" className={on ? "on" : ""} aria-pressed={on} onClick={() => set(!on)} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: on ? "#fff" : c }} />{lbl}
+                </button>
+              ))}
+            </div>
+                )}
               />
             ) : (
               <div style={{ 
@@ -442,21 +314,6 @@ export default function PrevisionsPage() {
               </div>
             )}
           </div>
-          {(() => {
-            const open = forecast.filter((f: any) => f.yhat > 0);
-            if (!open.length) return null;
-            const pk = open.reduce((m: any, f: any) => (f.yhat > m.yhat ? f : m), open[0]);
-            const ref = Number(metrics.moy_jour_historique || 0);
-            const avg = open.reduce((a: number, f: any) => a + f.yhat, 0) / open.length;
-            return (
-              <Takeaway>
-                {tr(
-                  `Jour le plus chargé prévu : ${pk.jour_semaine.toLowerCase()} ${pk.date_fr} (${fmt(pk.yhat)} ${forecastType === "ca" ? "€" : "articles"}). En moyenne ${fmt(avg)} ${forecastType === "ca" ? "€" : "articles"} par jour ouvert${ref ? `, contre ${fmt(ref)} sur la même période l'an dernier` : ""}.${prophetMetrics.mdape_cv != null ? ` Un jour donné, l'écart habituel entre prévu et vendu est d'environ ${fmt(Number(prophetMetrics.mdape_cv))} %${prophetMetrics.erreur_semaine != null ? `, et d'environ ${fmt(prophetMetrics.erreur_semaine * 100)} % sur une semaine entière` : ""} (mesuré sur l'historique).` : ""}`,
-                  `Busiest forecast day: ${trData(pk.jour_semaine)} ${pk.date_fr} (${fmt(pk.yhat)} ${forecastType === "ca" ? "€" : "items"}). On average ${fmt(avg)} ${forecastType === "ca" ? "€" : "items"} per open day${ref ? `, versus ${fmt(ref)} over the same period last year` : ""}.${prophetMetrics.mdape_cv != null ? ` On a given day the usual gap between forecast and actual is about ${fmt(Number(prophetMetrics.mdape_cv))}%${prophetMetrics.erreur_semaine != null ? `, and about ${fmt(prophetMetrics.erreur_semaine * 100)}% over a whole week` : ""} (measured on past data).` : ""}`
-                )}
-              </Takeaway>
-            );
-          })()}
           <ExpertNote>
             {prophetMetrics.source === "pipeline" ? (
               <>Source : forecasting/pipeline.py (calcul du {prophetMetrics.run_at}, données jusqu'au {prophetMetrics.data_end}), table shop_forecasts. Prévision de la boutique = {prophetMetrics.poids_an_dernier != null ? `${fmt((1 - prophetMetrics.poids_an_dernier) * 100)} % somme des prévisions par produit + ${fmt(prophetMetrics.poids_an_dernier * 100)} % ventes de la boutique le même jour l'an dernier` : "somme des prévisions par produit"} (la somme des produits suit le niveau récent ; l'an dernier voit venir les changements de saison et les jours fériés) ; poids choisi sur les fenêtres de test{prophetMetrics.choix_poids ? ` (${prophetMetrics.choix_poids})` : ""}. Le total peut donc différer un peu de la somme des produits affichés plus bas. Précision mesurée honnêtement sur {prophetMetrics.jours_testes ?? "—"} jours de test ({prophetMetrics.fenetres ?? "—"} fenêtres de 14 jours ; pour chaque fenêtre, chaque produit utilise la méthode qu'il aurait choisie sans elle) : écart médian d'un jour {prophetMetrics.mdape_cv != null ? fmt(Number(prophetMetrics.mdape_cv), 1) : "—"} %, WAPE {prophetMetrics.wape_jour != null ? fmt(prophetMetrics.wape_jour * 100, 1) : "—"} %, erreur sur la semaine {prophetMetrics.erreur_semaine != null ? fmt(prophetMetrics.erreur_semaine * 100, 1) : "—"} %, biais {prophetMetrics.biais != null ? fmt(prophetMetrics.biais * 100, 1) : "—"} %{prophetMetrics.biais_fenetre_min != null ? ` (selon la fenêtre, de ${fmt(prophetMetrics.biais_fenetre_min * 100)} % à +${fmt(prophetMetrics.biais_fenetre_max * 100)} % : écarts plus forts aux changements de saison et autour des fêtes)` : ""} ; objectif cahier : 15–20 % à 14 jours. Fourchette = écarts relatifs observés sur le total, niveaux ajustés pour viser ≈ 10 % des jours au-dessus de la borne haute ; mesuré sans la fenêtre testée : {prophetMetrics.couverture_fourchette != null ? fmt(prophetMetrics.couverture_fourchette * 100, 0) : "—"} % des ventes dans la fourchette, {prophetMetrics.au_dessus_fourchette != null ? fmt(prophetMetrics.au_dessus_fourchette * 100, 0) : "—"} % au-dessus (en conditions réelles, les changements de saison peuvent faire dépasser plus souvent). Chiffre d'affaires = quantités × prix moyen récent de chaque produit ; WAPE {prophetMetrics.wape_jour_ca != null ? fmt(prophetMetrics.wape_jour_ca * 100, 1) : "—"} %, biais {prophetMetrics.biais_ca != null ? fmt(prophetMetrics.biais_ca * 100, 1) : "—"} % (moins fiable que les quantités autour des fêtes : produits chers comme les bûches). Jours fériés pris en compte : {prophetMetrics.jours_feries_pays ? `pays « ${prophetMetrics.jours_feries_pays} » (réglage jours_feries_pays de forecasting/config.json)` : "aucun (réglage jours_feries_pays vide)"}. Référence = AVG(nb_articles) des mêmes jours décalés de 364 jours.</>
@@ -465,79 +322,48 @@ export default function PrevisionsPage() {
             )}
           </ExpertNote>
         </div>
-      </div>
-
-      {/* ── SEASONAL FORECAST ── */}
-      {forecastSeason.length > 0 && (
-        <>
-          <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <IconTrendUp size={18} color={ORANGE} />
-            {tr("La saison à venir", "The coming season")}
-          </div>
-          <div className="sw">
-            <div className="cc">
-              <ChartAssistantButton chartType="seasonal" chartData={{ data: forecastSeason, filtres_page: { horizon, type: forecastType, produit: product, categorie: category, saison: season, evenement: event } }} chartName="SeasonalChart"
-                userQuestion="Explique cette saisonnalité" position="top-right" onOpenChat={openChat} />
-              <div className="ct">{tr("Prévision des ventes pour la prochaine saison", "Sales forecast for the next season")}</div>
-              <div className="cs">{tr(`Articles par jour, ${seasonLabel}, avec la fourchette basse – haute. × = jour prévu fermé (d'après les habitudes de la boutique l'an dernier), à confirmer avec la boutique.`, `Items per day, ${seasonLabel}, with the low – high range. × = day expected closed (based on the shop's habits last year), to be confirmed with the shop.`)}</div>
-              <div style={{ height: "350px", width: "100%", marginTop: "16px" }}>
-                <SeasonalChart data={forecastSeason} />
+          <div className="side-col" style={{ alignSelf: "start" }}>
+          <div className="cc kpi-card">
+          <div className="kpi-card-t">{tr("Chiffres clés", "Key figures")}</div>
+          {/* Uniquement ce que le bandeau ne dit pas déjà : jours d'ouverture, moyenne par jour, total probable */}
+          {(() => {
+            const isCa = forecastType === "ca";
+            const u = (n: number) => (isCa ? `${fmt(n)} €` : tr(`${fmt(n)} articles`, `${fmt(n)} items`));
+            const open = forecast.filter((f: any) => !f.is_ferme && f.yhat > 0);
+            const closed = forecast.filter((f: any) => f.is_ferme || !(f.yhat > 0));
+            const total = open.reduce((a: number, f: any) => a + f.yhat, 0);
+            const avg = open.length ? total / open.length : 0;
+            const ly = Number(metrics.moy_jour_historique) || 0;
+            const errW = prophetMetrics.erreur_semaine != null ? Number(prophetMetrics.erreur_semaine) : null;
+            const dd = (f: any) => new Date(String(f.ds) + "T12:00:00").toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short" });
+            const closedTxt = closed.slice(0, 3).map(dd).join(", ") + (closed.length > 3 ? "…" : "");
+            const rows = [
+              { ic: <IconCalendarDays size={16} />, l: tr("Jours d'ouverture", "Open days"), v: tr(`${open.length} sur ${forecast.length}`, `${open.length} of ${forecast.length}`),
+                s: closed.length ? tr(`fermé : ${closedTxt}`, `closed: ${closedTxt}`) : tr("aucun jour fermé prévu", "no closed day expected") },
+              { ic: <IconBar size={16} />, l: tr("Moyenne par jour ouvert", "Average per open day"), v: u(avg),
+                s: ly ? tr(`${u(ly)} l'an dernier, mêmes jours`, `${u(ly)} last year, same days`) : tr("jours d'ouverture seulement", "open days only") },
+              errW != null ? { ic: <IconTarget size={16} />, l: tr("Total probable", "Likely total"),
+                v: `${fmt(total * (1 - errW))} – ${fmt(total * (1 + errW))}${isCa ? " €" : ""}`,
+                s: tr(`sur ${horizon} jours, selon l'écart habituel (± ${fmt(errW * 100)} %)`, `over ${horizon} days, given the usual error (± ${fmt(errW * 100)}%)`) } : null,
+            ].filter(Boolean) as any[];
+            return rows.map((r) => (
+              <div key={r.l} className="kpi-line">
+                <div className="kpi-top"><span className="kpi-ic">{r.ic}</span>{r.l}</div>
+                <div className="kpi-v num">{r.v}</div>
+                <span className="kpi-d">{r.s}</span>
               </div>
-              {(() => {
-                const open = forecastSeason.filter((d: any) => d.yhat > 0);
-                if (!open.length) return null;
-                const pk = open.reduce((m: any, d: any) => (d.yhat > m.yhat ? d : m), open[0]);
-                const byMonth: Record<string, number> = {};
-                open.forEach((d: any) => { const m = String(d.ds).slice(5, 7); byMonth[m] = (byMonth[m] || 0) + d.yhat; });
-                const best = Object.entries(byMonth).sort((a, b) => b[1] - a[1])[0];
-                const MOIS: Record<string, string> = { "01": "janvier", "02": "février", "03": "mars", "04": "avril", "05": "mai", "06": "juin", "07": "juillet", "08": "août", "09": "septembre", "10": "octobre", "11": "novembre", "12": "décembre" };
-                const MON: Record<string, string> = { "01": "January", "02": "February", "03": "March", "04": "April", "05": "May", "06": "June", "07": "July", "08": "August", "09": "September", "10": "October", "11": "November", "12": "December" };
-                const shut = forecastSeason.filter((d: any) => !(d.yhat > 0));
-                const JF = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
-                const JE = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-                const cnt: Record<number, number> = {};
-                shut.forEach((d: any) => { const k = new Date(String(d.ds) + "T00:00:00").getDay(); cnt[k] = (cnt[k] || 0) + 1; });
-                const top = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
-                const shutFr = shut.length ? ` ${shut.length} jour${shut.length > 1 ? "s" : ""} prévu${shut.length > 1 ? "s" : ""} fermé${shut.length > 1 ? "s" : ""}${top && top[1] > 1 ? ` (dont ${top[1]} ${JF[Number(top[0])]}s)` : ""}.` : "";
-                const shutEn = shut.length ? ` ${shut.length} day${shut.length > 1 ? "s" : ""} expected closed${top && top[1] > 1 ? ` (incl. ${top[1]} ${JE[Number(top[0])]}s)` : ""}.` : "";
-                // Évolution récente non appliquée : on le dit, pour que le gérant puisse en tenir compte
-                const sz: any = prophetMetrics.saison || {};
-                const ev3 = sz.evolution_3_mois;
-                const trendNote = sz.alpha === 0 && ev3 != null && Math.abs(ev3 - 1) >= 0.05
-                  ? [` Les 3 derniers mois sont ${fmt(Math.abs(ev3 - 1) * 100)} % ${ev3 < 1 ? "sous" : "au-dessus de"} l'an dernier : cette évolution n'est pas appliquée à la saison, car sur l'historique de la boutique l'appliquer rendait les prévisions moins justes.`,
-                     ` The last 3 months are ${fmt(Math.abs(ev3 - 1) * 100)}% ${ev3 < 1 ? "below" : "above"} last year: this trend is not applied to the season because, on the shop's history, applying it made forecasts less accurate.`]
-                  : ["", ""];
-                return (
-                  <Takeaway>
-                    {tr(
-                      `${MOIS[best[0]] || best[0]} est le mois le plus chargé (${fmt(best[1])} articles prévus) ; pic le ${pk.label} avec ${fmt(pk.yhat)} articles. Prévoir le personnel et les achats en conséquence.${shutFr}${trendNote[0]}`,
-                      `${MON[best[0]] || best[0]} is the busiest month (${fmt(best[1])} items forecast); peak on ${pk.label} with ${fmt(pk.yhat)} items. Plan staff and purchases accordingly.${shutEn}${trendNote[1]}`
-                    )}
-                  </Takeaway>
-                );
-              })()}
-              <ExpertNote>
-                {prophetMetrics.source === "pipeline" && prophetMetrics.saison?.debut ? (() => {
-                  const sz = prophetMetrics.saison;
-                  const pc = (v: any, d = 1) => (v != null ? `${fmt(v * 100, d)} %` : "—");
-                  return <>Source : forecasting/pipeline.py, table shop_forecasts (kind = « saison »). Période choisie automatiquement : {sz.choix_mois}, plus un mois avant et après ({sz.libelle}). Prévision = ventes de la boutique le même jour l'an dernier (même jour de semaine, lissé avec les semaines voisines{sz.part_meme_date ? `, mélangé à ${fmt(sz.part_meme_date * 100)} % avec la même date l'an dernier` : ""}) × évolution des ventes sur un an ({fmt(sz.evolution, 3)}) puissance α = {sz.alpha} ; réglages {sz.choix_alpha}. Évolution des 3 derniers mois : {sz.evolution_3_mois != null ? fmt(sz.evolution_3_mois, 3) : "—"} ; évolution des prix à panier constant : {sz.evolution_prix != null ? fmt(sz.evolution_prix, 3) : "—"}. Mesuré sur {sz.dates_test} dates passées, 1 à 8 mois à l'avance : écart {pc(sz.wape_jour)} par jour, {pc(sz.erreur_mois)} par mois, biais {pc(sz.biais)}. Fourchette = quantiles 10 % / 90 % des écarts observés ({sz.fourchette}) ; ventes réelles dans la fourchette, mesuré sans la date testée : {pc(sz.couverture_fourchette, 0)}. Jours fermés : même habitude que l'an dernier à la même période (ex. mercredis), jours fériés fermés l'an dernier s'ils se répètent ; une fermeture ponctuelle n'est pas reproduite. Jours d'événement (calendrier, et jours fériés du pays choisi dans forecasting/config.json s'ils ont réellement été des jours à part l'an dernier) : même jour d'événement l'an dernier.</>;
-                })() : (
-                  <>Source : prévision de saison du notebook (Prophet × coefficients mensuels), utilisée parce que forecasting/pipeline.py n'a pas encore été lancé. Non vérifiée : jours à 0 traités comme fermés sans contrôle. Lancer python forecasting\pipeline.py.</>
-                )}
-              </ExpertNote>
-            </div>
+            ));
+          })()}
           </div>
-        </>
-      )}
+          </div>
+        </div>
+      </div>
 
       {/* ── PROPHET DECOMPOSITION ── */}
       {Object.keys(decomposition).length > 0 && (
         <>
-          <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <IconLayers size={18} color={ORANGE} />
-            {tr("Ce qui explique la prévision", "What drives the forecast")}
-          </div>
           <div className="sw">
+            <Details label={tr("Voir le détail : ce qui explique la prévision", "See details: what drives the forecast")}>
             <div className="cc">
               <ChartAssistantButton chartType="forecast_decomposition" chartData={{ decomposition, filtres_page: { horizon, type: forecastType, produit: product, categorie: category, saison: season, evenement: event } }} chartName="ForecastDecomposition"
                 userQuestion="Explique la décomposition de la prévision (tendance, saisonnalité, événements)" position="top-right" onOpenChat={openChat} />
@@ -579,14 +405,72 @@ export default function PrevisionsPage() {
                 )}
               </div>
             </div>
+            </Details>
           </div>
         </>
       )}
 
-      {/* Tableau « Détail numérique » retiré : il répétait le calendrier des prévisions. */}
+      </>
 
-      {/* ── NOUVEAU : prévision par produit (pipeline forecasting/pipeline.py), en plus de la prévision globale ── */}
-      <ProductForecastSection />
+      {/* ── SEASONAL FORECAST ── */}
+      {forecastSeason.length > 0 && (
+        <>
+          <div className="sw">
+            <Details label={tr("Voir le détail : la saison à venir", "See details: the coming season")}>
+            <div className="cc">
+              <ChartAssistantButton chartType="seasonal" chartData={{ data: forecastSeason, filtres_page: { horizon, type: forecastType, produit: product, categorie: category, saison: season, evenement: event } }} chartName="SeasonalChart"
+                userQuestion="Explique cette saisonnalité" position="top-right" onOpenChat={openChat} />
+              <div className="ct">{tr("Prévision des ventes pour la prochaine saison", "Sales forecast for the next season")}</div>
+              <Scope period={tr(`Prévision : ${seasonLabel}`, `Forecast: ${seasonLabel}`)} calc={tr("Total prévu de chaque jour, tous produits", "Forecast total of each day, all products")} unit={tr("articles par jour", "items per day")} />
+              <div className="cs">{tr(`Articles par jour, ${seasonLabel}, avec la fourchette basse – haute. × = jour prévu fermé (d'après les habitudes de la boutique l'an dernier), à confirmer avec la boutique.`, `Items per day, ${seasonLabel}, with the low – high range. × = day expected closed (based on the shop's habits last year), to be confirmed with the shop.`)}</div>
+              <div style={{ height: "300px", width: "100%", marginTop: "12px" }}>
+                <SeasonalChart data={forecastSeason} />
+              </div>
+              {(() => {
+                const open = forecastSeason.filter((d: any) => d.yhat > 0);
+                if (!open.length) return null;
+                const pk = open.reduce((m: any, d: any) => (d.yhat > m.yhat ? d : m), open[0]);
+                const shut = forecastSeason.filter((d: any) => !(d.yhat > 0));
+                const JF = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+                const JE = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                const cnt: Record<number, number> = {};
+                shut.forEach((d: any) => { const k = new Date(String(d.ds) + "T00:00:00").getDay(); cnt[k] = (cnt[k] || 0) + 1; });
+                const top = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
+                const shutFr = shut.length ? ` ${shut.length} jour${shut.length > 1 ? "s" : ""} prévu${shut.length > 1 ? "s" : ""} fermé${shut.length > 1 ? "s" : ""}${top && top[1] > 1 ? ` (dont ${top[1]} ${JF[Number(top[0])]}s)` : ""}.` : "";
+                const shutEn = shut.length ? ` ${shut.length} day${shut.length > 1 ? "s" : ""} expected closed${top && top[1] > 1 ? ` (incl. ${top[1]} ${JE[Number(top[0])]}s)` : ""}.` : "";
+                // Évolution récente non appliquée : on le dit, pour que le gérant puisse en tenir compte
+                const sz: any = prophetMetrics.saison || {};
+                const ev3 = sz.evolution_3_mois;
+                const trendNote = sz.alpha === 0 && ev3 != null && Math.abs(ev3 - 1) >= 0.05
+                  ? [` Les 3 derniers mois sont ${fmt(Math.abs(ev3 - 1) * 100)} % ${ev3 < 1 ? "sous" : "au-dessus de"} l'an dernier : cette évolution n'est pas appliquée à la saison, car sur l'historique de la boutique l'appliquer rendait les prévisions moins justes.`,
+                     ` The last 3 months are ${fmt(Math.abs(ev3 - 1) * 100)}% ${ev3 < 1 ? "below" : "above"} last year: this trend is not applied to the season because, on the shop's history, applying it made forecasts less accurate.`]
+                  : ["", ""];
+                return (
+                  <Takeaway>
+                    {tr(
+                      `Pic le ${pk.label} avec ${fmt(pk.yhat)} articles. Prévoir le personnel et les achats en conséquence.${shutFr}${trendNote[0]}`,
+                      `Peak on ${pk.label} with ${fmt(pk.yhat)} items. Plan staff and purchases accordingly.${shutEn}${trendNote[1]}`
+                    )}
+                  </Takeaway>
+                );
+              })()}
+              <ExpertNote>
+                {prophetMetrics.source === "pipeline" && prophetMetrics.saison?.debut ? (() => {
+                  const sz = prophetMetrics.saison;
+                  const pc = (v: any, d = 1) => (v != null ? `${fmt(v * 100, d)} %` : "—");
+                  return <>Source : forecasting/pipeline.py, table shop_forecasts (kind = « saison »). Période choisie automatiquement : {sz.choix_mois}, plus un mois avant et après ({sz.libelle}). Prévision = ventes de la boutique le même jour l'an dernier (même jour de semaine, lissé avec les semaines voisines{sz.part_meme_date ? `, mélangé à ${fmt(sz.part_meme_date * 100)} % avec la même date l'an dernier` : ""}) × évolution des ventes sur un an ({fmt(sz.evolution, 3)}) puissance α = {sz.alpha} ; réglages {sz.choix_alpha}. Évolution des 3 derniers mois : {sz.evolution_3_mois != null ? fmt(sz.evolution_3_mois, 3) : "—"} ; évolution des prix à panier constant : {sz.evolution_prix != null ? fmt(sz.evolution_prix, 3) : "—"}. Mesuré sur {sz.dates_test} dates passées, 1 à 8 mois à l'avance : écart {pc(sz.wape_jour)} par jour, {pc(sz.erreur_mois)} par mois, biais {pc(sz.biais)}. Fourchette = quantiles 10 % / 90 % des écarts observés ({sz.fourchette}) ; ventes réelles dans la fourchette, mesuré sans la date testée : {pc(sz.couverture_fourchette, 0)}. Jours fermés : même habitude que l'an dernier à la même période (ex. mercredis), jours fériés fermés l'an dernier s'ils se répètent ; une fermeture ponctuelle n'est pas reproduite. Jours d'événement (calendrier, et jours fériés du pays choisi dans forecasting/config.json s'ils ont réellement été des jours à part l'an dernier) : même jour d'événement l'an dernier.</>;
+                })() : (
+                  <>Source : prévision de saison du notebook (Prophet × coefficients mensuels), utilisée parce que forecasting/pipeline.py n'a pas encore été lancé. Non vérifiée : jours à 0 traités comme fermés sans contrôle. Lancer python forecasting\pipeline.py.</>
+                )}
+              </ExpertNote>
+            </div>
+            </Details>
+          </div>
+        </>
+      )}
+
+
+      <ProductForecastSection horizon={horizon} unit={forecastType} />
     </div>
   );
 }
@@ -620,15 +504,15 @@ function Toggle({ label, checked, onChange, icon }: any) {
         gap: "8px",
         padding: "8px 16px",
         borderRadius: "8px",
-        border: checked ? "2px solid var(--dk-accent-deep, #256B42)" : "1px solid var(--dk-line, #E3E4DD)",
-        background: checked ? "rgba(37,107,66,0.1)" : "var(--dk-surface, white)",
+        border: checked ? "2px solid var(--dk-accent-deep, #43309E)" : "1px solid var(--dk-line, #E3E4DD)",
+        background: checked ? "rgba(115,87,217,0.10)" : "var(--dk-surface, white)",
         fontSize: "0.85rem",
         fontWeight: checked ? 700 : 500,
-        color: checked ? "var(--dk-accent-deep, #256B42)" : INK,
+        color: checked ? "var(--dk-accent-deep, #43309E)" : INK,
         cursor: "pointer"
       }}
     >
-      {checked ? <IconEye size={16} color="var(--dk-accent-deep, #256B42)" /> : <IconEyeOff size={16} color={MUTED} />}
+      {checked ? <IconEye size={16} color="var(--dk-accent-deep, #43309E)" /> : <IconEyeOff size={16} color={MUTED} />}
       {label}
     </button>
   );
@@ -656,14 +540,18 @@ function niceStep(max: number, ticks = 5) {
   return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
 }
 
-function ForecastChart({ history, forecast: forecastAll, showObserved, showPredicted, showConfidence }: any) {
+function ForecastChart({ history, forecast: forecastAll, showObserved, showPredicted, showConfidence, controls, unit = "" }: any) {
+  // Jour survolé : une ligne verticale + une petite bulle avec les chiffres du jour
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   // Les jours de fermeture ne sont pas tracés (l'historique n'en contient pas non plus) :
   // ils restent visibles dans le calendrier.
   const forecast = (forecastAll || [])
     .filter((f: any) => !(f.is_ferme === 1 || f.yhat === 0))
     .map((f: any) => ({ ...f, label: ddmm(f.ds) }));
-  const W = 1200; const H = 800; 
-  const pad = { l: 70, r: 50, t: 50, b: 80 };
+  // Proportions proches de la carte : le texte du graphique garde à peu près sa taille réelle
+  const svgRef = React.useRef<SVGSVGElement | null>(null);
+  const [, W, H] = useBox(1200, 560, svgRef);   // taille réelle du graphique
+  const pad = { l: 70, r: 30, t: 46, b: 46 };
   
   // Zoom state
   const [zoomStart, setZoomStart] = useState<number | null>(null);
@@ -671,22 +559,29 @@ function ForecastChart({ history, forecast: forecastAll, showObserved, showPredi
   const [isSelecting, setIsSelecting] = useState(false);
   const [selStart, setSelStart] = useState<number | null>(null);
   const [selCurrent, setSelCurrent] = useState<number | null>(null);
-  const svgRef = React.useRef<SVGSVGElement | null>(null);
 
   const allData = [...history, ...forecast];
   const totalPts = allData.length;
   const n = Math.max(totalPts - 1, 1);
   
-  const allVals = [...history.map((h: any) => h.y), ...forecast.map((f: any) => f.yhat_upper)];
-  const max = Math.max(...allVals, 100) * 1.05;
-  const min = 0;
-
   const effStart = zoomStart ?? 0;
   const effEnd = zoomEnd ?? n;
   const effN = Math.max(effEnd - effStart, 1);
 
+  // Échelle calculée sur la partie AFFICHÉE (un zoom sur la prévision donne une échelle à sa taille), avec des
+  // graduations rondes. Un jour isolé très au-dessus des autres (ex. 31 décembre) ne doit pas écraser la courbe :
+  // il est coupé en haut du graphique avec sa valeur écrite.
+  const visVals = allData.map((d: any, i: number) => (i < history.length ? d.y : (showConfidence ? d.yhat_upper : d.yhat)))
+    .filter((_: number, i: number) => i >= effStart && i <= effEnd);
+  const { cap } = robustCap(visVals, 1.35);
+  const scale = niceScale(Math.max(cap, 10) * 1.06, 5);
+  const max = scale.max;
+  const min = 0;
+
   const toX = (i: number) => pad.l + ((i - effStart) / effN) * (W - pad.l - pad.r);
-  const toY = (v: number) => H - pad.b - ((v - min) / (max - min)) * (H - pad.t - pad.b);
+  const toY = (v: number) => H - pad.b - ((Math.min(v, max) - min) / (max - min)) * (H - pad.t - pad.b);
+  // Jours historiques au-dessus de l'échelle (affichés coupés, avec leur valeur)
+  const clippedHist = history.map((h: any, i: number) => ({ i, y: h.y })).filter((h: any) => h.y > max && h.i >= effStart && h.i <= effEnd);
 
   const clientXToIdx = (clientX: number): number | null => {
     const svg = svgRef.current;
@@ -708,7 +603,7 @@ function ForecastChart({ history, forecast: forecastAll, showObserved, showPredi
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!isSelecting) return;
+    if (!isSelecting) { setHoverIdx(clientXToIdx(e.clientX)); return; }
     const idx = clientXToIdx(e.clientX);
     if (idx === null) return;
     setSelCurrent(idx);
@@ -733,6 +628,7 @@ function ForecastChart({ history, forecast: forecastAll, showObserved, showPredi
   };
 
   const handleMouseLeave = () => {
+    setHoverIdx(null);
     if (isSelecting) {
       handleMouseUp();
     }
@@ -782,26 +678,45 @@ function ForecastChart({ history, forecast: forecastAll, showObserved, showPredi
   }
 
   // Y-axis labels
-  const yStep = niceStep(max, 5);
-  const yLabels = [];
-  for (let v = 0; v <= max; v += yStep) {
-    yLabels.push({ y: toY(v), value: fmt(v) });
-  }
+  const yLabels = scale.ticks.map((v) => ({ y: toY(v), value: fmtAxisNum(v, locale()) }));
 
   // Colors for different elements - using varied colors as requested
-  const histColor = "var(--dk-ink, #1E2420)";      // Dark for history
-  const fcColor = "var(--dk-accent-deep, #256B42)";       // Orange for forecast
-  const confColor = "rgba(37,107,66,0.15)"; // Light orange for confidence
+  const histColor = "var(--dk-ink, #24213A)";      // Dark for history
+  const fcColor = "var(--dk-accent-deep, #43309E)";       // Orange for forecast
+  const confColor = "rgba(115,87,217,0.16)"; // Light orange for confidence
   const gridColor = "var(--dk-grid, rgba(120,140,120,0.2))";
+
+  // Bulle du jour survolé (rien pendant une sélection de zoom, ni sur une série masquée)
+  const hov = (() => {
+    if (hoverIdx == null || isSelecting) return null;
+    const isFc = hoverIdx >= history.length;
+    if (isFc ? !showPredicted : !showObserved) return null;
+    const d: any = allData[hoverIdx];
+    if (!d) return null;
+    const v = isFc ? d.yhat : d.y;
+    if (v == null) return null;
+    const date = d.ds ? new Date(String(d.ds) + "T12:00:00").toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" }) : d.label;
+    return { x: toX(hoverIdx), y: toY(Math.min(v, max)), v, fc: isFc, date, lo: isFc ? d.yhat_lower : null, hi: isFc ? d.yhat_upper : null, ly: isFc && d.last_year ? d.last_year : null };
+  })();
 
   return (
     <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, paddingRight: 4 }}>
-        <span style={{ fontSize: "0.75rem", color: MUTED, fontWeight: 600 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 4, paddingRight: 4 }}>
+        {controls}
+        <span style={{ fontSize: "0.72rem", color: MUTED, fontWeight: 600, flex: 1, minWidth: 0 }}>
           {isZoomed
             ? tr(`Zoom : ${allData[effStart]?.label || ''} → ${allData[effEnd]?.label || ''} · Double-cliquez pour réinitialiser`, `Zoom: ${allData[effStart]?.label || ''} → ${allData[effEnd]?.label || ''} · Double-click to reset`)
-            : tr("Glissez une sélection horizontale sur le graphique pour zoomer", "Drag a horizontal selection on the chart to zoom in")}
+            : tr("Glissez sur le graphique pour zoomer · jours fermés non tracés", "Drag on the chart to zoom · closed days not plotted")}
         </span>
+        {!isZoomed && history.length > 15 && (
+          <button
+            onClick={() => { setZoomStart(Math.max(0, history.length - 15)); setZoomEnd(n); }}
+            style={{ fontSize: "0.7rem", background: "transparent", border: `1px solid ${fcColor}`, color: fcColor,
+                     padding: "4px 12px", borderRadius: 999, cursor: "pointer", fontWeight: 700 }}
+          >
+            {tr("Voir la prévision de près", "Zoom on the forecast")}
+          </button>
+        )}
         {isZoomed && (
           <button
             onClick={resetZoom}
@@ -822,10 +737,11 @@ function ForecastChart({ history, forecast: forecastAll, showObserved, showPredi
         )}
       </div>
 
+      <div style={{ position: "relative", flex: 1, minHeight: 0, display: "flex" }}>
       <svg 
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`} 
-        style={{ width: "100%", flex: 1, minHeight: 0 }} 
+        style={{ width: "100%", height: "100%" }} 
         preserveAspectRatio="xMidYMid meet"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -840,22 +756,25 @@ function ForecastChart({ history, forecast: forecastAll, showObserved, showPredi
 
         {/* Y-axis labels */}
         {yLabels.map((label) => (
-          <text key={label.y} x={pad.l - 8} y={label.y + 4} textAnchor="end" fontSize="10" fill={MUTED} fontWeight="600">
+          <text key={label.y} x={pad.l - 10} y={label.y + 5} textAnchor="end" fontSize="11" fill={MUTED} fontWeight="600">
             {label.value}
           </text>
         ))}
 
         {/* X-axis labels (dates) */}
         {dateLabels.map((label) => (
-          <text key={label.x} x={label.x} y={H - pad.b + 18} textAnchor="middle" fontSize="10" fill={INK} fontWeight="700">
+          <text key={label.x} x={label.x} y={H - pad.b + 20} textAnchor="middle" fontSize="11" fill={MUTED} fontWeight="600">
             {label.label}
           </text>
         ))}
 
         {/* Split line between history and forecast */}
         <line x1={splitX} y1={pad.t} x2={splitX} y2={H - pad.b} stroke="var(--ch-moss)" strokeWidth="1" strokeDasharray="4 4" opacity="0.5" />
-        <text x={splitX - 8} y={pad.t + 12} textAnchor="end" fontSize="11" fill="var(--dk-muted, #6E756F)" fontWeight="700">{tr("Historique", "History")}</text>
-        <text x={splitX + 8} y={pad.t + 12} textAnchor="start" fontSize="11" fill="var(--dk-accent-deep, #256B42)" fontWeight="700">{tr(`Prévision J+${(forecastAll || []).length}`, `Forecast D+${(forecastAll || []).length}`)}</text>
+        <text x={splitX - 8} y={pad.t - 12} textAnchor="end" fontSize="12" fill="var(--dk-muted, #5E5A78)" fontWeight="700">{tr("Historique", "History")}</text>
+        <text x={splitX + 8} y={pad.t - 12} textAnchor="start" fontSize="12" fill="var(--dk-accent-deep, #43309E)" fontWeight="700">{tr(`${(forecastAll || []).length} prochains jours`, `Next ${(forecastAll || []).length} days`)}</text>
+
+        {/* Zone de prévision : fond violet léger */}
+        <rect x={Math.min(Math.max(splitX, pad.l), W - pad.r)} y={pad.t} width={Math.max(0, W - pad.r - Math.max(splitX, pad.l))} height={H - pad.t - pad.b} fill="var(--dk-accent-wash)" opacity={0.6} rx={6} />
 
         {/* Confidence interval */}
         {showConfidence && confidencePath && (
@@ -872,9 +791,17 @@ function ForecastChart({ history, forecast: forecastAll, showObserved, showPredi
           <path d={fcPath} fill="none" stroke={fcColor} strokeWidth="3" />
         )}
 
+        {/* Jours au-dessus de l'échelle : coupés en haut, valeur écrite */}
+        {showObserved && clippedHist.map((c: any) => (
+          <g key={`clip${c.i}`}>
+            <text x={toX(c.i)} y={pad.t - 2} textAnchor="middle" fontSize="13" fill={histColor} fontWeight="800">▲ {fmt(c.y)}</text>
+            <title>{tr(`${allData[c.i]?.label || ""} : ${fmt(c.y)} (hors échelle)`, `${allData[c.i]?.label || ""}: ${fmt(c.y)} (off scale)`)}</title>
+          </g>
+        ))}
+
         {/* Forecast points */}
         {showPredicted && fcPts.slice(1).map((pt: any, i: number) => (
-          <circle key={i} cx={pt.x} cy={pt.y} r="4" fill="var(--dk-surface, white)" stroke={fcColor} strokeWidth="2" />
+          <circle key={i} cx={pt.x} cy={pt.y} r="5" fill="var(--dk-surface, white)" stroke={fcColor} strokeWidth="2.5" />
         ))}
 
         {/* Selection rectangle */}
@@ -884,7 +811,7 @@ function ForecastChart({ history, forecast: forecastAll, showObserved, showPredi
             y={pad.t} 
             width={Math.abs(selX2 - selX1)} 
             height={H - pad.t - pad.b} 
-            fill="rgba(37,107,66,0.1)" 
+            fill="rgba(115,87,217,0.10)" 
             stroke={fcColor} 
             strokeWidth="1" 
             strokeDasharray="4 4"
@@ -894,36 +821,43 @@ function ForecastChart({ history, forecast: forecastAll, showObserved, showPredi
         {/* Axes */}
         <line x1={pad.l} y1={pad.t} x2={pad.l} y2={H - pad.b} stroke={INK} strokeWidth="1" />
         <line x1={pad.l} y1={H - pad.b} x2={W - pad.r} y2={H - pad.b} stroke={INK} strokeWidth="1" />
+        {/* Survol : ligne verticale + point du jour */}
+        {hov && (
+          <g pointerEvents="none">
+            <line x1={hov.x} y1={pad.t} x2={hov.x} y2={H - pad.b} stroke="var(--dk-muted)" strokeWidth="1" strokeDasharray="3 3" opacity="0.7" />
+            <circle cx={hov.x} cy={hov.y} r="6" fill={hov.fc ? fcColor : histColor} stroke="var(--dk-surface, white)" strokeWidth="2" />
+          </g>
+        )}
       </svg>
-
-      {/* Legend */}
-      <div style={{ display: "flex", gap: "16px", marginTop: "8px", justifyContent: "center", flexWrap: "wrap" }}>
-        {showObserved && (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: histColor }} />
-            <span style={{ fontSize: "0.75rem", color: INK, fontWeight: 600 }}>{tr("Historique", "History")}</span>
-          </div>
-        )}
-        {showPredicted && (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: fcColor }} />
-            <span style={{ fontSize: "0.75rem", color: INK, fontWeight: 600 }}>{tr("Prévision", "Forecast")}</span>
-          </div>
-        )}
-        {showConfidence && (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <div style={{ width: "12px", height: "12px", borderRadius: "2px", background: confColor, border: "1px solid var(--dk-accent-deep, #256B42)" }} />
-            <span style={{ fontSize: "0.75rem", color: INK, fontWeight: 600 }}>{tr("Fourchette basse – haute", "Low – high range")}</span>
-          </div>
-        )}
-        <span style={{ fontSize: "0.72rem", color: MUTED }}>{tr("Jours de fermeture non tracés", "Closed days not plotted")}</span>
+      {hov && (
+        <div className="ch-tip" style={{ left: `${(hov.x / W) * 100}%`, transform: `translateX(${hov.x / W > 0.75 ? "-100%" : hov.x / W < 0.2 ? "0" : "-50%"})` }}>
+          <div className="ch-tip-d">{hov.date}</div>
+          {hov.fc ? (
+            <>
+              <div><span className="ch-tip-k">{tr("Prévu", "Forecast")}</span> <b className="num">{fmt(hov.v)} {unit}</b></div>
+              {hov.lo != null && hov.hi != null && <div className="ch-tip-s">{tr(`entre ${fmt(hov.lo)} et ${fmt(hov.hi)}`, `between ${fmt(hov.lo)} and ${fmt(hov.hi)}`)}</div>}
+              {hov.ly != null && <div className="ch-tip-s">{tr(`l'an dernier, même jour : ${fmt(hov.ly)}`, `last year, same weekday: ${fmt(hov.ly)}`)}</div>}
+            </>
+          ) : (
+            <div><span className="ch-tip-k">{tr("Vendu", "Sold")}</span> <b className="num">{fmt(hov.v)} {unit}</b></div>
+          )}
+        </div>
+      )}
       </div>
+
+      {/* Une seule légende : les boutons « Ventes réelles / Prévision » en haut de la carte */}
+      {clippedHist.length > 0 && (
+      <div style={{ display: "flex", gap: "16px", marginTop: "6px", justifyContent: "center", flexWrap: "wrap" }}>
+        {clippedHist.length > 0 && <span style={{ fontSize: "0.72rem", color: MUTED }}>{tr("▲ jour très au-dessus des autres, coupé (valeur écrite)", "▲ day far above the others, cut (value shown)")}</span>}
+      </div>
+      )}
     </div>
   );
 }
 
 function SeasonalChart({ data: dataAll }: any) {
-  const W = 1000; const H = 350;
+  const [boxRef, W, H] = useBox(1000, 350);
+  const [hi, setHi] = useState<number | null>(null);   // jour survolé
   const pad = { l: 60, r: 30, t: 20, b: 40 };
   const MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
   const MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -961,8 +895,19 @@ function SeasonalChart({ data: dataAll }: any) {
   const lineColor = "var(--ch-1)";
   const gridColor = "var(--dk-grid, rgba(120,140,120,0.2))";
 
+  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+    const relX = ((e.clientX - r.left) / r.width) * W;
+    if (relX < pad.l || relX > W - pad.r) { setHi(null); return; }
+    setHi(Math.max(0, Math.min(data.length - 1, Math.round(((relX - pad.l) / (W - pad.l - pad.r)) * n))));
+  };
+  const hd: any = hi != null ? data[hi] : null;
+  const hx = hi != null ? getX(hi) : 0;
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="xMidYMid meet">
+    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <svg ref={boxRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="xMidYMid meet"
+      onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
       {yLabels.map((l) => (
         <g key={l.y}>
           <line x1={pad.l} y1={l.y} x2={W - pad.r} y2={l.y} stroke={gridColor} strokeWidth="1" />
@@ -975,7 +920,7 @@ function SeasonalChart({ data: dataAll }: any) {
           <text x={m.x + 4} y={H - pad.b + 16} textAnchor="start" fontSize="11" fill={INK} fontWeight="700">{m.label}</text>
         </g>
       ))}
-      {band && <path d={band} fill="rgba(234,88,12,0.12)" stroke="none" />}
+      {band && <path d={band} fill="rgba(115,87,217,0.16)" stroke="none" />}
       <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2" />
       {/* Jours prévus fermés : une petite croix sur l'axe (le détail est dans le texte sous le graphique) */}
       {closed.map(({ d, i }: any) => (
@@ -986,7 +931,27 @@ function SeasonalChart({ data: dataAll }: any) {
       ))}
       <line x1={pad.l} y1={pad.t} x2={pad.l} y2={H - pad.b} stroke={INK} strokeWidth="1" />
       <line x1={pad.l} y1={H - pad.b} x2={W - pad.r} y2={H - pad.b} stroke={INK} strokeWidth="1" />
+      {hd && (
+        <g pointerEvents="none">
+          <line x1={hx} y1={pad.t} x2={hx} y2={H - pad.b} stroke="var(--dk-muted)" strokeWidth="1" strokeDasharray="3 3" opacity="0.7" />
+          {hd.yhat > 0 && <circle cx={hx} cy={getY(hd.yhat)} r="5" fill={lineColor} stroke="var(--dk-surface, white)" strokeWidth="2" />}
+        </g>
+      )}
     </svg>
+    {hd && (
+      <div className="ch-tip" style={{ left: `${(hx / W) * 100}%`, transform: `translateX(${hx / W > 0.75 ? "-100%" : hx / W < 0.2 ? "0" : "-50%"})` }}>
+        <div className="ch-tip-d">{new Date(String(hd.ds) + "T12:00:00").toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })}</div>
+        {hd.yhat > 0 ? (
+          <>
+            <div><span className="ch-tip-k">{tr("Prévu", "Forecast")}</span> <b className="num">{fmt(hd.yhat)} {tr("articles", "items")}</b></div>
+            {hd.yhat_lower != null && hd.yhat_upper != null && <div className="ch-tip-s">{tr(`entre ${fmt(hd.yhat_lower)} et ${fmt(hd.yhat_upper)}`, `between ${fmt(hd.yhat_lower)} and ${fmt(hd.yhat_upper)}`)}</div>}
+          </>
+        ) : (
+          <div className="ch-tip-s">{tr("Prévu fermé (comme l'an dernier à la même période)", "Expected closed (as last year at the same time)")}</div>
+        )}
+      </div>
+    )}
+    </div>
   );
 }
 

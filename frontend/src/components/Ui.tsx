@@ -88,14 +88,86 @@ export function RetainCard({ max = 5, style }: { max?: number; style?: React.CSS
 }
 
 /** Section repliée « Voir le détail » (s'ouvre au clic). */
-export function Details({ label, children, defaultOpen = false }: { label?: string; children: React.ReactNode; defaultOpen?: boolean }) {
+export function Details({ label, children, defaultOpen = false, soft = false }: { label?: string; children: React.ReactNode; defaultOpen?: boolean; soft?: boolean }) {
   return (
-    <details className="more" open={defaultOpen}>
+    <details className={`more${soft ? " more-soft" : ""}`} open={defaultOpen}>
       <summary>
         <svg className="more-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
         {label || tr("Voir le détail", "See details")}
       </summary>
       <div className="more-body">{children}</div>
     </details>
+  );
+}
+
+/* « Ce que montre ce graphique » : période couverte, calcul (total, moyenne par jour…) et unité,
+   en petites étiquettes sous le titre, pour qu'on sache toujours de quoi parle un chiffre. */
+export function Scope({ period, calc, unit, style }: { period?: React.ReactNode; calc?: React.ReactNode; unit?: React.ReactNode; style?: React.CSSProperties }) {
+  const chip = (icon: React.ReactNode, text: React.ReactNode, strong = false) => (
+    <span className={"scope-chip" + (strong ? " strong" : "")}>
+      <span aria-hidden="true" className="scope-ic">{icon}</span>{text}
+    </span>
+  );
+  const cal = (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+  );
+  const sig = (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M18 5H6l6 7-6 7h12" /></svg>
+  );
+  const ruler = (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M4 18h16M7 18v-4M12 18v-6M17 18v-3" /></svg>
+  );
+  return (
+    <div className="scope" style={style}>
+      {period ? chip(cal, period, true) : null}
+      {calc ? chip(sig, calc) : null}
+      {unit ? chip(ruler, unit) : null}
+    </div>
+  );
+}
+
+/* ── Liste déroulante de filtre (même style partout) : bouton « Libellé · valeur ⌄ » + menu ──
+   Remplace les longues rangées de boutons (années, mois) et les <select> du navigateur. */
+export function FilterDrop({ label, icon, value, options, onChange, allValue, cols = 1 }: {
+  label: string;
+  icon?: React.ReactNode;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  allValue?: string;          // valeur « tout » : le bouton n'est pas mis en avant quand elle est choisie
+  cols?: number;              // colonnes du menu (ex. 3 pour les mois)
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  const cur = options.find((o) => o.value === value);
+  const active = allValue !== undefined && value !== allValue;
+  return (
+    <div className="fd" ref={ref}>
+      <button type="button" className={`fd-btn${active ? " on" : ""}${open ? " open" : ""}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {icon && <span className="fd-ic" aria-hidden="true">{icon}</span>}
+        <span className="fd-lbl">{label}{tr(" :", ":")}</span>
+        <span className="fd-val">{cur ? cur.label : value}</span>
+        <svg className="fd-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+      </button>
+      {open && (
+        <div className="fd-pop" role="listbox" aria-label={label} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, minWidth: cols > 1 ? cols * 118 : undefined }}>
+          {options.map((o) => (
+            <button key={o.value} type="button" role="option" aria-selected={o.value === value}
+              className={`fd-opt${o.value === value ? " on" : ""}${allValue !== undefined && o.value === allValue ? " all" : ""}`}
+              onClick={() => { onChange(o.value); setOpen(false); }}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

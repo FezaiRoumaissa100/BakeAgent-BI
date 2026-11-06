@@ -1,5 +1,6 @@
 import math
 from db.db import sql_fetch_all, sql_fetch_one, sql_value, is_pg_available
+from config import np_sql
 from config import (PENETRATION_STATUTS, statut_penetration, PIC_HORAIRE_SEUIL_PCT,
                     CONTRIBUTION_GENERATEUR_SEUIL_PCT, FREQUENCE_STATUTS, statut_frequence)
 
@@ -38,6 +39,7 @@ def get_penetration_data_pg(search="", categories=None, statuts=None, year=None)
         FROM fact_ticket_lines f
         WHERE 1=1 {year_sql}
     """, year_params) or 0)
+    NP = np_sql("f.")        # articles qui ne sont pas des produits : hors des listes (restent dans le nombre de tickets)
 
     rows = sql_fetch_all(f"""
         SELECT p.product_id, p.article_name AS article, c.category_name AS category,
@@ -47,7 +49,7 @@ def get_penetration_data_pg(search="", categories=None, statuts=None, year=None)
         FROM fact_ticket_lines f
         JOIN dim_products p ON p.product_id = f.product_id
         LEFT JOIN dim_categories c ON c.category_id = p.category_id
-        WHERE 1=1 {year_sql}
+        WHERE 1=1 {year_sql}{NP}
         GROUP BY p.product_id, p.article_name, c.category_name
         HAVING SUM(f.total_revenue) > 0
     """, year_params)
@@ -187,6 +189,7 @@ def get_sales_velocity_data_pg():
                    BOOL_OR(COALESCE(e.is_event, FALSE)) AS is_event
             FROM fact_ticket_lines f
             LEFT JOIN dim_events e ON e.event_id = f.event_id
+            WHERE TRUE""" + np_sql("f.") + """
             GROUP BY f.date_id
         )
         SELECT d.day_of_week,
@@ -223,6 +226,7 @@ def get_sales_velocity_data_pg():
         pvs.ratio_event
     FROM product_velocity_stats pvs
     JOIN dim_products p ON pvs.product_id = p.product_id
+    WHERE TRUE""" + np_sql("pvs.") + """
     ORDER BY pvs.daily_velocity DESC
     LIMIT 50
     """
@@ -293,7 +297,7 @@ def get_sales_velocity_data_pg():
         SUM(f.quantity) as qte_this_hour
     FROM fact_ticket_lines f
     JOIN dim_products p ON f.product_id = p.product_id
-    WHERE f.hour IS NOT NULL AND f.hour BETWEEN 7 AND 19
+    WHERE f.hour IS NOT NULL AND f.hour BETWEEN 7 AND 19""" + np_sql("f.") + """
     GROUP BY f.hour, p.article_name
     ORDER BY f.hour, qte_this_hour DESC
     """
@@ -339,7 +343,7 @@ def get_ticket_contribution_data_pg():
 
     sizes = sql_fetch_one("""
         WITH t AS (
-            SELECT date_id, ticket_number, COUNT(DISTINCT product_id) AS nb_items
+            SELECT date_id, ticket_number, COUNT(DISTINCT product_id) FILTER (WHERE TRUE""" + np_sql("") + """) AS nb_items
             FROM fact_ticket_lines
             GROUP BY date_id, ticket_number
         )
@@ -357,7 +361,7 @@ def get_ticket_contribution_data_pg():
         SELECT date_id, ticket_number, SUM(total_revenue) AS ticket_total
         FROM fact_ticket_lines
         GROUP BY date_id, ticket_number
-        HAVING COUNT(DISTINCT product_id) >= 2
+        HAVING COUNT(DISTINCT product_id) FILTER (WHERE TRUE""" + np_sql("") + """) >= 2
     ),
     line_contributions AS (
         SELECT
@@ -371,6 +375,7 @@ def get_ticket_contribution_data_pg():
         FROM fact_ticket_lines f
         JOIN ticket_totals tt
           ON f.date_id = tt.date_id AND f.ticket_number = tt.ticket_number
+        WHERE TRUE""" + np_sql("f.") + """
     ),
     product_contributions AS (
         SELECT
@@ -472,6 +477,7 @@ def get_repurchase_frequency_data_pg():
         JOIN dim_products p ON f.product_id = p.product_id
         JOIN dim_dates d ON f.date_id = d.date_id
         LEFT JOIN dim_categories c ON p.category_id = c.category_id
+        WHERE TRUE""" + np_sql("f.") + """
         GROUP BY p.product_id, p.article_name, c.category_name
         ORDER BY semaines_actives DESC
     """)
@@ -618,7 +624,7 @@ def get_decision_matrix_data_pg(year=None):
         FROM fact_ticket_lines f
         JOIN dim_products p ON p.product_id = f.product_id
         LEFT JOIN dim_categories c ON c.category_id = p.category_id
-        WHERE 1=1 {year_sql}
+        WHERE 1=1 {year_sql}{np_sql('f.')}
         GROUP BY p.product_id, p.article_name, c.category_name
         HAVING SUM(f.total_revenue) > 0
     """, yp)
@@ -679,6 +685,12 @@ def get_decision_matrix_data_pg(year=None):
         quadrants[key]["ca"] += it['ca_total']
 
     ca_tot = sum(i['ca_total'] for i in items) or 1
+    # « À revoir » (réduire ou arrêter) : sous les deux moyennes ET un chiffre d'affaires sous la moitié de celui d'un produit
+    # moyen, ou le critère strict du cahier. Les moyennes seules ne suffisent pas : avec peu de produits, deux très gros
+    # vendeurs tirent les moyennes vers le haut et la moitié de la carte, qui fait la moitié du chiffre, passerait « à revoir ».
+    seuil_ca = 0.5 * ca_tot / len(items)
+    for it in items:
+        it['a_revoir'] = it['dormant_strict'] or (it['quadrant'] == "Dormant" and it['ca_total'] < seuil_ca)
     for q in quadrants.values():
         q["part_ca"] = safe_num(q["ca"] / ca_tot * 100)
 
@@ -689,6 +701,7 @@ def get_decision_matrix_data_pg(year=None):
                    "pic_horaire_pct": PIC_HORAIRE_SEUIL_PCT},
         "quadrants": quadrants,
         "nb_dormant_strict": sum(1 for i in items if i['dormant_strict']),
+        "nb_a_revoir": sum(1 for i in items if i['a_revoir']),
         "methodologie": ("Pénétration = tickets contenant le produit / tickets ; vitesse = quantité / jours de vente "
                          "du produit ; frontières = moyennes de la boutique (cahier des charges)."),
     }

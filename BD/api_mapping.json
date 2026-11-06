@@ -1,0 +1,50 @@
+{
+  "_comment": "Réglage de l'import par API (BD/002_import_from_api.py). A adapter quand le fournisseur donne sa documentation : seules les valeurs de ce fichier changent, pas le code. Les secrets ne vont JAMAIS ici : ils viennent des variables d'environnement API_BASE_URL et API_TOKEN.",
+
+  "endpoint": "/sales",
+  "auth": { "type": "bearer", "name": "Authorization" },
+  "_auth_types": "bearer = en-tête 'Authorization: Bearer <API_TOKEN>' | header = en-tête <name>: <API_TOKEN> | query = paramètre <name>=<API_TOKEN> | none",
+
+  "params": {
+    "date_from": "from",
+    "date_to": "to",
+    "to_inclusive": true,
+    "window_days": 31,
+    "page": "page",
+    "page_size": "page_size",
+    "page_size_value": 1000,
+    "date_format": "%Y-%m-%d"
+  },
+
+  "response": {
+    "records_path": "data",
+    "pagination": "page",
+    "_pagination_values": "page = pages numérotées à partir de 1, arrêt sur une page vide ou plus courte que page_size_value | none = une seule réponse par fenêtre de dates"
+  },
+
+  "fields": {
+    "line_id": "id",
+    "timestamp": "sold_at",
+    "date": null,
+    "hour": null,
+    "ticket_number": "ticket",
+    "article": "product_name",
+    "category": "category",
+    "quantity": "qty",
+    "unit_price": "unit_price",
+    "total_revenue": "total",
+    "event": null
+  },
+  "_fields_comment": "Valeur = nom du champ dans la réponse de l'API (null = absent). Il faut soit 'timestamp', soit 'date' + 'hour'. 'line_id' absent => identifiant calculé de façon stable à partir de la ligne. 'category' absent => 'Autre'. 'event' absent => 'Jour Normal'. 'unit_price' ou 'total_revenue' : l'un des deux suffit.",
+
+  "timezone": null,
+  "_timezone_comment": "Ex. 'Europe/Paris' : si les horodatages de l'API sont en UTC, ils sont convertis en heure locale avant d'extraire la date et l'heure. null = pris tels quels.",
+
+  "overlap_days": 3,
+
+  "article_aliases": {},
+  "_article_aliases": "Deux noms pour un même produit (bouton de caisse en double) : {\"NOM A REGROUPER\": \"NOM A GARDER\"}. Comparaison sans majuscules ni accents.",
+
+  "category_overrides": {},
+  "_category_overrides": "Famille corrigée à la main quand celle de la caisse est fausse : {\"NOM DE L'ARTICLE\": \"Famille\"}. L'ouverture des jours, la saison touristique et les exclusions se règlent dans client_settings.json."
+}

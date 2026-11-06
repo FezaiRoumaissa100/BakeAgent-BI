@@ -8,8 +8,9 @@ import { ChartAssistantButton } from "@/components/ChartAssistantButton";
 import { useChat } from "@/contexts/ChatContext";
 import { siteConfig } from "@/lib/siteConfig";
 import { ExpertNote } from "@/components/Expert";
-import { RetainProvider, RetainCard, Takeaway } from "@/components/Ui";
+import { RetainProvider, RetainCard, Takeaway, Details, Scope } from "@/components/Ui";
 import { tr, trData, locale, num } from "@/lib/i18n";
+import { fmtAxisEuro, fmtAxisNum } from "@/lib/chartScale";
 
 const ORANGE = colors.accent;
 const PEACH = colors.accentLight;
@@ -117,7 +118,7 @@ function VitesseGauge({ vitesse }: { vitesse: number }) {
           y1="46"
           x2="152"
           y2="38"
-          stroke="var(--dk-accent-deep, #1F5E3A)"
+          stroke="var(--dk-accent-deep, #43309E)"
           strokeWidth="2.5"
         />
       </svg>
@@ -179,7 +180,7 @@ function PlotlyBarChart({
 
   return (
     <div style={typeof height === "number" ? { height } : { flex: 1, minHeight: 0 }} className="w-full flex flex-col justify-between pt-2">
-      <div className="flex items-end gap-1.5 flex-1 w-full relative">
+      <div className="flex items-end gap-1.5 flex-1 w-full relative" style={{ paddingTop: 16 }}>
         {/* Horizontal grid lines */}
         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40">
           <div className="w-full border-b border-[color:var(--dk-line)] border-dashed" />
@@ -197,9 +198,15 @@ function PlotlyBarChart({
               className="flex-1 flex flex-col items-center justify-end h-full group relative z-10 cursor-pointer"
             >
               {/* Tooltip */}
-              <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 text-white text-[11px] font-bold py-1 px-2 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-30 shadow-lg" style={{ background: "var(--dk-pill, #1F2B23)" }}>
+              <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 text-white text-[11px] font-bold py-1 px-2 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-30 shadow-lg" style={{ background: "var(--dk-pill, #2B2747)" }}>
                 {d.heure}{tr(" : ", ": ")}{fmt(v)} {unit}
               </div>
+              {/* Pas d'axe vertical : la valeur est écrite au-dessus de chaque barre */}
+              {v > 0 && (
+                <div className="text-[10.5px] font-bold leading-none mb-1 whitespace-nowrap" style={{ color: isMax ? ORANGE : MUTED }}>
+                  {unit.trim() === "€" ? fmtAxisEuro(v, locale()) : fmtAxisNum(v, locale())}
+                </div>
+              )}
               <div
                 className="w-full transition-all group-hover:brightness-90"
                 style={{
@@ -214,7 +221,7 @@ function PlotlyBarChart({
       </div>
 
       {/* X Axis */}
-      <div className="flex gap-1.5 mt-1.5 pt-1.5 text-[10px] font-semibold" style={{ color: MUTED, borderTop: "1px solid var(--dk-line)" }}>
+      <div className="flex gap-1.5 mt-1.5 pt-1.5 text-[11.5px] font-semibold" style={{ color: MUTED, borderTop: "1px solid var(--dk-line)" }}>
         {data.map((d, i) => (
           <span key={i} className="flex-1 text-center">{d.heure}</span>
         ))}
@@ -263,7 +270,7 @@ function PlotlyAreaChart({
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
           <path
             d={area}
-            fill={color === ORANGE ? "rgba(46,125,79,0.10)" : "rgba(141,192,90,0.10)"}
+            fill={color === ORANGE ? "rgba(91,69,194,0.10)" : "rgba(62,134,214,0.10)"}
           />
           <path
             d={path}
@@ -310,12 +317,12 @@ export function Hero({ kpis }: { kpis: DailyKPIs }) {
     v_level === "high" ? tr("Forte", "Strong") : v_level === "low" ? tr("Faible", "Low") : v_level === "normal" ? tr("Normale", "Normal") : tr("Sans repère", "No reference");
   const v_badge_bg =
     v_level === "high"
-      ? "rgba(46,125,79, 0.08)"
+      ? "rgba(91,69,194, 0.08)"
       : v_level === "low"
       ? "rgba(110,117,111, 0.08)"
       : "rgba(92,101,96, 0.08)";
   const v_badge_color =
-    v_level === "high" ? ORANGE : v_level === "low" ? MUTED : "var(--dk-ink2, #5C6560)";
+    v_level === "high" ? ORANGE : v_level === "low" ? MUTED : "var(--dk-ink2, #3A3655)";
   const jourLabel = kpis.jour_semaine ? trData(kpis.jour_semaine) : "";
   const refLabel = kpis.ref_label || tr("jours comparables", "comparable days");
 
@@ -537,24 +544,27 @@ function PairsCard({ kpis }: { kpis: DailyKPIs }) {
   );
 }
 
+// Vue du Jour, mise en page compacte : les blocs sont affichés séparément par app/page.tsx
+// (en-tête et indicateurs, rythme de la journée, prévision, détail), dans un même <RetainProvider>.
 export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
-  const { openChat } = useChat();
-  const catTotal = kpis.categories.reduce((s, c) => s + c.total_revenue, 0) || 1;
-  const nb_total = Math.max(kpis.tickets, 1);
-
   return (
     <RetainProvider>
-    <div style={{ paddingBottom: 24 }}>
-      {/* ── Rangée principale : CA par heure (2/3) + cadence et « À retenir » (1/3) ── */}
-      <div className="sec-title">{tr("Rythme de la journée", "Daily rhythm")}</div>
-      <div className="sw">
-        <div className="grid-main stretch">
+      <AnalyticsRhythm kpis={kpis} />
+      <AnalyticsDetails kpis={kpis} />
+    </RetainProvider>
+  );
+}
+
+/** Rythme de la journée : chiffre d'affaires par heure (2/3) + carte « À retenir » (1/3). */
+export function AnalyticsRhythm({ kpis }: { kpis: DailyKPIs }) {
+  const { openChat } = useChat();
+  return (
           <div className="cc hero-card" style={{ display: "flex", flexDirection: "column" }}>
             <ChartAssistantButton chartType="hourly_bar" chartData={{ data: kpis.hourly_data, valueKey: "ca", unit: "€", journee: kpis.date_fr || kpis.date, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)" }} chartName="PlotlyBarChart"
               userQuestion="Explique ce graphique horaire du chiffre d'affaires" position="top-right" onOpenChat={openChat} />
             <div className="ct">{tr("Chiffre d'affaires par heure", "Revenue by hour")}</div>
-            <div className="cs">{tr("Survolez une barre pour le montant exact. Pic d'activité : ", "Hover a bar for the exact amount. Peak activity: ")}{String(kpis.peak_h).padStart(2, "0")}h</div>
-            <div style={{ flex: 1, minHeight: 290, display: "flex", flexDirection: "column" }}>
+            <Scope calc={tr("Total de chaque heure ce jour-là", "Total of each hour that day")} unit="€" />
+            <div style={{ height: 150, display: "flex", flexDirection: "column" }}>
               <PlotlyBarChart data={kpis.hourly_data} valueKey="ca" unit="€" height="100%" />
             </div>
             {kpis.hourly_data?.length > 0 && (
@@ -566,138 +576,22 @@ export function AnalyticsSections({ kpis }: { kpis: DailyKPIs }) {
               </Takeaway>
             )}
           </div>
-          <div className="side-col">
-            <CadenceCard kpis={kpis} />
-            <RetainCard max={3} />
-          </div>
-        </div>
-      </div>
+  );
+}
 
-      {/* ── Produits du jour : ce qui rapporte (1/2) + ce qui s'achète ensemble (1/2) ── */}
-      <div className="sec-title">{tr("Produits du jour", "Today's products")}</div>
-      <div className="sw">
-        <div className="grid-2 stretch">
-          <div className="cc">
-            <ChartAssistantButton chartType="prod_rows_top_ca" chartData={{ list: kpis.top_ca.slice(0, 8), col: "total_revenue", journee: kpis.date_fr || kpis.date, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)" }} chartName="TopProductsCA"
-              userQuestion="Explique ce classement des top produits par chiffre d'affaires" position="top-right" onOpenChat={openChat} />
-            <div className="ct">{tr("Produits qui rapportent le plus", "Highest-earning products")}</div>
-            <div className="cs">{tr("Chiffre d'affaires du jour (€)", "Today's revenue (€)")}</div>
-            <ProdRows products={kpis.top_ca} col="total_revenue" />
-            {kpis.top_ca?.[0] && (
-              <Takeaway>
-                {tr(
-                  `${kpis.top_ca[0].article} réalise ${fmt(((kpis.top_ca[0].total_revenue || 0) / (kpis.ca_jour || 1)) * 100)} % du chiffre d'affaires de la journée.`,
-                  `${kpis.top_ca[0].article} makes ${fmt(((kpis.top_ca[0].total_revenue || 0) / (kpis.ca_jour || 1)) * 100)}% of the day's revenue.`
-                )}
-              </Takeaway>
-            )}
-          </div>
-          <PairsCard kpis={kpis} />
-        </div>
-      </div>
-
-      {/* ── Mix et catégories (1/2 + 1/2) ── */}
-      <div className="sec-title">{tr("Mix et catégories", "Mix & categories")}</div>
-      <div className="sw">
-        <div className="grid-2 stretch">
-          <div className="cc">
-            <ChartAssistantButton chartType="category_revenue_distribution" chartData={{ categories: kpis.categories, total: catTotal, journee: kpis.date_fr || kpis.date, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)" }} chartName="CategoryRevenue"
-              userQuestion="Explique la répartition du chiffre d'affaires par catégorie" position="top-right" onOpenChat={openChat} />
-            <div className="ct">{tr("Répartition par catégorie", "Breakdown by category")}</div>
-            <div className="cs">{tr("CA par famille de produits", "Revenue by product family")}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
-              {kpis.categories.map((c, i) => {
-                const pct = (c.total_revenue / catTotal) * 100;
-                return (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        background: PAL[i % PAL.length],
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontSize: ".74rem",
-                        fontWeight: 500,
-                        color: INK,
-                        flex: 1,
-                        minWidth: 0,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {trData(c.category)}
-                    </span>
-                    <div style={{ width: 100, height: 6, background: "var(--dk-line, #ECEDE7)", borderRadius: 99, flexShrink: 0 }}>
-                      <div style={{ width: `${pct}%`, height: "100%", background: PAL[i % PAL.length], borderRadius: 99 }} />
-                    </div>
-                    <span style={{ fontSize: ".74rem", fontWeight: 700, color: "var(--dk-ink2, #4A524C)", width: 36, textAlign: "right" }}>
-                      {pct.toFixed(0)}%
-                    </span>
-                    <span style={{ fontSize: ".74rem", fontWeight: 700, color: MUTED, width: 70, textAlign: "right" }}>
-                      {fmt(c.total_revenue)} €
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-            {kpis.categories?.[0] && (
-              <Takeaway>
-                {tr(
-                  `${kpis.categories[0].category} pèse ${fmt((kpis.categories[0].total_revenue / catTotal) * 100)} % du chiffre d'affaires de la journée.`,
-                  `${trData(kpis.categories[0].category)} weighs ${fmt((kpis.categories[0].total_revenue / catTotal) * 100)}% of the day's revenue.`
-                )}
-              </Takeaway>
-            )}
-          </div>
-
-          <div className="cc">
-            <ChartAssistantButton chartType="basket_composition" chartData={{ total_tickets: kpis.tickets, nb_multi: kpis.nb_multi, nb_mono: kpis.nb_mono, pct_multi: (kpis.nb_multi / nb_total) * 100, pct_mono: (kpis.nb_mono / nb_total) * 100, journee: kpis.date_fr || kpis.date, jour_semaine: kpis.jour_semaine, periode: "une seule journée (Vue du Jour)" }} chartName="BasketComposition"
-              userQuestion="Explique la composition des paniers d'aujourd'hui" position="top-right" onOpenChat={openChat} />
-            <div className="ct">{tr("Composition des paniers", "Basket composition")}</div>
-            <div className="cs">{tr("Tickets à plusieurs articles ou à un seul article", "Multi-item vs single-item transactions")}</div>
-            {/* Barre corrigée : elle mélangeait le CA (en €) et des nombres de tickets, avec des tailles fixes.
-                Elle montre maintenant la vraie répartition des tickets à plusieurs articles / à un seul article. */}
-            <div style={{ display: "flex", gap: 5, marginBottom: 12 }}>
-              <div style={{ height: 42, borderRadius: 10, background: ORANGE, flex: kpis.nb_multi || 0 }} />
-              <div style={{ height: 42, borderRadius: 10, background: colors.amber, flex: kpis.nb_mono || 0 }} />
-            </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "var(--dk-ink2, #4A524C)", fontWeight: 500 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: ORANGE }} />
-                {tr("Plusieurs articles : ", "Multiple items: ")}{kpis.nb_multi} ({fmt((kpis.nb_multi / nb_total) * 100)}{tr(" %", "%")})
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: ".70rem", color: "var(--dk-ink2, #4A524C)", fontWeight: 500 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: colors.amber }} />
-                {tr("Un seul article : ", "Single item: ")}{kpis.nb_mono} ({fmt((kpis.nb_mono / nb_total) * 100)}{tr(" %", "%")})
-              </div>
-            </div>
-            <Takeaway>
-              {tr(
-                `${fmt((kpis.nb_mono / nb_total) * 100)} % des clients n'ont pris qu'un seul produit : c'est là qu'une suggestion en caisse peut faire monter le panier.`,
-                `${fmt((kpis.nb_mono / nb_total) * 100)}% of customers bought a single product: that is where a till suggestion can raise the basket.`
-              )}
-            </Takeaway>
-            <ExpertNote>
-              Repère (ca_ref, tickets_ref) = moyenne des jours ouverts J−7, J−14, J−21, J−28 ({kpis.nb_jours_ref ?? 0} jour(s)). Vitesse = articles / heures avec ventes ; vitesse_ref sur les mêmes jours ; seuils ±20 %. Heure de pointe = heure au CA maximal. Ticket mono = 1 seul product_id distinct.
-            </ExpertNote>
-          </div>
-        </div>
-      </div>
-
+/** Détail replié : produits qui rapportent, achats groupés, mix et catégories, puis le pied de page. */
+export function AnalyticsDetails({ kpis }: { kpis: DailyKPIs }) {
+  return (
+    <div style={{ paddingBottom: 24 }}>
+      {/* Détail « produits du jour, achats groupés, composition des paniers » retiré : il répétait le top 5
+          et relève de la page Produits. */}
       {/* ── Footer ── */}
       <div className="pf">
         <span>
-          {siteConfig.bakeryName} &nbsp;·&nbsp; {tr(siteConfig.dataSourceLabel, "POS · Checkout system")} &nbsp;·&nbsp; {kpis.total_lignes ? <>{fmt(kpis.total_lignes)} {tr("lignes", "rows")} &nbsp;·&nbsp; </> : null}{kpis.date_str || siteConfig.dataEndLabel}
+          {siteConfig.bakeryName} &nbsp;·&nbsp; {tr(siteConfig.dataSourceLabel, "POS · Checkout system")} &nbsp;·&nbsp; {kpis.total_lignes ? <>{fmt(kpis.total_lignes)} {tr("lignes", "rows")} &nbsp;·&nbsp; </> : null}{kpis.date_fr || kpis.date_str || siteConfig.dataEndLabel}
         </span>
         <span>{tr("Données historiques — pas le stock réel", "Historical data — not actual stock")}</span>
       </div>
     </div>
-    </RetainProvider>
   );
 }

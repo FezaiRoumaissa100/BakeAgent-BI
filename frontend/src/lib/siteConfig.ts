@@ -7,7 +7,7 @@ export const siteConfig = {
   // puis écrire "/logo.png" ici. Vide = logo BakeAgent (épi de blé).
   bakeryLogo: "",
   // Couleur de la boulangerie (facultatif) : un code couleur, ex. "#8B2E2E" (bordeaux) ou "#1F4E79" (bleu).
-  // Change les boutons, le menu, la grande carte du jour et les titres en couleur. Vide = vert BakeAgent.
+  // Change les boutons, le menu, la grande carte du jour et les titres en couleur. Vide = violet BakeAgent (thème « Pastel »).
   // Choisir une couleur assez foncée : le texte des boutons est blanc. Les couleurs des graphiques ne changent pas.
   brandColor: "",
   // Motif en filigrane (le dessin léger en bas à droite et dans la grande carte du jour) :

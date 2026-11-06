@@ -8,47 +8,60 @@ import React from "react";
 import Link from "next/link";
 import { tr } from "@/lib/i18n";
 
-export type StoryPoint = { icon: React.ReactNode; label: string; text: React.ReactNode };
+export type StoryPoint = { icon: React.ReactNode; label: string; text: React.ReactNode; value?: React.ReactNode };
 
-export function PageStory({ kicker, headline, points, todo, links }: {
+/* Bandeau « L'histoire en bref » : un titre, 3-4 chiffres clés avec une ligne d'explication,
+   et l'action à faire. Fond coloré pour qu'on le repère tout de suite, hauteur réduite. */
+export function PageStory({ kicker, headline, points, todo, note, links }: {
   kicker?: string;
   headline: React.ReactNode;
   points: StoryPoint[];
   todo?: React.ReactNode;
+  note?: React.ReactNode;
   links?: { href: string; label: string }[];
 }) {
   if (!headline) return null;
   return (
     <div className="sw">
-      <section className="story">
-        <div className="story-kicker">{kicker || tr("L'histoire en bref", "The story in short")}</div>
-        <h2 className="story-headline">{headline}</h2>
+      <section className="band">
+        <div className="band-top">
+          <div style={{ minWidth: 0 }}>
+            <div className="band-kicker">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4Z" /></svg>
+              {kicker || tr("L'histoire en bref", "The story in short")}
+            </div>
+            <h2 className="band-head">{headline}</h2>
+          </div>
+          {links && links.length > 0 && (
+            <div className="band-links">
+              {links.map((l) => <Link key={l.href} href={l.href} className="band-link">{l.label} →</Link>)}
+            </div>
+          )}
+        </div>
         {points.length > 0 && (
-          <div className="story-points">
+          <div className="band-facts">
             {points.map((p, i) => (
-              <div key={i} className="story-point">
-                <span className="story-ic" aria-hidden="true">{p.icon}</span>
-                <div>
-                  <div className="story-lbl">{p.label}</div>
-                  <div className="story-txt">{p.text}</div>
+              <div key={i} className="band-fact">
+                <span className="band-ic" aria-hidden="true">{p.icon}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div className="band-lbl">{p.label}</div>
+                  {p.value != null && <div className="band-val num">{p.value}</div>}
+                  <div className="band-txt">{p.text}</div>
                 </div>
               </div>
             ))}
           </div>
         )}
-        {(todo || (links && links.length > 0)) && (
-          <div className="story-foot">
-            {todo && (
-              <div className="story-todo">
-                <span className="story-todo-k">{tr("À faire", "To do")}</span>
-                <span>{todo}</span>
-              </div>
-            )}
-            {links && links.length > 0 && (
-              <div className="story-links">
-                {links.map((l) => <Link key={l.href} href={l.href} className="story-link">{l.label} →</Link>)}
-              </div>
-            )}
+        {todo && (
+          <div className="band-todo">
+            <span className="band-todo-k">{tr("À faire", "To do")}</span>
+            <span>{todo}</span>
+          </div>
+        )}
+        {note && (
+          <div className="band-todo band-note">
+            <span className="band-todo-k">{tr("À savoir", "Good to know")}</span>
+            <span>{note}</span>
           </div>
         )}
       </section>

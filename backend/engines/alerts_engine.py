@@ -2,6 +2,7 @@ import math
 from datetime import datetime, date, timedelta
 from db.db import sql_fetch_all, sql_fetch_one, sql_value, is_pg_available
 from config import RISQUE_SEUIL_ELEVE, RISQUE_SEUIL_VIGILANCE, RISQUE_SEUIL_FAIBLE
+from engines.quantity_engine import quantite, niveau_base
 
 def safe_num(v, default=0.0):
     if v is None or (isinstance(v, float) and math.isnan(v)):
@@ -169,8 +170,9 @@ def get_alerts_data_pg(mois_filter="Tout"):
             "ca_prevu": safe_num(r['ca']) if r.get('ca') is not None else safe_num(yhat * prix_mois.get(ds_date.month, prix_article)),
             "prix_article": (safe_num(r['ca']) / yhat) if (r.get('ca') is not None and yhat > 0) else prix_mois.get(ds_date.month, prix_article),
             "ratio_pct": ratio_pct,
-            # Produits frais vendus le jour même : préparer la prévision haute du jour
-            "commande_recommandee": int(round(yhat_upper)) if yhat > 0 else 0,
+            # Produits frais vendus le jour même : niveau anti-gaspillage (quantity_engine.py) et non plus la borne haute.
+            # La fourchette de la boutique est un intervalle 10 % – 90 % (pipeline et Prophet du notebook).
+            "commande_recommandee": int(round(quantite(yhat, yhat_upper, niveau_base(), yhat_lower, 0.9, 0.1))) if yhat > 0 else 0,
             "manque_estime": int(round(manque)),
             "statut": statut,
             "statut_label": STATUT_LABEL[statut],

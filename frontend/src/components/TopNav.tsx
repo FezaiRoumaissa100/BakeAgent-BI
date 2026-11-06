@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { IconMapPin, IconCalendar } from "./Icons";
 import { siteConfig, formatTodayDate } from "@/lib/siteConfig";
 
-const ORANGE = "#2E7D4F";
+const ORANGE = "#5B45C2";
 
 const NAV = [
   { id: "dashboard", label: "Vue du Jour", active: true },
@@ -52,7 +52,7 @@ export function TopNav({
         >
           <div
             className="w-7 h-7 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(46,125,79,0.14)" }}
+            style={{ background: "rgba(91,69,194,0.14)" }}
           >
             <IconMapPin size={15} color={ORANGE} strokeWidth={2.3} />
           </div>
@@ -105,7 +105,7 @@ export function TopNav({
           style={
             onHero
               ? { background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }
-              : { background: "rgba(46,125,79,0.06)", border: "1px solid rgba(46,125,79,0.15)" }
+              : { background: "rgba(91,69,194,0.06)", border: "1px solid rgba(91,69,194,0.15)" }
           }
         >
           <IconCalendar size={14} color={ORANGE} strokeWidth={2.2} />

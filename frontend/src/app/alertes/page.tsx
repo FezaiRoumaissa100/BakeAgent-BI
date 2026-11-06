@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { colors } from "@/lib/theme";
 import { ExpertNote } from "@/components/Expert";
+import { Details, Scope } from "@/components/Ui";
 import { ProductRiskCard } from "@/components/ProductRisk";
 import { PrepListCard } from "@/components/PrepList";
 import { fetchAlerts } from "@/lib/api";
@@ -36,11 +37,11 @@ const ALERT = colors.alert;
 // le même mois). Ce sont des niveaux d'AFFLUENCE, pas des risques de stock (le risque de manque produit par produit,
 // comparé aux vraies ventes, est en haut de la page). Les clés restent celles du backend.
 const STATUS_CONFIG: Record<string, { label: string; labelEn: string; color: string; bg: string; icon: React.ReactNode; desc: string; descEn: string }> = {
-  RUPTURE: { label: "Très chargé", labelEn: "Very busy", color: "var(--dk-alert)", bg: "var(--dk-soft, #fef2f2)", icon: <IconXCircle size={24} color="var(--dk-alert)" />, desc: "au moins 20 % de plus qu'un jour habituel", descEn: "at least 20% more than a usual day" },
-  VIGILANCE: { label: "Chargé", labelEn: "Busy", color: "var(--dk-warn)", bg: "var(--dk-soft, #fffbeb)", icon: <IconAlertTriangle size={24} color="var(--dk-warn)" />, desc: "10 à 20 % de plus qu'un jour habituel", descEn: "10 to 20% more than a usual day" },
-  NORMAL: { label: "Habituel", labelEn: "Usual", color: "var(--ch-moss)", bg: "var(--dk-soft, #f0fdf4)", icon: <IconCheckCircle size={24} color="var(--ch-moss)" />, desc: "entre −20 % et +10 %", descEn: "between −20% and +10%" },
-  SURSTOCK: { label: "Calme", labelEn: "Quiet", color: "var(--ch-3)", bg: "var(--dk-soft, #eff6ff)", icon: <IconCircleDot size={24} color="var(--ch-3)" />, desc: "plus de 20 % de moins qu'un jour habituel", descEn: "more than 20% less than a usual day" },
-  FERMÉ: { label: "Fermé", labelEn: "Closed", color: "var(--dk-muted, #B4B2A9)", bg: "var(--dk-soft, #f5f5f4)", icon: <IconActivity size={24} color="var(--dk-muted, #B4B2A9)" />, desc: "Boutique fermée", descEn: "Shop closed" },
+  RUPTURE: { label: "Très chargé", labelEn: "Very busy", color: "var(--dk-alert)", bg: "var(--dk-soft, #F4F1FC)", icon: <IconXCircle size={24} color="var(--dk-alert)" />, desc: "au moins 20 % de plus qu'un jour habituel", descEn: "at least 20% more than a usual day" },
+  VIGILANCE: { label: "Chargé", labelEn: "Busy", color: "var(--dk-warn)", bg: "var(--dk-soft, #F4F1FC)", icon: <IconAlertTriangle size={24} color="var(--dk-warn)" />, desc: "10 à 20 % de plus qu'un jour habituel", descEn: "10 to 20% more than a usual day" },
+  NORMAL: { label: "Habituel", labelEn: "Usual", color: "var(--ch-moss)", bg: "var(--dk-soft, #F4F1FC)", icon: <IconCheckCircle size={24} color="var(--ch-moss)" />, desc: "entre −20 % et +10 %", descEn: "between −20% and +10%" },
+  SURSTOCK: { label: "Calme", labelEn: "Quiet", color: "var(--ch-3)", bg: "var(--dk-soft, #F4F1FC)", icon: <IconCircleDot size={24} color="var(--ch-3)" />, desc: "plus de 20 % de moins qu'un jour habituel", descEn: "more than 20% less than a usual day" },
+  FERMÉ: { label: "Fermé", labelEn: "Closed", color: "var(--dk-muted, #5E5A78)", bg: "var(--dk-soft, #F4F1FC)", icon: <IconActivity size={24} color="var(--dk-muted, #5E5A78)" />, desc: "Boutique fermée", descEn: "Shop closed" },
 };
 
 function fmt(n: number, dec = 0) {
@@ -56,6 +57,8 @@ export default function AlertesPage() {
   const mois = "Tout";   // toute la saison (le calendrier sépare déjà les mois)
   // Détail opérationnel : replié (10 premiers jours) ou déplié (tous les jours)
   const [allDays, setAllDays] = useState(false);
+  // Calendrier de la saison : un mois à la fois (boutons), ou « all » pour toute la saison
+  const [calMonth, setCalMonth] = useState<string | null>(null);
   const { openChat } = useChat();
 
   useEffect(() => {
@@ -70,6 +73,8 @@ export default function AlertesPage() {
   }
 
   const kpis = data?.kpis || {};
+  // Pas de prévision de saison (moins d'environ un an de ventes) : un message plutôt que des zéros
+  const noSeason = !(Number(kpis.total_articles) > 0);
   const days = data?.days || [];
   const statuts = kpis?.statuts || {};
   // Mois et année couverts par la prévision (envoyés par le backend)
@@ -119,60 +124,14 @@ export default function AlertesPage() {
         <p className="alert-part-d">{tr("Combien la boutique devrait vendre chaque jour de la saison, et quels jours seront plus chargés ou plus calmes qu'un jour habituel du même mois. Pour planifier le personnel, les congés et les commandes de matières premières.", "How much the shop should sell each day of the season, and which days will be busier or quieter than a usual day of the same month. To plan staff, time off and ingredient orders.")}</p>
       </div>
 
-      {/* ── MINI KPIs ── */}
-      <div style={{ margin: "0 28px 12px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14,
-                      padding:"14px 18px", borderRadius:"14px",
-                      background:"var(--dk-surface, #fff)",
-                      border:"1px solid var(--dk-line, rgba(120,140,120,0.18))",
-                      boxShadow:"0 2px 12px rgba(0,0,0,0.06)" }}>
-          <div>
-            <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>
-              {tr("Articles prévus", "Forecast items")}
-            </div>
-            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: INK }}>
-              {fmt(kpis.total_articles)}
-            </div>
-            {kpis.articles_n1 ? (
-              <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 2 }}>
-                {tr(`Vendus en ${kpis.annee_n1} sur la même période : ${fmt(kpis.articles_n1)} (${kpis.total_articles >= kpis.articles_n1 ? "+" : ""}${fmt(((kpis.total_articles - kpis.articles_n1) / kpis.articles_n1) * 100, 1)} %)`,
-                    `Sold in ${kpis.annee_n1} over the same period: ${fmt(kpis.articles_n1)} (${kpis.total_articles >= kpis.articles_n1 ? "+" : ""}${fmt(((kpis.total_articles - kpis.articles_n1) / kpis.articles_n1) * 100, 1)}%)`)}
-              </div>
-            ) : null}
-          </div>
-          <div>
-            <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>
-              {tr("CA prévu", "Forecast revenue")}
-            </div>
-            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: ORANGE }}>
-              {fmt(kpis.ca_total_prevu)} €
-            </div>
-            {kpis.ca_n1 ? (
-              <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 2 }}>
-                {tr(`Réalisé en ${kpis.annee_n1} : ${fmt(kpis.ca_n1)} € (${kpis.ca_total_prevu >= kpis.ca_n1 ? "+" : ""}${fmt(((kpis.ca_total_prevu - kpis.ca_n1) / kpis.ca_n1) * 100, 1)} %)`, `Actual ${kpis.annee_n1}: €${fmt(kpis.ca_n1)} (${kpis.ca_total_prevu >= kpis.ca_n1 ? "+" : ""}${fmt(((kpis.ca_total_prevu - kpis.ca_n1) / kpis.ca_n1) * 100, 1)}%)`)}
-              </div>
-            ) : null}
-          </div>
-          <div>
-            <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>
-              {tr("Ventes en plus les jours chargés", "Extra sales on busy days")}
-            </div>
-            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "var(--dk-alert)" }}>
-              {fmt(kpis.ca_risque)} €
-            </div>
-            <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 2 }}>
-              {tr("à capter en préparant plus que d'habitude ces jours-là (sinon, ventes manquées)", "to capture by preparing more than usual on those days (otherwise, missed sales)")}
-            </div>
+      {noSeason ? (
+        <div className="sw">
+          <div className="cc cs" style={{ lineHeight: 1.6 }}>
+            {tr("Pas encore de prévision de saison : elle s'appuie sur la même période de l'année précédente, il faut donc environ un an de ventes. La liste « À préparer » et les 14 prochains jours, plus haut, fonctionnent déjà.",
+                "No season forecast yet: it relies on the same period of the previous year, so it needs about a year of sales. The “To prepare” list and the next 14 days above already work.")}
           </div>
         </div>
-      </div>
-
-      <div className="sw">
-        <div style={{ background: "rgba(212,165,42,0.06)", borderLeft: "4px solid var(--ch-moss)", padding: "16px 20px", borderRadius: "0 12px 12px 0", fontSize: "0.75rem", color: "var(--dk-ink2, #2F3A32)", marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "10px", lineHeight: 1.55 }}>
-          <span style={{ flex: "none", display: "inline-flex", marginTop: "1px" }}><IconAlertTriangle size={16} color="var(--ch-moss)" /></span>
-          <span style={{ flex: 1, minWidth: 0 }}><strong style={{ whiteSpace: "nowrap" }}>{tr("À savoir :", "Good to know:")}</strong> {tr(`Chaque jour est comparé à un jour habituel du même mois (même jour de la semaine) : « très chargé » veut dire au moins 20 % de plus. Les ventes en plus sont les articles au-dessus d'un jour habituel, au prix moyen réel par article (${fmt(kpis.prix_moyen_article, 2)} € en moyenne) ; si la boutique se prépare comme d'habitude ces jours-là, ce sont des ventes manquées. Plusieurs mois à l'avance, la prévision donne une tendance : la quantité exacte à préparer se décide avec la liste « À préparer » en haut de la page.`, `Each day is compared with a usual day of the same month (same weekday): "very busy" means at least 20% more. Extra sales are the items above a usual day, at the real average price per item (€${fmt(kpis.prix_moyen_article, 2)} on average); if the shop prepares as usual on those days, these are missed sales. Months ahead, the forecast gives a trend: the exact quantity to prepare is decided with the "To prepare" list at the top of the page.`)}</span>
-        </div>
-      </div>
+      ) : (<>
 
       {/* Plus de filtre par mois : le calendrier montre déjà toute la saison, mois par mois. */}
 
@@ -181,6 +140,8 @@ export default function AlertesPage() {
         {tr("Les jours chargés de la saison", "The busy days of the season")}
       </div>
       <div className="sw">
+        {/* Calendrier (2/3) + chiffres de la saison et note à côté (1/3) */}
+        <div className="grid-main stretch">
         <div className="cc" style={{ position: "relative" }}>
           <ChartAssistantButton
             chartType="alerts_demande_risque"
@@ -200,6 +161,7 @@ export default function AlertesPage() {
           {/* En-tête : titre à gauche, légende en dessous (le bouton ✦ reste seul en haut à droite) */}
           <div style={{ paddingRight: 44 }}>
             <div className="ct">{tr("Le calendrier de la saison", "The season calendar")}</div>
+            <Scope period={tr(`Prévision : saison ${anneePrev}${plage ? ` (${plage})` : ""}`, `Forecast: ${anneePrev} season${plage ? ` (${plage})` : ""}`)} calc={tr("Chaque case = total prévu ce jour-là, tous produits · couleur = comparé à un jour habituel du même mois", "Each cell = forecast total that day, all products · colour = vs a usual day of the same month")} unit={tr("articles par jour", "items per day")} />
             <div className="cs">{tr("Chaque case est un jour, avec le nombre d'articles prévus. La couleur dit si le jour sera plus chargé ou plus calme qu'un jour habituel (même jour de la semaine, même mois).", "Each box is a day, with the number of items forecast. The colour says whether the day will be busier or quieter than a usual day (same weekday, same month).")}</div>
           </div>
           <div className="season-legend">
@@ -213,9 +175,21 @@ export default function AlertesPage() {
             const byMonth: Record<string, any[]> = {};
             days.forEach((d: any) => { const k = String(d.ds).slice(0, 7); (byMonth[k] = byMonth[k] || []).push(d); });
             const J = [tr("lu", "Mo"), tr("ma", "Tu"), tr("me", "We"), tr("je", "Th"), tr("ve", "Fr"), tr("sa", "Sa"), tr("di", "Su")];
+            const months = Object.keys(byMonth);
+            const sel = calMonth === "all" ? "all" : calMonth && byMonth[calMonth] ? calMonth : months[0];
+            const mName = (m: string) => { const t = new Date(m + "-01T12:00:00").toLocaleDateString(locale(), { month: "long" }); return t.charAt(0).toUpperCase() + t.slice(1); };
             return (
-              <div className="season-cal">
-                {Object.entries(byMonth).map(([m, list]) => {
+              <>
+              {months.length > 1 && (
+                <div className="seg" role="group" aria-label={tr("Mois affiché", "Month shown")} style={{ margin: "4px 0 12px" }}>
+                  {months.map((m) => (
+                    <button key={m} type="button" className={sel === m ? "on" : ""} aria-pressed={sel === m} onClick={() => setCalMonth(m)}>{mName(m)}</button>
+                  ))}
+                  <button type="button" className={sel === "all" ? "on" : ""} aria-pressed={sel === "all"} onClick={() => setCalMonth("all")}>{tr("Toute la saison", "Whole season")}</button>
+                </div>
+              )}
+              <div className="season-cal" style={sel === "all" ? undefined : { gridTemplateColumns: "minmax(0, 560px)" }}>
+                {Object.entries(byMonth).filter(([m]) => sel === "all" || m === sel).map(([m, list]) => {
                   const first = new Date(m + "-01T12:00:00");
                   const offset = (first.getDay() + 6) % 7;            // lundi = 0
                   const nDays = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
@@ -246,6 +220,7 @@ export default function AlertesPage() {
                   );
                 })}
               </div>
+              </>
             );
           })()}
           <div style={{ marginTop: 10, fontSize: ".8rem", color: INK, lineHeight: 1.45, borderLeft: `3px solid ${ORANGE}`, paddingLeft: 10 }}>
@@ -255,16 +230,58 @@ export default function AlertesPage() {
             )}
           </div>
           <ExpertNote>
-            ratio_pct = yhat / médiane(yhat du même jour de semaine, même mois, jours ouverts) × 100. Statuts (clés backend) : RUPTURE ≥ 120 %, VIGILANCE ≥ 110 %, NORMAL ≥ 80 %, SURSTOCK &lt; 80 %, FERMÉ si yhat = 0 (config.py). commande_recommandee = yhat_upper. ca_prevu = yhat × (CA / articles du même mois sur les 12 derniers mois). ca_risque = Σ max(0, yhat − jour type) × prix. Stock réel non disponible.
+            ratio_pct = yhat / médiane(yhat du même jour de semaine, même mois, jours ouverts) × 100. Statuts (clés backend) : RUPTURE ≥ 120 %, VIGILANCE ≥ 110 %, NORMAL ≥ 80 %, SURSTOCK &lt; 80 %, FERMÉ si yhat = 0 (config.py). commande_recommandee = quantile de la prévision au niveau 1 − coût / prix (PART_COUT_DEFAUT, config.py ; 65 % par défaut), interpolé entre yhat (50 %) et yhat_upper (90 %) — et non plus yhat_upper, qui faisait des restes presque tous les soirs. ca_prevu = yhat × (CA / articles du même mois sur les 12 derniers mois). ca_risque = Σ max(0, yhat − jour type) × prix. Stock réel non disponible.
           </ExpertNote>
+        </div>
+          <div className="side-col kpi-stack">
+          <div className="kpi">
+            <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>
+              {tr("Articles prévus", "Forecast items")}
+            </div>
+            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: INK }}>
+              {fmt(kpis.total_articles)}
+            </div>
+            {kpis.articles_n1 ? (
+              <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 2 }}>
+                {tr(`Vendus en ${kpis.annee_n1} sur la même période : ${fmt(kpis.articles_n1)} (${kpis.total_articles >= kpis.articles_n1 ? "+" : ""}${fmt(((kpis.total_articles - kpis.articles_n1) / kpis.articles_n1) * 100, 1)} %)`,
+                    `Sold in ${kpis.annee_n1} over the same period: ${fmt(kpis.articles_n1)} (${kpis.total_articles >= kpis.articles_n1 ? "+" : ""}${fmt(((kpis.total_articles - kpis.articles_n1) / kpis.articles_n1) * 100, 1)}%)`)}
+              </div>
+            ) : null}
+          </div>
+          <div className="kpi">
+            <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>
+              {tr("CA prévu", "Forecast revenue")}
+            </div>
+            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: ORANGE }}>
+              {fmt(kpis.ca_total_prevu)} €
+            </div>
+            {kpis.ca_n1 ? (
+              <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 2 }}>
+                {tr(`Réalisé en ${kpis.annee_n1} : ${fmt(kpis.ca_n1)} € (${kpis.ca_total_prevu >= kpis.ca_n1 ? "+" : ""}${fmt(((kpis.ca_total_prevu - kpis.ca_n1) / kpis.ca_n1) * 100, 1)} %)`, `Actual ${kpis.annee_n1}: €${fmt(kpis.ca_n1)} (${kpis.ca_total_prevu >= kpis.ca_n1 ? "+" : ""}${fmt(((kpis.ca_total_prevu - kpis.ca_n1) / kpis.ca_n1) * 100, 1)}%)`)}
+              </div>
+            ) : null}
+          </div>
+          <div className="kpi">
+            <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>
+              {tr("Ventes en plus les jours chargés", "Extra sales on busy days")}
+            </div>
+            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "var(--dk-alert)" }}>
+              {fmt(kpis.ca_risque)} €
+            </div>
+            <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 2 }}>
+              {tr("à capter en préparant plus que d'habitude ces jours-là (sinon, ventes manquées)", "to capture by preparing more than usual on those days (otherwise, missed sales)")}
+            </div>
+          </div>
+        <div style={{ background: "rgba(212,165,42,0.06)", borderLeft: "4px solid var(--ch-moss)", padding: "16px 20px", borderRadius: "0 12px 12px 0", fontSize: "0.75rem", color: "var(--dk-ink2, #3A3655)", marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "10px", lineHeight: 1.55 }}>
+          <span style={{ flex: "none", display: "inline-flex", marginTop: "1px" }}><IconAlertTriangle size={16} color="var(--ch-moss)" /></span>
+          <span style={{ flex: 1, minWidth: 0 }}><strong style={{ whiteSpace: "nowrap" }}>{tr("À savoir :", "Good to know:")}</strong> {tr(`Chaque jour est comparé à un jour habituel du même mois (même jour de la semaine) : « très chargé » veut dire au moins 20 % de plus. Les ventes en plus sont les articles au-dessus d'un jour habituel, au prix moyen réel par article (${fmt(kpis.prix_moyen_article, 2)} € en moyenne) ; si la boutique se prépare comme d'habitude ces jours-là, ce sont des ventes manquées. Plusieurs mois à l'avance, la prévision donne une tendance : la quantité exacte à préparer se décide avec la liste « À préparer » en haut de la page.`, `Each day is compared with a usual day of the same month (same weekday): "very busy" means at least 20% more. Extra sales are the items above a usual day, at the real average price per item (€${fmt(kpis.prix_moyen_article, 2)} on average); if the shop prepares as usual on those days, these are missed sales. Months ahead, the forecast gives a trend: the exact quantity to prepare is decided with the "To prepare" list at the top of the page.`)}</span>
+        </div>
+          </div>
         </div>
       </div>
 
-      <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <IconBolt size={18} color={ORANGE} />
-        {tr("Détail Opérationnel", "Operational detail")}
-      </div>
       <div className="sw">
+        <Details label={tr("Voir le détail : détail opérationnel et jours à surveiller", "See details: operational detail and days to watch")}>
         <div className="cc" style={{ position: "relative" }}>
           <ChartAssistantButton
             chartType="alerts_detail_operationnel"
@@ -303,7 +320,7 @@ export default function AlertesPage() {
               {(allDays ? days : days.slice(0, 10)).map((row: any, i: number) => {
                 const cfg = STATUS_CONFIG[row.statut] || STATUS_CONFIG["NORMAL"];
                 return (
-                  <tr key={i} style={{ borderBottom: "1px solid var(--dk-surface, #FCFCFA)" }}>
+                  <tr key={i} style={{ borderBottom: "1px solid var(--dk-surface, #FFFFFF)" }}>
                     <td style={{ padding: "10px 0", fontSize: "0.8rem", fontWeight: 700, color: INK }}>{row.date_fr}</td>
                     <td style={{ padding: "10px 0", fontSize: "0.75rem", color: MUTED }}>{trData(row.jour_semaine)}{row.ferie ? <div style={{ fontSize: ".68rem", fontWeight: 700, color: "var(--dk-accent-deep)" }}>{row.ferie}</div> : row.veille_de ? <div style={{ fontSize: ".68rem", fontWeight: 700, color: "var(--dk-accent-deep)" }}>{tr(`veille : ${row.veille_de}`, `eve of ${row.veille_de}`)}</div> : null}</td>
                     <td style={{ padding: "10px 0", textAlign: "right", fontSize: "0.85rem", fontWeight: 800, color: INK }}>{row.yhat > 0 ? fmt(row.yhat) : "—"}</td>
@@ -332,14 +349,8 @@ export default function AlertesPage() {
             </button>
           )}
         </div>
-      </div>
 
       {/* ── JOURS À SURVEILLER (calculés à partir des données) ── */}
-      <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <IconTarget size={18} color={ORANGE} />
-        {tr("Les 5 jours qui dépassent le plus l'habitude", "The 5 days most above usual")}
-      </div>
-      <div className="sw">
         <div className="cc">
           <ChartAssistantButton chartType="days_to_watch" chartData={{ jours: data?.jours_a_surveiller || [], filtres_page: { mois } }} chartName="DaysToWatch"
             userQuestion="Explique les jours à surveiller" position="top-right" onOpenChat={openChat} />
@@ -358,7 +369,9 @@ export default function AlertesPage() {
             {tr("Pic de la période :", "Period peak:")} <strong>{kpis.pic_date}</strong> → <strong>{fmt(kpis.pic_val)} {tr("articles prévus", "forecast items")}</strong>
           </div>
         </div>
+        </Details>
       </div>
+      </>)}
 
     </div>
   );

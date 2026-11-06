@@ -18,7 +18,8 @@ from engines.products_engine import (
 from engines.forecast_engine import get_forecast_data_pg
 from engines.alerts_engine import get_alerts_data_pg
 from engines.product_forecast_engine import get_product_forecast_list, get_product_forecast_detail, get_product_alerts
-from engines.production_engine import get_production_day, save_production_day, get_production_summary, last_sales_day
+from engines.production_engine import get_production_day, save_production_day, get_production_summary, last_sales_day, get_slot_plan
+from engines.tray_engine import list_trays, save_tray, delete_tray
 from fastapi import Body
 
 logger = logging.getLogger("main")
@@ -92,13 +93,40 @@ def production_save(payload: dict = Body(...)):
     return save_production_day(ds, payload.get("rows") or [])
 
 
+@app.get("/api/production/slots")
+def production_slots(date_str: Optional[str] = Query(None, alias="date")):
+    """Part des ventes de chaque produit par tranche horaire, pour le plan par fournée de la liste « À préparer »."""
+    try:
+        ds = date.fromisoformat(date_str) if date_str else (last_sales_day() or date.today())
+    except ValueError:
+        return {"ok": False, "message": "Date invalide (format attendu : AAAA-MM-JJ)."}
+    return get_slot_plan(ds)
+
+
+# ── Tailles de plaque : pièces par plaque de chaque produit (liste « À préparer » et saisie du stock en plaques) ──
+@app.get("/api/production/trays")
+def production_trays():
+    return list_trays()
+
+
+@app.put("/api/production/trays/{product_id}")
+def production_tray_save(product_id: int, payload: dict = Body(...)):
+    """{"pieces_per_tray": 12, "rounding": "up" | "nearest" | "none"}"""
+    return save_tray(product_id, payload.get("pieces_per_tray"), payload.get("rounding", "up"))
+
+
+@app.delete("/api/production/trays/{product_id}")
+def production_tray_delete(product_id: int):
+    return delete_tray(product_id)
+
+
 @app.get("/api/production/summary")
 def production_summary(days: int = 14):
     return get_production_summary(days)
 
 
 @app.get("/api/daily-kpis")
-def get_daily_kpis():
+def get_daily_kpis(jour: Optional[str] = Query(None, description="Jour choisi (AAAA-MM-JJ) ; sinon le dernier jour des données")):
     last_date_raw = sql_value("SELECT MAX(date_id) FROM daily_aggregates")
     if not last_date_raw:
         return {"error": "Aucune donnee disponible dans daily_aggregates"}
@@ -106,7 +134,20 @@ def get_daily_kpis():
         last_date = last_date_raw
     else:
         last_date = date.fromisoformat(str(last_date_raw))
-    return calculate_daily_kpis_pg(last_date)
+    sel_date = last_date
+    if jour:
+        try:
+            sel_date = date.fromisoformat(jour)
+        except ValueError:
+            return {"error": "Date invalide (format attendu AAAA-MM-JJ)"}
+    res = calculate_daily_kpis_pg(sel_date)
+    # Jour sans vente (boutique fermée ou hors période) : on renvoie quand même la date pour l'affichage
+    if "date" not in res:
+        jours_fr = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
+        res.update({"date": sel_date.isoformat(), "date_fr": sel_date.strftime('%d/%m/%Y'),
+                    "jour_semaine": jours_fr[sel_date.weekday()], "sans_vente": True})
+    res["dernier_jour"] = last_date.isoformat()
+    return res
 
 
 @app.get("/api/performance")

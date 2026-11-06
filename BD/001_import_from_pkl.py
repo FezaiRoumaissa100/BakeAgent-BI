@@ -12,7 +12,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.dialects.postgresql import insert
 
-PG_URL = "postgresql+psycopg2://postgres:admin123@127.0.0.1:5432/retail_db"
+from db_config import PG_URL   # connexion réglable par variables d'environnement (voir db_config.py)
 
 
 def find_pkl():
@@ -525,8 +525,20 @@ def main():
         import_monthly_ca(conn, data)
         import_daily_aggregates(conn, data)
         conn.commit()
+        # Articles du jour recomptés depuis les lignes, sans les articles qui ne sont pas des produits (client_settings.json)
+        import analytics
+        print(f"   daily_aggregates : articles recomptés sur {analytics.recount_daily_articles(conn)} jour(s)")
+        conn.commit()
     print("MIGRATION TERMINÉE")
 
 
 if __name__ == "__main__":
     main()
+    # Ventes importées : les prévisions sont recalculées tout de suite (14 et 30 jours), sans planificateur.
+    # Option --no-refresh pour l'éviter. Un échec n'annule pas l'import : il est seulement signalé.
+    if "--no-refresh" not in sys.argv:
+        import subprocess
+        r = subprocess.run([sys.executable, str(Path(__file__).resolve().parent.parent / "forecasting" / "refresh_forecasts.py")])
+        if r.returncode != 0:
+            print("[ATTENTION] Import terminé, mais la mise à jour des prévisions n'a pas abouti "
+                  "(voir le journal dans forecasting/data/). Relancer : python forecasting\\refresh_forecasts.py")

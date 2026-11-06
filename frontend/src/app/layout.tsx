@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Manrope, Young_Serif } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { Navbar } from "@/components/Navbar";
@@ -12,9 +12,10 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import { ChatDrawerWithContext } from "@/components/ChatDrawerWithContext";
 import { siteConfig } from "@/lib/siteConfig";
 
-// Texte : Manrope · Titres : Young Serif (voir app/globals.css)
-const sans = Manrope({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
-const serif = Young_Serif({ subsets: ["latin"], weight: "400", variable: "--font-serif", display: "swap" });
+// Thème « Pastel » : texte et titres en Plus Jakarta Sans (voir app/globals.css).
+// La variable --font-serif est gardée (les styles des titres la lisent) mais pointe aussi vers Plus Jakarta Sans.
+const sans = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+const serif = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-serif", display: "swap" });
 
 export const metadata: Metadata = {
   title: `${siteConfig.productName} · ${siteConfig.bakeryName || siteConfig.appName}`,

@@ -1,0 +1,30 @@
+{
+  "_comment": "Réglages propres à CHAQUE client (boutique). Lus par le backend (backend/config.py) et par les imports (BD/analytics.py, BD/002_import_from_api.py). Pour un nouveau client : remplacer ces valeurs, rien d'autre à modifier dans le code. Un autre fichier peut être indiqué par la variable d'environnement CLIENT_SETTINGS. Valeurs actuelles = la boulangerie de démonstration.",
+
+  "non_product_articles": ["COUPE"],
+  "_non_product_articles": "Articles de caisse qui ne sont PAS des produits (service de découpe, sac, consigne, don...). Ils restent dans le chiffre d'affaires et les tickets, mais sortent de toutes les analyses produit (classements, présence, matrice, paniers, rythme de vente), de la production et des règles « achetés ensemble ». Ici : COUPE = service de découpe du pain à 0,20 €.",
+
+  "production_excluded_categories": ["Boissons", "Confiserie & Chocolat"],
+  "_production_excluded_categories": "Familles qui ne se fabriquent pas : retirées de la liste « À préparer », de la grille de risque, de la saisie du stock et des tailles de plaque (elles restent dans les ventes et les statistiques). Comparaison sans tenir compte des majuscules ni des accents.",
+
+  "production_excluded_articles": [],
+  "_production_excluded_articles": "Vrais produits qui ne se fabriquent pas sur place (ex. une boisson en bouteille rangée dans une autre famille). Les articles de non_product_articles en sont exclus d'office.",
+
+  "basket_excluded_articles": [],
+  "_basket_excluded_articles": "Produits à retirer EN PLUS des paniers avant la recherche des règles « achetés ensemble ». Les articles de non_product_articles en sont exclus d'office.",
+
+  "touristic_months": [7, 8],
+  "_touristic_months": "Mois de haute saison touristique (1 à 12). [] = aucune. Sert au drapeau is_touristic du calendrier et aux vitesses de vente « saison ».",
+
+  "hemisphere": "north",
+  "_hemisphere": "north ou south : sud inverse les saisons (hiver en juin-septembre).",
+
+  "open_day_min_ratio": 0.15,
+  "_open_day_min_ratio": "Un jour compte comme « ouvert » s'il a au moins cette part du nombre de tickets habituel (médiane des 28 jours de vente précédents). En dessous : quelques ventes isolées un jour de fermeture, comptées comme fermé. 0.15 = même valeur que « seuil_jour_ouvert_pct » du calcul des prévisions (forecasting/config.json) : les deux doivent rester d'accord.",
+
+  "open_day_min_tickets": null,
+  "_open_day_min_tickets": "Nombre de tickets minimum en valeur absolue (remplace la règle ci-dessus si renseigné).",
+
+  "basket_min_support": 0.01,
+  "basket_min_lift": 1.2
+}

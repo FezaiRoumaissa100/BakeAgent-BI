@@ -4,7 +4,8 @@ Ne remplace rien : la prévision globale (prophet_forecasts) reste servie par db
 """
 from datetime import timedelta
 from db.db import sql_fetch_all, sql_fetch_one, sql_value
-from config import RISQUE_SEUIL_ELEVE, RISQUE_SEUIL_VIGILANCE, RISQUE_SEUIL_FAIBLE
+from config import RISQUE_SEUIL_ELEVE, RISQUE_SEUIL_VIGILANCE, RISQUE_SEUIL_FAIBLE, is_produced, is_product
+from engines.quantity_engine import apprentissage, quantite, resume
 
 import json, os
 # Seuils de fiabilité : lus dans forecasting/config.json (un seul endroit pour les régler)
@@ -26,11 +27,27 @@ def _f(v):
     return float(v) if v is not None else None
 
 
+LONG_H = 30   # une prévision de 30 jours est un calcul à part (FORECAST_HORIZON=30) : voir _long_run
+
+
 def _latest_run():
+    """Dernier calcul « normal » (horizon < 30 jours) : sert aux vues 7 et 14 jours, plus précises sur ces jours."""
     try:
-        return sql_fetch_one("SELECT * FROM product_forecast_runs ORDER BY run_id DESC LIMIT 1")
+        run = sql_fetch_one("SELECT * FROM product_forecast_runs WHERE horizon < %s ORDER BY run_id DESC LIMIT 1", (LONG_H,))
+        return run or sql_fetch_one("SELECT * FROM product_forecast_runs ORDER BY run_id DESC LIMIT 1")
     except Exception:
         return None
+
+
+def _long_run(run):
+    """Dernier calcul à 30 jours, seulement s'il porte sur les mêmes données que le calcul normal (même dernier jour)."""
+    try:
+        lg = sql_fetch_one("SELECT * FROM product_forecast_runs WHERE horizon >= %s ORDER BY run_id DESC LIMIT 1", (LONG_H,))
+        if lg and run and lg["run_id"] != run["run_id"] and lg["data_end"] == run["data_end"]:
+            return lg
+    except Exception:
+        pass
+    return None
 
 
 def fiabilite(wape):
@@ -57,6 +74,8 @@ def get_product_forecast_list():
         spark.setdefault(r["product_id"], []).append(_f(r["yhat"]))
     items, others = [], {"inactif": 0, "insuffisant": 0}
     for m in models:
+        if not is_product(m["article_name"]):      # sac, service de découpe... : pas un produit (client_settings.json)
+            continue
         if m["status"] != "prevu":
             others[m["status"]] = others.get(m["status"], 0) + 1
             continue
@@ -99,9 +118,15 @@ def get_product_forecast_detail(product_id: int):
         return {"available": True, "found": False}
     fc = sql_fetch_all("""SELECT ds, yhat, yhat_lower, yhat_upper, is_ferme FROM product_forecasts
                           WHERE run_id = %s AND product_id = %s ORDER BY ds""", (rid, product_id))
+    # Jours 15 à 30 : issus du calcul à 30 jours, s'il existe (les 14 premiers jours restent ceux du calcul normal)
+    lg = _long_run(run)
+    if lg and fc:
+        fc += sql_fetch_all("""SELECT ds, yhat, yhat_lower, yhat_upper, is_ferme FROM product_forecasts
+                               WHERE run_id = %s AND product_id = %s AND ds > %s ORDER BY ds""", (lg["run_id"], product_id, fc[-1]["ds"]))
     end = run["data_end"]
     hist = sql_fetch_all("""
-        SELECT d.date_id, COALESCE(SUM(f.quantity), 0) AS qty, (COALESCE(a.nb_articles, 0) > 0) AS ouvert
+        SELECT d.date_id, COALESCE(SUM(f.quantity), 0) AS qty, COALESCE(SUM(f.total_revenue), 0) AS rev,
+               (COALESCE(a.nb_articles, 0) > 0) AS ouvert
         FROM dim_dates d
         LEFT JOIN fact_ticket_lines f ON f.date_id = d.date_id AND f.product_id = %s
         LEFT JOIN daily_aggregates a ON a.date_id = d.date_id
@@ -120,9 +145,18 @@ def get_product_forecast_detail(product_id: int):
                                (fc[0]["ds"] - timedelta(days=364), fc[-1]["ds"] - timedelta(days=364)))
         for o in opened:
             ly.setdefault(o["date_id"], 0.0)
+    # Prix moyen récent (90 derniers jours de ventes) : pour montrer la prévision en chiffre d'affaires
+    try:
+        prix_moyen = _f(sql_value("""SELECT SUM(total_revenue) / NULLIF(SUM(quantity), 0) FROM fact_ticket_lines
+                                     WHERE product_id = %s AND date_id > %s AND date_id <= %s""",
+                                  (product_id, end - timedelta(days=90), end)))
+    except Exception:
+        prix_moyen = None
     w = _f(m["wape"])
+    ap = apprentissage({product_id: (m["category"], m["article_name"])})[product_id]
     return {
         "available": True, "found": True,
+        "quantite": resume(ap),
         "product": {"product_id": product_id, "article": m["article_name"], "category": m["category"]},
         "model": {"segment": m["segment"], "saisonnier": bool(m["saisonnier"]), "status": m["status"], "method": m["method"],
                   "wape": w, "wape_baseline": _f(m["wape_baseline"]), "fiabilite": fiabilite(w),
@@ -130,9 +164,11 @@ def get_product_forecast_detail(product_id: int):
                   "next7": _f(m["next7"]), "usual7": _f(m["usual7"]), "saison": m.get("saison"),
                   "last_sale": str(m["last_sale"]) if m["last_sale"] else None},
         "forecast": [{"ds": str(r["ds"]), "yhat": _f(r["yhat"]), "yhat_lower": _f(r["yhat_lower"]), "yhat_upper": _f(r["yhat_upper"]),
+                      "conseille": quantite(_f(r["yhat"]), _f(r["yhat_upper"]), ap["niveau"], _f(r["yhat_lower"])),
                       "is_ferme": bool(r["is_ferme"]),
                       "last_year": ly.get(r["ds"] - timedelta(days=364))} for r in fc],
-        "history": [{"ds": str(r["date_id"]), "qty": float(r["qty"]), "ouvert": bool(r["ouvert"])} for r in hist],
+        "history": [{"ds": str(r["date_id"]), "qty": float(r["qty"]), "rev": float(r["rev"] or 0), "ouvert": bool(r["ouvert"])} for r in hist],
+        "prix_moyen": prix_moyen,
         "run": {"data_end": str(end), "run_at": str(run["run_at"])[:16]},
     }
 
@@ -163,6 +199,15 @@ def _holidays(years):
             e = _easter(y)
             for dd, n in ((1, "Lundi de Pâques"), (39, "Ascension"), (50, "Lundi de Pentecôte")):
                 out[e + timedelta(days=dd)] = n
+        elif pays:
+            # Autres pays (futur client) : code pays ISO à 2 lettres (« BE », « CH », « TN », « MA », « DE »…),
+            # via le paquet Python « holidays » (installé avec Prophet). Sans ce paquet : pas de jours fériés automatiques.
+            try:
+                import holidays as _hol
+                for d_, n_ in _hol.country_holidays(pays, years=[y]).items():
+                    out[d_] = str(n_)
+            except Exception:
+                pass
         for md in _cfg.get("jours_feries_dates", []) or []:
             try:
                 m_, d_ = (int(x) for x in str(md).split("-"))
@@ -195,7 +240,7 @@ def get_product_alerts(days: int = 14):
         return NOT_READY
     rid, end = run["run_id"], run["data_end"]
     fc = sql_fetch_all("""
-        SELECT f.product_id, f.ds, f.yhat, f.yhat_upper, f.is_ferme, f.usual, p.article_name,
+        SELECT f.product_id, f.ds, f.yhat, f.yhat_lower, f.yhat_upper, f.is_ferme, f.usual, p.article_name,
                COALESCE(c.category_name, 'Autre') AS category, m.fiabilite_wape
         FROM product_forecasts f
         JOIN dim_products p ON p.product_id = f.product_id
@@ -226,13 +271,18 @@ def get_product_alerts(days: int = 14):
         except Exception:
             ly = {}
     fer = _holidays({d.year for d in dates}) if dates else {}
+    # Niveau de couverture de chaque produit (coût d'un invendu vs vente manquée, corrigé par la saisie du stock)
+    ap = apprentissage({r["product_id"]: (r["category"], r["article_name"]) for r in fc})
     prods = {}
     for r in fc:
         if r["ds"] not in dates:
             continue
         pid = r["product_id"]
+        if not is_produced(r["article_name"], r["category"]):
+            continue            # boisson, sucette, service de découpe : rien à fabriquer (voir client_settings.json)
         p = prods.setdefault(pid, {"product_id": pid, "article": r["article_name"], "category": r["category"], "days": [],
-                                   "fiabilite": fiabilite(_f(r["fiabilite_wape"]))})
+                                   "fiabilite": fiabilite(_f(r["fiabilite_wape"])),
+                                   "quantite": resume(ap[pid])})
         u = _f(r["usual"]) or 0.0
         y = _f(r["yhat"]) or 0.0
         if r["is_ferme"]:
@@ -248,7 +298,8 @@ def get_product_alerts(days: int = 14):
         pr = prix.get(pid)
         euros = round(abs(y - u) * pr) if (pr and st in ("RUPTURE", "VIGILANCE", "SURSTOCK")) else 0
         p["prix"] = round(pr, 2) if pr else None
-        p["days"].append({"ds": str(r["ds"]), "yhat": y, "usual": u, "conseille": _f(r["yhat_upper"]), "statut": st,
+        p["days"].append({"ds": str(r["ds"]), "yhat": y, "usual": u, "conseille": 0.0 if r["is_ferme"] else quantite(y, _f(r["yhat_upper"]), ap[pid]["niveau"], _f(r["yhat_lower"])),
+                          "borne_haute": _f(r["yhat_upper"]), "statut": st,
                           "euros": euros,
                           "raison": _raison(st, y, u, ly.get((pid, r["ds"])), fer.get(r["ds"]), fer.get(r["ds"] + timedelta(days=1)))})
     items = list(prods.values())

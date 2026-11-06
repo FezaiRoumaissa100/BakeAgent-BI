@@ -10,10 +10,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { fetchProductAlerts } from "@/lib/api";
 import { tr, trData, locale } from "@/lib/i18n";
 import { ExpertNote } from "@/components/Expert";
-import { Takeaway } from "@/components/Ui";
+import { Takeaway, Scope } from "@/components/Ui";
 import { ChartAssistantButton } from "@/components/ChartAssistantButton";
 import { useChat } from "@/contexts/ChatContext";
-import { raisonText } from "@/components/PrepList";
+import { raisonText, ajustementText } from "@/components/PrepList";
 
 const fmt = (n: number, d = 0) => Number(n || 0).toLocaleString(locale(), { minimumFractionDigits: d, maximumFractionDigits: d });
 const ST: Record<string, { fr: string; en: string; c: string; bg: string }> = {
@@ -24,6 +24,18 @@ const ST: Record<string, { fr: string; en: string; c: string; bg: string }> = {
   "FERMÉ": { fr: "Fermé", en: "Closed", c: "var(--dk-muted)", bg: "transparent" },
 };
 const J = ["di", "lu", "ma", "me", "je", "ve", "sa"], JE = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+// Intensité de la couleur selon l'écart à l'habitude : légère pour +20 %, pleine à partir du double (ou de la moitié).
+// Avant, toutes les cases « risque de manque » avaient le même rouge, et la grille paraissait uniformément rouge.
+function cellStyle(d: any): { bg: string; c: string } {
+  const s = ST[d.statut] || ST.NORMAL;
+  if (d.statut !== "RUPTURE" && d.statut !== "SURSTOCK") return { bg: s.bg, c: s.c };
+  const y = Number(d.yhat) || 0, u = Number(d.usual) || 0;
+  const gap = u > 0 ? (d.statut === "RUPTURE" ? y / u - 1 : 1 - y / u) : 1;     // 0,2 … 1 et plus
+  const k = Math.max(0.35, Math.min(1, (gap - 0.2) / 0.8 * 0.65 + 0.35));
+  const pct = Math.round(k * 100);
+  return { bg: `color-mix(in srgb, ${s.bg} ${pct}%, var(--dk-surface, #fff))`, c: pct >= 70 ? "#fff" : "var(--dk-ink)" };
+}
 
 export function ProductRiskCard() {
   const { openChat } = useChat();
@@ -40,7 +52,7 @@ export function ProductRiskCard() {
   const rows = useMemo(() => items
     .filter((i) => fam === "Toutes" || i.category === fam)
     .filter((i) => !onlyRisk || i.nb_risque + i.nb_vigilance > 0), [items, fam, onlyRisk]);
-  const shown = all ? rows : rows.slice(0, 12);
+  const shown = all ? rows : rows.slice(0, 10);
 
   if (!data) return null;
   if (!data.available) {
@@ -75,6 +87,10 @@ export function ProductRiskCard() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", paddingRight: 34 }}>
             <div>
               <div className="ct">{tr("Quels produits risquent de manquer, et quel jour ?", "Which products may run short, and on which day?")}</div>
+              {dates.length > 0 && (
+                <Scope period={tr(`Prévision du ${dates[0].slice(8, 10)}/${dates[0].slice(5, 7)} au ${dates[dates.length - 1].slice(8, 10)}/${dates[dates.length - 1].slice(5, 7)}/${dates[dates.length - 1].slice(0, 4)}`, `Forecast ${dates[0].slice(8, 10)}/${dates[0].slice(5, 7)} to ${dates[dates.length - 1].slice(8, 10)}/${dates[dates.length - 1].slice(5, 7)}/${dates[dates.length - 1].slice(0, 4)}`)}
+                  calc={tr("Chaque case = pièces prévues ce jour-là pour ce produit", "Each cell = pieces forecast that day for this product")} unit={tr("pièces par jour", "pieces per day")} />
+              )}
               <div className="cs">{tr("Chaque case compare la prévision du produit à ce qu'il vend d'habitude ce jour de la semaine (début de saison compris : une galette en janvier apparaît en rouge, il faut en préparer plus). Cliquez sur une case pour la quantité à préparer, sur un produit pour sa prévision.", "Each cell compares the product's forecast with what it usually sells on that weekday. Click a cell for the quantity to prepare, a product for its forecast.")}</div>
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
@@ -83,7 +99,7 @@ export function ProductRiskCard() {
               </select>
               <div style={{ display: "flex", gap: 3, padding: 3, borderRadius: 999, background: "var(--dk-soft)" }}>
                 {[true, false].map((v) => (
-                  <button key={String(v)} onClick={() => setOnlyRisk(v)} style={{ border: "none", cursor: "pointer", padding: "5px 12px", borderRadius: 999, fontSize: ".74rem", fontWeight: 700, background: onlyRisk === v ? "var(--dk-pill, #1F2B23)" : "transparent", color: onlyRisk === v ? "#fff" : "var(--dk-ink2)" }}>
+                  <button key={String(v)} onClick={() => setOnlyRisk(v)} style={{ border: "none", cursor: "pointer", padding: "5px 12px", borderRadius: 999, fontSize: ".74rem", fontWeight: 700, background: onlyRisk === v ? "var(--dk-pill, #2B2747)" : "transparent", color: onlyRisk === v ? "#fff" : "var(--dk-ink2)" }}>
                     {v ? tr("Produits à risque", "At-risk products") : tr("Tous les produits", "All products")}
                   </button>
                 ))}
@@ -111,11 +127,12 @@ export function ProductRiskCard() {
                     </td>
                     {p.days.map((d: any) => {
                       const s = ST[d.statut] || ST.NORMAL;
+                      const cs = cellStyle(d);
                       const on = cell?.p.product_id === p.product_id && cell?.d.ds === d.ds;
                       return (
                         <td key={d.ds} onClick={() => d.statut !== "FERMÉ" && setCell(on ? null : { p, d })}
                             title={`${p.article} · ${d.ds} : ${tr(s.fr, s.en)} (${fmt(d.yhat, 1)} / ${tr("habituel", "usual")} ${fmt(d.usual, 1)})`}
-                            style={{ background: s.bg, color: s.c, textAlign: "center", fontSize: ".7rem", fontWeight: 700, borderRadius: 8, height: 34, minWidth: 40,
+                            style={{ background: cs.bg, color: cs.c, textAlign: "center", fontSize: ".76rem", fontWeight: 700, borderRadius: 8, height: 34, minWidth: 40,
                                      cursor: d.statut === "FERMÉ" ? "default" : "pointer", outline: on ? "2.5px solid var(--dk-ink)" : "none", outlineOffset: -2,
                                      border: d.statut === "FERMÉ" ? "1px dashed var(--dk-line)" : "none" }}
                             className="num">
@@ -137,6 +154,9 @@ export function ProductRiskCard() {
               <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("Prévu", "Forecast")}</div><div className="num" style={{ fontWeight: 800, color: "var(--ch-1)" }}>{fmt(cell.d.yhat, 1)}</div></div>
               <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("D'habitude ce jour-là", "Usually that weekday")}</div><div className="num" style={{ fontWeight: 700 }}>{fmt(cell.d.usual, 1)}</div></div>
               <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("Quantité conseillée", "Suggested quantity")}</div><div className="num" style={{ fontWeight: 800 }}>{fmt(Math.ceil(cell.d.conseille || 0))}</div></div>
+              {ajustementText(cell.p.quantite) && (
+                <div style={{ gridColumn: "1 / -1" }}><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("Quantité ajustée", "Quantity adjusted")}</div><div style={{ fontWeight: 700 }}>{ajustementText(cell.p.quantite)}</div></div>
+              )}
               <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{tr("Statut", "Status")}</div><div style={{ fontWeight: 800 }}>{tr(ST[cell.d.statut]?.fr, ST[cell.d.statut]?.en)}</div></div>
               {cell.d.euros > 0 && (
                 <div><div style={{ fontSize: ".72rem", color: "var(--dk-muted)" }}>{cell.d.statut === "SURSTOCK" ? tr("Invendus évitables", "Avoidable unsold") : tr("Ventes à ne pas manquer", "Sales not to miss")}</div><div className="num" style={{ fontWeight: 800 }}>≈ {fmt(cell.d.euros)} €</div></div>
@@ -152,6 +172,7 @@ export function ProductRiskCard() {
               <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 12, borderRadius: 4, background: ST[k].bg, border: "1px solid var(--dk-line)" }} />{tr(ST[k].fr, ST[k].en)}</span>
             ))}
             <span>· {tr("chiffre = articles prévus", "number = forecast items")}</span>
+            <span>· {tr("couleur plus foncée = écart plus grand avec l'habitude", "darker colour = bigger gap from usual")}</span>
             {rows.length > 12 && (
               <button className="link-btn" style={{ marginTop: 0, marginLeft: "auto" }} onClick={() => setAll((v) => !v)}>
                 {all ? tr("Afficher moins", "Show less") : tr(`Voir les ${rows.length} produits`, `See all ${rows.length} products`)}

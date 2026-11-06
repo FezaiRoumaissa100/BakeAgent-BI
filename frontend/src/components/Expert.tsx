@@ -37,11 +37,11 @@ export function ExpertNote({ children }: { children: React.ReactNode }) {
         marginTop: 10,
         padding: "8px 12px",
         borderRadius: 8,
-        border: "1px dashed var(--dk-muted, #6E756F)",
-        background: "var(--dk-soft, #F5F6F1)",
+        border: "1px dashed var(--dk-muted, #5E5A78)",
+        background: "var(--dk-soft, #F4F1FC)",
         fontSize: ".72rem",
         lineHeight: 1.5,
-        color: "var(--dk-ink2, #4A524C)",
+        color: "var(--dk-ink2, #3A3655)",
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
       }}
     >
@@ -63,8 +63,8 @@ export function ExpertBadge() {
         fontWeight: 800,
         padding: "3px 8px",
         borderRadius: 99,
-        border: "1px dashed var(--dk-chrome-ink, #1E2420)",
-        color: "var(--dk-chrome-ink, #1E2420)",
+        border: "1px dashed var(--dk-chrome-ink, #24213A)",
+        color: "var(--dk-chrome-ink, #24213A)",
         whiteSpace: "nowrap",
       }}
     >

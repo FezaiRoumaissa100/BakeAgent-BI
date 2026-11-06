@@ -8,9 +8,11 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { fetchProductForecasts, fetchProductForecast } from "@/lib/api";
+import { niceScale, fmtAxisNum } from "@/lib/chartScale";
+import { useBox } from "@/lib/useBox";
 import { tr, trData, locale } from "@/lib/i18n";
 import { ExpertNote } from "@/components/Expert";
-import { Takeaway } from "@/components/Ui";
+import { Takeaway, Scope } from "@/components/Ui";
 import { ChartAssistantButton } from "@/components/ChartAssistantButton";
 import { useChat } from "@/contexts/ChatContext";
 
@@ -33,13 +35,6 @@ const METH: Record<string, { fr: string; en: string }> = {
   prophet: { fr: "Prophet (par produit)", en: "Prophet (per product)" },
 };
 
-function Spark({ v, color = GREEN }: { v: number[]; color?: string }) {
-  if (!v?.length) return null;
-  const W = 70, H = 22, mx = Math.max(...v, 1);
-  const pts = v.map((y, i) => `${(i / Math.max(v.length - 1, 1)) * W},${H - 2 - (y / mx) * (H - 4)}`).join(" ");
-  return <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true"><polyline points={pts} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" /></svg>;
-}
-
 function TrendBadge({ chg }: { chg: number | null }) {
   if (chg == null) return <span className="pp-tag" style={{ background: "var(--dk-soft)", color: MUTED, padding: "2px 8px" }}>—</span>;
   const up = chg >= 15, down = chg <= -15;
@@ -52,14 +47,15 @@ function TrendBadge({ chg }: { chg: number | null }) {
 }
 
 /* Graphique du produit : ventes réelles récentes (barres grises) + prévision (ligne verte, fourchette). */
-function ProductChart({ history, forecast, sel, onSel }: any) {
-  const W = 860, Hh = 300, L = 44, R = 14, T = 16, B = 40;
+function ProductChart({ history, forecast, sel, onSel, euro = false, seasonal = false }: any) {
+  // Taille réelle du cadre (hauteur fixe) : le graphique ne grandit plus avec la largeur de la page
+  const [boxRef, W, Hh] = useBox<SVGSVGElement>(900, 240);
+  const L = 50, R = 12, T = 26, B = 34;
   const pts = [...history.map((h: any) => ({ ds: h.ds, y: h.qty, open: h.ouvert, kind: "h" })),
                ...forecast.map((f: any) => ({ ds: f.ds, y: f.yhat, lo: f.yhat_lower, hi: f.yhat_upper, open: !f.is_ferme, kind: "f", ly: f.last_year }))];
   const n = pts.length;
-  const mx = Math.max(1, ...pts.map((p: any) => Math.max(p.y || 0, p.hi || 0))) * 1.1;
-  const step = (() => { const r = mx / 4, p = Math.pow(10, Math.floor(Math.log10(r))); return [1, 2, 2.5, 5, 10].map((m) => m * p).find((x) => x >= r) || r; })();
-  const top = Math.ceil(mx / step) * step;
+  const scale = niceScale(Math.max(1, ...pts.map((p: any) => p.y || 0)) * 1.1, 4);
+  const top = scale.max;
   const bw = (W - L - R) / n;
   const X = (i: number) => L + bw * i + bw / 2;
   const Y = (v: number) => T + (Hh - T - B) * (1 - v / top);
@@ -69,46 +65,142 @@ function ProductChart({ history, forecast, sel, onSel }: any) {
     ...fpts.map((p: any, i: number) => `${X(fStart + i)},${Y(p.open ? p.hi : 0)}`),
     ...fpts.map((p: any, i: number) => `${X(fStart + i)},${Y(p.open ? p.lo : 0)}`).reverse(),
   ].join(" ") : "";
-  const ticks: number[] = []; for (let v = 0; v <= top + 1e-9; v += step) ticks.push(v);
+  const ticks = scale.ticks;
+  // Aucune vente sur les jours affichés (ex. galette des rois avant janvier) : on le dit, sinon la zone paraît cassée
+  const noSales = history.length > 0 && history.every((h: any) => !h.ouvert || !(h.qty > 0));
+  // Dates : environ 6 sur l'axe, dont le premier jour prévu ; rien de trop proche de celui-ci (pas de chevauchement)
+  const every = Math.max(1, Math.ceil(n / 6));
+  const showDate = (i: number) => i === fStart || (i % every === (n - 1) % every && Math.abs(i - fStart) >= Math.ceil(every * 0.75));
   return (
-    <svg viewBox={`0 0 ${W} ${Hh}`} style={{ width: "100%", height: "auto", display: "block" }}>
+    <svg ref={boxRef} viewBox={`0 0 ${W} ${Hh}`} style={{ width: "100%", height: 240, display: "block" }}>
       {ticks.map((v) => (
         <g key={v}><line x1={L} x2={W - R} y1={Y(v)} y2={Y(v)} stroke="rgba(80,100,85,0.12)" />
-          <text x={L - 6} y={Y(v) + 4} textAnchor="end" fontSize={10.5} fill="var(--dk-muted)">{fmt(v)}</text></g>
+          <text x={L - 7} y={Y(v) + 4.5} textAnchor="end" fontSize={11.5} fontWeight={600} fill="var(--dk-muted)">{fmtAxisNum(v)}{euro ? " €" : ""}</text></g>
       ))}
       <rect x={L + bw * fStart} y={T} width={W - R - (L + bw * fStart)} height={Hh - T - B} fill="var(--dk-accent-wash)" opacity={0.6} rx={6} />
-      <text x={L + bw * fStart + 8} y={T + 14} fontSize={11} fontWeight={800} fill={GREEN}>{tr("Prévision", "Forecast")}</text>
-      <text x={L + bw * fStart - 8} y={T + 14} textAnchor="end" fontSize={11} fontWeight={700} fill="var(--dk-muted)">{tr("Ventes réelles", "Actual sales")}</text>
+      <text x={L + bw * fStart + 6} y={T - 8} fontSize={13} fontWeight={800} fill={GREEN}>{tr("Prévision", "Forecast")}</text>
+      <text x={L + bw * fStart - 6} y={T - 8} textAnchor="end" fontSize={13} fontWeight={700} fill="var(--dk-muted)">{tr("Ventes réelles", "Actual sales")}</text>
       {history.map((h: any, i: number) => (
         h.ouvert ? <rect key={h.ds} x={X(i) - bw * 0.32} y={Y(h.qty)} width={bw * 0.64} height={Y(0) - Y(h.qty)} rx={2.5} fill="var(--ch-ramp-3)">
-          <title>{`${dayLbl(h.ds)} : ${fmt(h.qty)} ${tr("vendus", "sold")}`}</title></rect>
-          : <text key={h.ds} x={X(i)} y={Y(0) - 3} textAnchor="middle" fontSize={8} fill="var(--dk-muted)">×</text>
+          <title>{euro ? `${dayLbl(h.ds)} : ${fmt(h.qty)} €` : `${dayLbl(h.ds)} : ${fmt(h.qty)} ${tr("vendus", "sold")}`}</title></rect>
+          : <text key={h.ds} x={X(i)} y={Y(0) - 3} textAnchor="middle" fontSize={11} fill="var(--dk-muted)">×</text>
       ))}
-      {band && <polygon points={band} fill={GREEN} opacity={0.14} />}
+      {noSales && (
+        <g pointerEvents="none">
+          <text x={(L + L + bw * fStart) / 2} y={(T + Hh - B) / 2 - 4} textAnchor="middle" fontSize={13} fontWeight={700} fill="var(--dk-ink2)">
+            {tr("Aucune vente sur ces semaines", "No sales in these weeks")}
+          </text>
+          <text x={(L + L + bw * fStart) / 2} y={(T + Hh - B) / 2 + 15} textAnchor="middle" fontSize={11.5} fill="var(--dk-muted)">
+            {seasonal ? tr("produit de saison : il se vend surtout pendant sa période", "seasonal product: it sells mostly in its season") : tr("le produit n'a pas été vendu sur cette période", "the product was not sold in this period")}
+          </text>
+        </g>
+      )}
       <polyline points={fpts.map((p: any, i: number) => `${X(fStart + i)},${Y(p.open ? p.y : 0)}`).join(" ")} fill="none" stroke={GREEN} strokeWidth={2.4} strokeLinejoin="round" />
-      {fpts.map((p: any, i: number) => p.ly != null && p.open ? (
-        <circle key={`ly${i}`} cx={X(fStart + i)} cy={Y(p.ly)} r={3} fill="none" stroke="var(--ch-2)" strokeWidth={1.6}><title>{tr(`L'an dernier : ${fmt(p.ly)}`, `Last year: ${fmt(p.ly)}`)}</title></circle>
-      ) : null)}
       {fpts.map((p: any, i: number) => {
         const on = sel === p.ds;
         return p.open ? (
           <g key={p.ds} style={{ cursor: "pointer" }} onClick={() => onSel(p.ds)}>
-            <rect x={X(fStart + i) - bw / 2} y={T} width={bw} height={Hh - T - B} fill="transparent" />
+            <rect x={X(fStart + i) - bw / 2} y={T} width={bw} height={Hh - T - B} rx={4} fill={on ? "rgba(115,87,217,0.16)" : "transparent"} />
             <circle cx={X(fStart + i)} cy={Y(p.y)} r={on ? 6.5 : 4.5} fill={on ? GREEN : "#fff"} stroke={GREEN} strokeWidth={2.2} />
             <title>{`${dayLbl(p.ds)} : ${fmt(p.y, 1)} (${fmt(p.lo, 0)}–${fmt(p.hi, 0)})`}</title>
           </g>
-        ) : <text key={p.ds} x={X(fStart + i)} y={Y(0) - 4} textAnchor="middle" fontSize={9} fontWeight={700} fill="var(--dk-muted)">{tr("fermé", "closed")}</text>;
+        ) : <text key={p.ds} x={X(fStart + i)} y={Y(0) - 4} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--dk-muted)">{tr("fermé", "closed")}</text>;
       })}
       {/* Dates sous le graphique : une par semaine + le premier jour prévu ; on saute une date trop proche de celui-ci (évite « 31/1201/01 ») */}
-      {pts.map((p: any, i: number) => (i === fStart || (i % 7 === (n - 1) % 7 && Math.abs(i - fStart) >= 3)) ? (
-        <text key={`x${i}`} x={X(i)} y={Hh - B + 16} textAnchor="middle" fontSize={10} fill={i >= fStart ? GREEN : "var(--dk-muted)"} fontWeight={i >= fStart ? 700 : 500}>{p.ds.slice(8, 10)}/{p.ds.slice(5, 7)}</text>
+      {pts.map((p: any, i: number) => showDate(i) ? (
+        <text key={`x${i}`} x={X(i)} y={Hh - B + 20} textAnchor="middle" fontSize={13} fill={i >= fStart ? GREEN : "var(--dk-muted)"} fontWeight={i >= fStart ? 700 : 500}>{p.ds.slice(8, 10)}/{p.ds.slice(5, 7)}</text>
       ) : null)}
       <line x1={L} x2={W - R} y1={Y(0)} y2={Y(0)} stroke="rgba(80,100,85,0.35)" />
     </svg>
   );
 }
 
-export function ProductForecastSection() {
+/* Barre de choix du produit : recherche + liste déroulante (flèche), triable ; clavier : ↑ ↓ Entrée Échap */
+function ProductPicker({ items, all, toPrepare = [], sel, q, setQ, sort, setSort, onPick, note }: any) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const boxRef = React.useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  useEffect(() => { setHi(0); }, [q, sort]);
+  const shown = items.slice(0, 60);
+  const pick = (a: string) => { onPick(a); setOpen(false); };
+  const sugg = [...all].filter((i: any) => i.change_pct != null && (i.usual7 || 0) >= 5).sort((a: any, b: any) => (b.next7 - b.usual7) - (a.next7 - a.usual7)).slice(0, 4);
+  return (
+    <div className="cc" style={{ padding: "10px 12px", marginBottom: 12, overflow: "visible", position: "relative", zIndex: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div ref={boxRef} style={{ position: "relative", flex: "1 1 340px", maxWidth: 520 }}>
+          <div className="pick-box" onClick={() => setOpen(true)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            <input value={q} placeholder={sel ? sel.article : tr("Chercher un produit…", "Search a product…")}
+              onFocus={() => setOpen(true)}
+              onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setHi((v) => Math.min(v + 1, shown.length - 1)); }
+                else if (e.key === "ArrowUp") { e.preventDefault(); setHi((v) => Math.max(v - 1, 0)); }
+                else if (e.key === "Enter" && shown[hi]) { e.preventDefault(); pick(shown[hi].article); }
+                else if (e.key === "Escape") setOpen(false);
+              }}
+              aria-label={tr("Choisir un produit", "Choose a product")} />
+            <button type="button" className="pick-arrow" aria-label={tr("Ouvrir la liste", "Open the list")}
+              onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s" }}><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+          </div>
+          {open && (
+            <div className="pick-pop" role="listbox">
+              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderBottom: "1px solid var(--dk-line)" }}>
+                <span style={{ fontSize: ".66rem", fontWeight: 800, color: MUTED, textTransform: "uppercase", letterSpacing: ".06em" }}>{tr("Trier", "Sort")}</span>
+                {([["chg", tr("Écart à l'habitude", "Gap vs usual")], ["qty", tr("Quantité", "Quantity")], ["fiab", tr("Fiabilité", "Reliability")]] as const).map(([k, l]) => (
+                  <button key={k} type="button" onClick={() => setSort(k)} className={`pick-sort${sort === k ? " on" : ""}`}>{l}</button>
+                ))}
+                <span style={{ marginLeft: "auto", fontSize: ".66rem", color: MUTED }}>{tr(`${items.length} produits`, `${items.length} products`)}</span>
+              </div>
+              <div style={{ maxHeight: 340, overflowY: "auto" }}>
+                {shown.map((p: any, i: number) => {
+                  const on = sel && p.article === sel.article;
+                  return (
+                    <button key={p.product_id} type="button" role="option" aria-selected={on}
+                      className={`pick-row${i === hi ? " hi" : ""}${on ? " on" : ""}`}
+                      onMouseEnter={() => setHi(i)} onClick={() => pick(p.article)}>
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ display: "block", fontSize: ".8rem", fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.article}</span>
+                        <span style={{ display: "block", fontSize: ".68rem", color: MUTED }}>{trData(p.category)}</span>
+                      </span>
+                      <span className="num" style={{ width: 70, textAlign: "right", fontSize: ".72rem", color: "var(--dk-ink2)" }}>{tr(`${fmt(p.next7)} prévus`, `${fmt(p.next7)} fcst`)}</span>
+                      <span style={{ width: 74, textAlign: "right", whiteSpace: "nowrap" }}><TrendBadge chg={p.change_pct} /></span>
+                    </button>
+                  );
+                })}
+                {shown.length === 0 && <div className="cs" style={{ padding: 12 }}>{tr("Aucun produit ne correspond.", "No matching product.")}</div>}
+              </div>
+              <div style={{ padding: "7px 12px", fontSize: ".66rem", color: MUTED, borderTop: "1px solid var(--dk-line)" }}>{note}</div>
+            </div>
+          )}
+        </div>
+        {/* « À préparer en plus cette semaine » : en petites pastilles à côté de la recherche (au lieu d'une grande carte) */}
+        {(toPrepare.length > 0 ? toPrepare : sugg).length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: ".7rem", fontWeight: 800, color: "var(--dk-ink2)" }} title={tr("Prévision des 7 prochains jours nettement au-dessus d'une semaine habituelle", "Next 7 days forecast clearly above a usual week")}>
+              {toPrepare.length > 0 ? tr("À préparer en plus cette semaine :", "Prepare more this week:") : tr("En forte hausse :", "Rising most:")}
+            </span>
+            {(toPrepare.length > 0 ? toPrepare : sugg).map((p: any) => (
+              <button key={p.product_id} type="button" onClick={() => pick(p.article)} className={`pick-chip${sel && sel.article === p.article ? " on" : ""}`}
+                title={tr(`${fmt(p.next7)} pièces prévues sur 7 jours, contre ${fmt(p.usual7)} une semaine habituelle`, `${fmt(p.next7)} pieces forecast over 7 days, vs ${fmt(p.usual7)} in a usual week`)}>
+                {p.article} <b className="num" style={{ color: "var(--ch-1)", marginLeft: 4 }}>+{fmt(p.next7 - p.usual7)} {tr("pièces", "pcs")}</b>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ProductForecastSection({ horizon = 7, unit = "articles" }: { horizon?: number; unit?: string }) {
   const { openChat } = useChat();
   const [list, setList] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -116,7 +208,8 @@ export function ProductForecastSection() {
   const [sort, setSort] = useState<"qty" | "chg" | "fiab">("chg");
   const [selName, setSelName] = useState<string | null>(null);
   const [detail, setDetail] = useState<any>(null);
-  const [h, setH] = useState<7 | 14>(7);
+  // Horizon : celui choisi en haut de la page Prévisions (7, 14 ou 30 jours), le même pour tout
+  const h = (horizon >= 30 ? 30 : horizon >= 14 ? 14 : 7) as 7 | 14 | 30;
   const [day, setDay] = useState<string | null>(null);
 
   useEffect(() => {
@@ -173,13 +266,26 @@ export function ProductForecastSection() {
     );
   }
 
-  const fc = (detail?.forecast || []).slice(0, h);
-  const hist = (detail?.history || []).slice(-(h === 7 ? 28 : 42));
+  // Unité : articles, ou chiffre d'affaires (même bouton que la prévision globale) = pièces × prix moyen récent du produit
+  const prix = Number(detail?.prix_moyen) || 0;
+  const euro = unit === "ca" && prix > 0;
+  const k = euro ? prix : 1;
+  const fcRaw = (detail?.forecast || []).slice(0, h);
+  const fc = fcRaw.map((f: any) => (euro ? { ...f, yhat: f.yhat * k, yhat_lower: f.yhat_lower * k, yhat_upper: f.yhat_upper * k, last_year: f.last_year != null ? f.last_year * k : null } : f));
+  const hist = (detail?.history || []).slice(-(h === 7 ? 28 : h === 14 ? 42 : 90))
+    .map((x: any) => (euro ? { ...x, qty: x.rev != null ? x.rev : x.qty * k } : x));
+  const u = (v: number) => (euro ? `${fmt(v)} €` : fmt(v));
   const openFc = fc.filter((f: any) => !f.is_ferme);
   const tot = openFc.reduce((a: number, f: any) => a + f.yhat, 0);
   const peak = openFc.reduce((m: any, f: any) => (!m || f.yhat > m.yhat ? f : m), null);
-  const usualH = h === 7 ? sel?.usual7 : null;
+  // Habitude sur l'horizon : une semaine habituelle (usual7) ramenée au nombre de jours affichés
+  const usualH = sel?.usual7 != null ? ((sel.usual7 * h) / 7) * k : null;
   const dsel = fc.find((f: any) => f.ds === day);
+  // Jour suivi par les chiffres clés : le jour cliqué, sinon le jour le plus chargé
+  const focus = dsel || peak;
+  const focusRaw = focus ? fcRaw.find((x: any) => x.ds === focus.ds) : null;
+  const prep = focusRaw ? Math.ceil(focusRaw.conseille ?? focusRaw.yhat_upper ?? 0) : null;
+  const qty = (v: number) => (euro ? `${u(v)}` : tr(`${fmt(v)} pièces`, `${fmt(v)} pcs`));
   const fb = FIAB[sel?.fiabilite || "inconnue"];
   const attention = (list.checks || []).filter((c: any) => c.severity === "attention");
   const runNotes: any = (() => { try { return JSON.parse(list.run?.notes || "{}") || {}; } catch { return {}; } })();
@@ -198,71 +304,15 @@ export function ProductForecastSection() {
       )}
 
       {/* ── À préparer en plus cette semaine ── */}
-      {toPrepare.length > 0 && (
-        <div className="sw">
-          <div className="cc" style={{ marginBottom: 16 }}>
-            <ChartAssistantButton chartType="product_forecast_to_prepare" chartData={{ items: toPrepare }} chartName="ProductForecastToPrepare"
-              userQuestion="Explique quels produits préparer en plus cette semaine" position="top-right" onOpenChat={openChat} />
-            <div className="ct">{tr("À préparer en plus cette semaine", "Prepare more of this week")}</div>
-            <div className="cs">{tr("Produits dont la prévision des 7 prochains jours dépasse nettement l'habitude · cliquez pour le détail", "Products whose next-7-day forecast is clearly above usual · click for details")}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 10 }}>
-              {toPrepare.map((p) => (
-                <button key={p.product_id} onClick={() => setSelName(p.article)}
-                        style={{ textAlign: "left", cursor: "pointer", border: `1px solid ${selName === p.article ? GREEN : "var(--dk-line)"}`, background: selName === p.article ? "var(--dk-accent-wash)" : "var(--dk-surface)", borderRadius: 16, padding: "12px 14px", transition: "all .2s" }}>
-                  <div style={{ fontSize: ".8rem", fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.article}</div>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
-                    <span className="num" style={{ fontSize: "1.25rem", fontWeight: 800, color: GREEN }}>+{fmt(p.next7 - p.usual7)}</span>
-                    <span style={{ fontSize: ".72rem", color: MUTED }}>{tr("articles vs habitude", "items vs usual")}</span>
-                  </div>
-                  <div style={{ fontSize: ".72rem", color: MUTED }}>{fmt(p.next7)} {tr("prévus", "forecast")} · <TrendBadge chg={p.change_pct} /></div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="sw">
-        <div className="grid-main" style={{ gridTemplateColumns: "minmax(280px, 1fr) minmax(0, 2.2fr)" }}>
-          {/* ── Liste des produits ── */}
-          <div className="cc" style={{ display: "flex", flexDirection: "column", padding: "16px 14px" }}>
-            <ChartAssistantButton chartType="product_forecast_list" chartData={{ items: filtered.slice(0, 40).map((i: any) => ({ article: i.article, next7: i.next7, usual7: i.usual7, change_pct: i.change_pct, fiabilite: i.fiabilite })), nb_total: items.length }} chartName="ProductForecastList"
-              userQuestion="Explique la liste des prévisions par produit" position="top-right" onOpenChat={openChat} />
-            <div className="ct" style={{ padding: "0 6px" }}>{tr(`${items.length} produits prévus`, `${items.length} forecast products`)}</div>
-            <div className="cs" style={{ padding: "0 6px" }}>{tr(`Prévision des 7 prochains jours · ${list.non_prevus?.inactif || 0} inactifs et ${list.non_prevus?.insuffisant || 0} sans historique suffisant ne sont pas prévus`, `Next 7 days · ${list.non_prevus?.inactif || 0} inactive and ${list.non_prevus?.insuffisant || 0} with too little history are not forecast`)}</div>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tr("Chercher un produit…", "Search a product…")}
-                   style={{ margin: "4px 6px 10px", padding: "9px 14px", borderRadius: 999, border: "1px solid var(--dk-line)", background: "var(--dk-soft)", color: INK, fontSize: ".82rem", outline: "none" }} />
-            <div style={{ display: "flex", gap: 6, padding: "0 6px 10px", flexWrap: "wrap" }}>
-              {([["chg", tr("Écart à l'habitude", "Gap vs usual")], ["qty", tr("Quantité", "Quantity")], ["fiab", tr("Fiabilité", "Reliability")]] as const).map(([k, l]) => (
-                <button key={k} onClick={() => setSort(k)} style={{ border: "none", cursor: "pointer", padding: "5px 11px", borderRadius: 999, fontSize: ".72rem", fontWeight: 700, background: sort === k ? "var(--dk-pill, #1F2B23)" : "var(--dk-soft)", color: sort === k ? "#fff" : "var(--dk-ink2)" }}>{l}</button>
-              ))}
-            </div>
-            <div style={{ overflowY: "auto", maxHeight: 560, display: "flex", flexDirection: "column", gap: 2 }}>
-              {filtered.map((p) => {
-                const on = p.article === selName;
-                return (
-                  <button key={p.product_id} onClick={() => setSelName(p.article)}
-                          style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center", textAlign: "left", cursor: "pointer",
-                                   border: "none", borderRadius: 14, padding: "9px 10px", background: on ? "var(--dk-accent-wash)" : "transparent",
-                                   boxShadow: on ? `inset 3px 0 0 ${GREEN}` : "none", transition: "background .15s" }}
-                          onMouseEnter={(e) => { if (!on) e.currentTarget.style.background = "var(--dk-soft)"; }}
-                          onMouseLeave={(e) => { if (!on) e.currentTarget.style.background = "transparent"; }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: ".8rem", fontWeight: on ? 800 : 600, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.article}</div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: ".7rem", color: MUTED, marginTop: 2 }}>
-                        <span className="num">{fmt(p.next7)} {tr("prévus", "forecast")}</span>
-                        <TrendBadge chg={p.change_pct} />
-                      </div>
-                    </div>
-                    <Spark v={p.spark} color={p.tendance === "hausse" ? GREEN : p.tendance === "baisse" ? "var(--ch-3)" : "var(--ch-other)"} />
-                  </button>
-                );
-              })}
-              {filtered.length === 0 && <div className="cs" style={{ padding: 10 }}>{tr("Aucun produit ne correspond.", "No matching product.")}</div>}
-            </div>
-          </div>
-
-          {/* ── Détail du produit choisi ── */}
+        {/* ── Choix du produit : une barre de recherche avec liste déroulante (au lieu d'une longue liste) ── */}
+        <ProductPicker items={filtered} all={items} toPrepare={toPrepare} sel={sel} q={q} setQ={setQ} sort={sort} setSort={setSort}
+          onPick={(a: string) => { setSelName(a); setQ(""); }}
+          note={tr(`${items.length} produits prévus · ${list.non_prevus?.inactif || 0} inactifs et ${list.non_prevus?.insuffisant || 0} sans historique suffisant ne sont pas prévus`,
+                   `${items.length} forecast products · ${list.non_prevus?.inactif || 0} inactive and ${list.non_prevus?.insuffisant || 0} with too little history are not forecast`)} />
+        <div>
+          {/* ── Détail du produit choisi : graphique à gauche, chiffres clés à droite (comme la prévision globale) ── */}
+          <div className="fc-layout">
           <div className="cc hero-card">
             {sel && detail && (
               <ChartAssistantButton chartType="product_forecast_detail" chartData={{ product: sel, detail, horizon: h }} chartName="ProductForecastChart"
@@ -280,44 +330,19 @@ export function ProductForecastSection() {
                       {sel.saisonnier && <span className="pp-tag" style={{ background: "var(--dk-soft)", color: "var(--ch-4)" }}>{tr("Saisonnier", "Seasonal")}</span>}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 999, background: "var(--dk-soft)" }}>
-                    {[7, 14].map((v) => (
-                      <button key={v} onClick={() => setH(v as 7 | 14)} style={{ border: "none", cursor: "pointer", padding: "6px 14px", borderRadius: 999, fontSize: ".76rem", fontWeight: 700, background: h === v ? GREEN : "transparent", color: h === v ? "#fff" : "var(--dk-ink2)" }}>
-                        {v} {tr("jours", "days")}
-                      </button>
-                    ))}
-                  </div>
                 </div>
 
-                {/* Chiffres clés */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, margin: "14px 0 6px" }}>
-                  {[
-                    { l: tr(`Prévu sur ${h} jours`, `Forecast over ${h} days`), v: fmt(tot), s: usualH ? tr(`habituellement ${fmt(usualH)}`, `usually ${fmt(usualH)}`) : tr("articles", "items") },
-                    { l: tr("Jour le plus chargé", "Busiest day"), v: peak ? dayLbl(peak.ds) : "—", s: peak ? tr(`${fmt(peak.yhat)} articles prévus`, `${fmt(peak.yhat)} items forecast`) : "" },
-                    { l: tr("À préparer ce jour-là", "To prepare that day"), v: peak ? fmt(Math.ceil(peak.yhat_upper)) : "—", s: tr("borne haute : 9 jours sur 10, on ne manque pas", "high bound: no shortage 9 days out of 10") },
-                  ].map((k) => (
-                    <div key={k.l} className="pp-stat"><div className="l">{k.l}</div><div className="v">{k.v}</div><div className="s">{k.s}</div></div>
-                  ))}
-                </div>
 
-                <ProductChart history={hist} forecast={fc} sel={day} onSel={(d: string) => setDay(day === d ? null : d)} />
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 14, fontSize: ".72rem", color: MUTED, marginTop: 4 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 12, height: 10, borderRadius: 3, background: "var(--ch-ramp-3)" }} />{tr("ventes réelles", "actual sales")}</span>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 3, background: GREEN }} />{tr("prévision", "forecast")}</span>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 14, height: 10, background: GREEN, opacity: 0.18, borderRadius: 3 }} />{tr("fourchette basse – haute", "low – high range")}</span>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 99, border: "1.6px solid var(--ch-2)" }} />{tr("même jour de la semaine, il y a 52 semaines", "same weekday, 52 weeks earlier")}</span>
-                  <span>· {tr("cliquez sur un jour prévu pour le détail", "click a forecast day for details")}</span>
-                </div>
-
-                {dsel && (
-                  <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 16, background: "var(--dk-accent-wash)", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
-                    <div><div style={{ fontSize: ".72rem", color: MUTED }}>{tr("Jour", "Day")}</div><div style={{ fontWeight: 800, color: INK }}>{dayLbl(dsel.ds)}</div></div>
-                    <div><div style={{ fontSize: ".72rem", color: MUTED }}>{tr("Prévu", "Forecast")}</div><div className="num" style={{ fontWeight: 800, color: GREEN }}>{fmt(dsel.yhat, 1)}</div></div>
-                    <div><div style={{ fontSize: ".72rem", color: MUTED }}>{tr("Fourchette", "Range")}</div><div className="num" style={{ fontWeight: 700, color: INK }}>{fmt(dsel.yhat_lower)} – {fmt(dsel.yhat_upper)}</div></div>
-                    <div><div style={{ fontSize: ".72rem", color: MUTED }}>{tr("À préparer", "To prepare")}</div><div className="num" style={{ fontWeight: 800, color: INK }}>{fmt(Math.ceil(dsel.yhat_upper))}</div></div>
-                    <div><div style={{ fontSize: ".72rem", color: MUTED }}><span title={tr("Même jour de la semaine, 52 semaines plus tôt (pas la même date)", "Same weekday, 52 weeks earlier (not the same date)")}>{tr("Il y a 52 semaines", "52 weeks earlier")}</span></div><div className="num" style={{ fontWeight: 700, color: INK }}>{dsel.last_year != null ? fmt(dsel.last_year) : "—"}</div></div>
-                  </div>
+                {hist.length > 0 && fc.length > 0 && (
+                  <Scope period={tr(`Réel ${dayLbl(hist[0].ds)} → ${dayLbl(hist[hist.length - 1].ds)} · Prévu ${dayLbl(fc[0].ds)} → ${dayLbl(fc[fc.length - 1].ds)}`, `Actual ${dayLbl(hist[0].ds)} → ${dayLbl(hist[hist.length - 1].ds)} · Forecast ${dayLbl(fc[0].ds)} → ${dayLbl(fc[fc.length - 1].ds)}`)}
+                    calc={euro ? tr(`Chiffre d'affaires de ${trData(sel.article)}, réel ou prévu (pièces × prix moyen ${fmt(prix, 2)} €)`, `${trData(sel.article)} revenue, actual or forecast (pieces × average price €${fmt(prix, 2)})`)
+                               : tr(`Pièces de ${trData(sel.article)} vendues ou prévues chaque jour`, `Pieces of ${trData(sel.article)} sold or forecast each day`)}
+                    unit={euro ? tr("€ par jour", "€ per day") : tr("pièces par jour", "pieces per day")} />
                 )}
+                {unit === "ca" && !euro && <div className="cs">{tr("Prix du produit indisponible : affichage en pièces.", "Product price unavailable: shown in pieces.")}</div>}
+                <ProductChart history={hist} forecast={fc} euro={euro} seasonal={!!(sel.saisonnier || sel.saison)} sel={focus?.ds ?? null} onSel={(d: string) => setDay(day === d ? null : d)} />
+                <div style={{ fontSize: ".72rem", color: MUTED, marginTop: 4 }}>{tr("Cliquez sur un jour prévu : les chiffres clés à droite passent à ce jour.", "Click a forecast day: the key figures on the right switch to that day.")}</div>
+
 
                 {sel.saison && (
                   <Takeaway>
@@ -331,22 +356,51 @@ export function ProductForecastSection() {
                     )}
                   </Takeaway>
                 )}
-                {usualH != null && usualH > 0 && (
-                  <Takeaway>
-                    {tr(
-                      `${sel.article} : ${fmt(tot)} articles prévus sur les 7 prochains jours, ${tot >= usualH ? "soit" : "contre"} ${fmt(usualH)} habituellement (${tot >= usualH ? "+" : ""}${fmt(((tot - usualH) / usualH) * 100)} %).${peak ? ` Jour le plus chargé : ${dayLbl(peak.ds)} (${fmt(peak.yhat)} prévus, en préparer ${fmt(Math.ceil(peak.yhat_upper))} pour ne pas manquer).` : ""}`,
-                      `${sel.article}: ${fmt(tot)} items forecast over the next 7 days vs ${fmt(usualH)} usually (${tot >= usualH ? "+" : ""}${fmt(((tot - usualH) / usualH) * 100)}%).${peak ? ` Busiest day: ${dayLbl(peak.ds)} (${fmt(peak.yhat)} forecast, prepare ${fmt(Math.ceil(peak.yhat_upper))} to avoid running out).` : ""}`
-                    )}
-                  </Takeaway>
-                )}
                 <ExpertNote>
                   Méthode retenue : {METH[sel.method]?.fr || sel.method} (« {sel.method} »){sel.saison ? ` — règle de saison (${sel.saison})` : `, choisie par compétition sur ${runNotes.fenetres_test ?? "?"} fenêtres de test de ${list.run?.horizon || 14} jours réparties sur l'année`}. WAPE = {sel.wape != null ? fmt(sel.wape * 100, 1) : "—"} % (moyenne 4 semaines : {sel.wape_baseline != null ? fmt(sel.wape_baseline * 100, 1) : "—"} %). Classe Syntetos-Boylan : {sel.segment} (ADI {detail.model?.adi ?? "—"}, CV² {detail.model?.cv2 ?? "—"}){sel.saisonnier ? ", saisonnier" : ""}. Fourchette = quantiles 10 % / 90 % des erreurs réellement observées pendant les tests, par méthode et par taille de prévision (moins de 1, 1 à 5, 5 et plus par jour). {runNotes.couverture_fourchette != null ? `Mesurée sur des fenêtres de test non utilisées pour la construire, pour les produits prévus à au moins 1 par jour : ${fmt(runNotes.couverture_fourchette * 100, 0)} % des ventes réelles dans la fourchette${runNotes.au_dessus_fourchette != null ? `, ${fmt(runNotes.au_dessus_fourchette * 100, 0)} % au-dessus (jours où la quantité à préparer aurait manqué)` : ""}.` : "Couverture non mesurable (historique trop court)."} Jours d'événement courts (Noël, réveillon, 1er janvier, Pâques…) : chaque produit suit ce qu'il a vendu le même jour d'événement l'an dernier, ajusté à son niveau actuel ; un jour habituellement fermé est prévu ouvert s'il l'était l'an dernier avec un vrai volume. Quantité à préparer = borne haute du jour. Calcul du {list.run?.run_at} sur les données jusqu'au {list.run?.data_end}. API : /api/forecast/products/{sel.product_id}.
                 </ExpertNote>
               </>
             )}
           </div>
+          {sel && detail && (
+            <div className="side-col" style={{ alignSelf: "start" }}>
+            <div className="cc kpi-card">
+              <div className="kpi-card-t">{tr("Chiffres clés", "Key figures")}</div>
+              {[
+                { l: tr(`Prévu sur ${h} jours`, `Forecast over ${h} days`), v: u(tot),
+                  s: usualH ? tr(`habituellement ${u(usualH)}`, `usually ${u(usualH)}`) : euro ? tr("chiffre d'affaires", "revenue") : tr("pièces", "pieces") },
+                { l: dsel && dsel.ds !== peak?.ds ? tr("Jour choisi", "Selected day") : tr("Jour le plus chargé", "Busiest day"), v: focus ? dayLbl(focus.ds) : "—",
+                  s: focus ? (
+                    focus.is_ferme ? tr("boutique fermée ce jour-là", "shop closed that day") : (
+                      <>
+                        {tr(`${qty(focus.yhat)} prévu${euro ? "s" : "es"}`, `${qty(focus.yhat)} forecast`)}<br />{tr(`entre ${fmt(focus.yhat_lower)} et ${u(focus.yhat_upper)}`, `between ${fmt(focus.yhat_lower)} and ${u(focus.yhat_upper)}`)}
+                        {focus.last_year != null && <><br />{tr(`l'an dernier, même jour : ${u(focus.last_year)}`, `last year, same weekday: ${u(focus.last_year)}`)}</>}
+                        {dsel && (
+                          <><br /><button type="button" className="kpi-reset" onClick={() => setDay(null)}>× {tr("revenir au jour le plus chargé", "back to the busiest day")}</button></>
+                        )}
+                      </>
+                    )) : "" },
+                { l: tr("À préparer ce jour-là", "To prepare that day"), v: prep != null && !focus?.is_ferme ? tr(`${fmt(prep)} pièces`, `${fmt(prep)} pcs`) : "—",
+                  s: tr("prévision + petite marge, sans gaspiller", "forecast + small margin, without waste") },
+              ].map((k: any, i: number) => (
+                <div key={i} className={`kpi-line${i > 0 && dsel ? " kpi-focus" : ""}`}>
+                  <div className="kpi-top"><span className="kpi-ic">{[<IcSum key="a" />, <IcCal key="b" />, <IcBox key="c" />][i]}</span>{k.l}</div>
+                  <div className="kpi-v num">{k.v}</div>
+                  <span className="kpi-d">{k.s}</span>
+                </div>
+              ))}
+            </div>
+            </div>
+          )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+// Petites icônes des chiffres clés (même style que la prévision globale)
+const ic = (d: React.ReactNode) => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{d}</svg>;
+function IcSum() { return ic(<><path d="M3 17l6-6 4 4 8-8" /><path d="M14 7h7v7" /></>); }
+function IcCal() { return ic(<><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></>); }
+function IcBox() { return ic(<><path d="M21 8 12 3 3 8v8l9 5 9-5Z" /><path d="m3 8 9 5 9-5M12 13v8" /></>); }

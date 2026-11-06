@@ -36,7 +36,12 @@ warnings.filterwarnings("ignore")
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.environ.get("FORECAST_DATA") or os.path.join(HERE, "data")
 CFG = json.load(open(os.path.join(HERE, "config.json"), encoding="utf-8"))
-H = int(CFG["horizon_jours"])
+# Horizon : « horizon_jours » de config.json, ou la variable d'environnement FORECAST_HORIZON (ex. 30 pour la prévision
+# longue ; le tableau de bord garde le calcul à 14 jours pour les 14 premiers jours, plus précis).
+H = int(os.environ.get("FORECAST_HORIZON") or CFG["horizon_jours"])
+# Garde-fou « l'an dernier » de la prévision boutique : 0 = désactivé ; sinon plafond = ce multiple de la médiane des
+# jours voisins (ex. 1.3). Réglage « garde_an_dernier » de config.json, ou variable FORECAST_LY_GUARD pour les essais.
+LY_GUARD = float(os.environ.get("FORECAST_LY_GUARD") or CFG.get("garde_an_dernier", 0) or 0)
 # Seuil « vrai jour d'ouverture » : % du volume d'un jour normal (médiane des 28 jours précédents)
 SEUIL_OUVERT = float(CFG.get("seuil_jour_ouvert_pct", 15)) / 100
 # Jours d'événement : part donnée aux ventes du même jour l'an dernier (le reste : modèle ajusté)
@@ -71,6 +76,12 @@ def load(source):
         s = pd.DataFrame(sql_fetch_all(SQL_SALES))
         p = pd.DataFrame(sql_fetch_all(SQL_PRODUCTS))
         c = pd.DataFrame(sql_fetch_all(SQL_CALENDAR))
+    # Articles de caisse qui ne sont pas des produits (client_settings.json > non_product_articles : sac, service de
+    # découpe...) : ni prévus produit par produit, ni comptés dans le total de la boutique (qui est la somme des produits).
+    np_ids = _non_product_ids(p)
+    if np_ids:
+        s = s[~pd.to_numeric(s["product_id"]).isin(np_ids)].copy()
+        p = p[~pd.to_numeric(p["product_id"]).isin(np_ids)].copy()
     s["date"] = pd.to_datetime(s["date_id"])
     s["qty"] = pd.to_numeric(s["qty"], errors="coerce").fillna(0)
     c["date"] = pd.to_datetime(c["date_id"])
@@ -78,6 +89,16 @@ def load(source):
         p["category"] = "Autre"
     p["category"] = p["category"].fillna("Autre").astype(str)
     return s, p, c
+
+
+def _non_product_ids(products) -> set:
+    """Identifiants des articles listés dans client_settings.json > non_product_articles (même fichier que le backend)."""
+    sys.path.insert(0, os.path.join(HERE, "..", "BD"))
+    import client_settings
+    names = {client_settings.norm(x) for x in client_settings.load()["non_product_articles"]}
+    if not names or "article_name" not in products.columns:
+        return set()
+    return {int(r.product_id) for r in products.itertuples() if client_settings.norm(r.article_name) in names}
 
 
 def _col(df, name, default):
@@ -179,6 +200,15 @@ def public_holidays(years):
             e = easter(y)
             for d, n in ((1, "Lundi de Pâques"), (39, "Ascension"), (50, "Lundi de Pentecôte")):
                 out[e + pd.Timedelta(days=d)] = n
+        elif pays:
+            # Autres pays (futur client) : code ISO à 2 lettres (« BE », « CH », « TN », « MA »…) via le paquet
+            # « holidays » (installé avec Prophet). Sans ce paquet : pas de jours fériés automatiques.
+            try:
+                import holidays as _hol
+                for d_, n_ in _hol.country_holidays(pays, years=[y]).items():
+                    out[pd.Timestamp(d_)] = str(n_)
+            except Exception:
+                pass
         for md, n in fixed.items():
             out[pd.Timestamp(y, *md)] = n
         for md in extra:
@@ -472,7 +502,7 @@ def level_ratio(Y, origin, pids):
     return out, True
 
 
-def _ly_value(Y, C, t, pid):
+def _ly_value(Y, C, t, pid, guard=False):
     """Ventes « l'an dernier » pour le jour t : même jour de semaine il y a 52 semaines (poids 50 %), lissé avec
     les semaines 51 et 53 (25 % chacune). Les jours où la boutique était fermée sont écartés. Une semaine voisine
     ne peut pas dépasser 2 × le jour lui-même + 1 (ou 2 × les autres jours de cette semaine-là + 1 si ce jour-là
@@ -505,7 +535,27 @@ def _ly_value(Y, C, t, pid):
         ref = float(np.median(wk_)) if wk_ else min(v.values())
     cap = 2 * ref + 1
     v = {d: (min(x, cap) if d != 364 else x) for d, x in v.items()}
+    if guard and LY_GUARD > 0 and not isinstance(ev_t, str):
+        g = _ly_guard_cap(Y, C, t, pid)
+        if g is not None:
+            v = {d: min(x, g) for d, x in v.items()}
     return sum(w[d] * v[d] for d in v) / sum(w[d] for d in v)
+
+
+def _ly_guard_cap(Y, C, t, pid):
+    """Garde-fou « l'an dernier » (boutique entière, jours ordinaires) : le jour de référence ne dépasse pas
+    LY_GUARD × la médiane des mêmes jours de semaine 2 à 4 semaines avant et après (jours ouverts, hors jours de fête).
+    Un pic isolé de l'an dernier (affluence ponctuelle, commande exceptionnelle) n'est ainsi pas recopié tel quel.
+    None si moins de 4 voisins connus."""
+    base = t - pd.Timedelta(days=364)
+    vals = []
+    for k in (-4, -3, -2, 2, 3, 4):
+        x = base + pd.Timedelta(days=7 * k)
+        if x in Y.index and bool(C["open"].get(x, True)) and not isinstance(_event_at(x), str):
+            vals.append(float(Y.at[x, pid]))
+    if len(vals) < 4:
+        return None
+    return LY_GUARD * float(np.median(vals)) + 2.0
 
 
 def m_an_dernier(Y, C, origin, targets, pids):
@@ -1352,7 +1402,7 @@ def _ly_shop(Yt, C, t, end):
     k = 364
     while t - pd.Timedelta(days=k - 7) > end:
         k += 364
-    return _ly_value(Yt, C, t - pd.Timedelta(days=k - 364), 1)
+    return _ly_value(Yt, C, t - pd.Timedelta(days=k - 364), 1, guard=True)
 
 
 def _trend(T, cut, start):

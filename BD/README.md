@@ -47,11 +47,73 @@ psql -U postgres -d retail_db -f BD/schema.sql
 python BD/001_import_from_pkl.py
 ```
 
+### Product families (demo data only: `demo_data/fix_categories_demo_bakery.sql`)
+The original keyword rule put "PAIN AU CHOCOLAT", "PAIN CHOCO AMANDES", "PAIN AUX RAISINS" and "PAIN SUISSE PEPITO" in *Pains & Baguettes* (because of the word "PAIN"), "SANDWICH COMPLET" there too (because of "COMPLET"), and "BOTTEREAU" in *Boissons* (it contains "EAU"). `demo_data/fix_categories_demo_bakery.sql` moves them (specific to the demo bakery's article names, not a setup step; for another client use `category_overrides` in `api_mapping.json`) to *Viennoiseries* / *Traiteur & Sale*. Share of revenue: Pains & Baguettes 45.3 % -> 38.1 %, Viennoiseries 8.1 % -> 13.3 %, Traiteur & Sale 9.5 % -> 11.6 %. Sales, quantities and forecasts are unchanged. Safe to run again.
+
+### Tray sizes (starting values for the demo bakery only: `demo_data/seed_tray_sizes_demo_bakery.sql`)
+Sales and forecasts stay in pieces; a *tray* (plaque / batch) is a production unit used on the prep list and stock entry. `product_tray_sizes` holds pieces per tray and a rounding rule per product (`up` = whole tray above, `nearest`, `none` = stay in pieces). The seed gives five **estimates** (baguettes 8, croissant and pain au chocolat 20), flagged *to confirm* in the dashboard until the bakery re-saves them in *Saisie du stock > Tailles de plaque*. A product without a size stays in pieces.
+Rounding to whole trays has a price: if a product sells less than a tray a day, a whole tray is more than the day needs. On the last 60 days of real sales, with a perfect forecast, rounding up to the estimated sizes would leave extra pieces worth about 12 % of baguette sales, 16 % (traditional baguette), 36 % (banette), 64 % (croissant), 68 % (pain au chocolat). The prep list shows this as *Whole-tray surplus*, so it is visible, and a product can be set to `nearest` or `none`.
+
+### Settings that belong to one client (`client_settings.json`, project root)
+Everything that depends on the shop, not on the code, is in this one file (another file: environment variable `CLIENT_SETTINGS`). It is read by the backend (`backend/config.py`) and by the imports (`BD/analytics.py`, `BD/002_import_from_api.py`). A missing file means neutral values: nothing excluded, no tourist season.
+- `non_product_articles`: till articles that are not products (a slicing service, a carrier bag, a deposit, a donation). They stay in revenue and ticket counts, but are left out of every product analysis: rankings and pairs on Vue du Jour, presence, decision matrix, sales rhythm, basket role, regularity, the best products on Performance, the "bought together" rules, and the production screens. A ticket "croissant + bag" counts as a one-product basket. For the demo bakery: COUPE (0.20 EUR, sold with bread on 16,042 tickets; it was in 34 of the 50 stored rules).
+- `production_excluded_categories`, `production_excluded_articles`: real products that are not made on site, hidden from the production screens only (prep list, risk grid, stock entry, tray sizes). For the demo bakery: Boissons, Confiserie & Chocolat.
+- `basket_excluded_articles`: products to leave out of the "bought together" rules in addition to the non-products (none for the demo).
+- Daily totals: `daily_aggregates.nb_articles` (the "Articles" of Vue du Jour, the history of the shop forecast) counts products only; revenue (`ca_jour`) and tickets stay complete. Both imports recount it with `analytics.recount_daily_articles`. The forecast pipeline drops non-products from its input, so they get no product forecast and are not in the shop total (which is the sum of the products).
+- `touristic_months`, `hemisphere` (`south` reverses the seasons), `open_day_min_ratio` / `open_day_min_tickets`, `basket_min_support` / `basket_min_lift`.
+Names are compared without case or accents. Events (Noel, Paques...) are in `events_config.json` (profile `FR` for the demo; another country or shop gets its own file via `--events-config`).
+
+### Setting up a new client
+1. Get the API documentation or a sample answer; fill `api_mapping.json` (field names, authentication, paging, timezone).
+2. Edit `client_settings.json` (and `events_config.json`): the points above.
+3. Dry run on a copy of the database: `python BD/002_import_from_api.py --since YYYY-MM-DD --dry-run`; read the report (rows received and dropped, returns skipped, stray days, events found).
+4. Check the product list for duplicate names (`article_aliases`), wrong families (`category_overrides`) and articles that are not products (`*_excluded_*`).
+5. Confirm tray sizes in *Saisie du stock > Tailles de plaque*.
+`python tests/test_other_shop.py` rebuilds a shop that looks nothing like the demo one (English names, southern hemisphere, closed Mondays, 5 months of data, no tourist season, UTC timestamps, no line ids) from an empty database and checks the import, the dashboard endpoints and the trays; run it after any change to the import. With under a year of data the forecast falls back to the 4-week same-weekday average (the global model is skipped for lack of history); this was checked on that test shop.
+
 ### 4. Verify Import
 
 ```bash
 psql -U postgres -d retail_db -f BD/002_verify_after_import.sql
 ```
+
+### Choosing the data source: pickle file or the supplier's API
+
+The dashboard only ever reads PostgreSQL; the source only decides how the tables are filled.
+`BD/run_import.py` picks the importer from `DATA_SOURCE` (or `--source`); the default is `pkl`,
+so nothing changes unless you ask for `api`.
+
+```bash
+python BD/run_import.py                          # pickle file (default, as before)
+python BD/run_import.py --source api             # ticket lines from the supplier's API
+python BD/run_import.py --source api --dry-run   # check everything, write nothing
+python BD/run_import.py --source api --since 2026-01-01
+python BD/002_import_from_api.py --from-json export.json   # no network: an API export already downloaded
+```
+
+Setting up the API import (`BD/002_import_from_api.py`):
+
+1. Put the supplier's field names, authentication and pagination in `BD/api_mapping.json`. Only that file changes, not the code.
+2. Give the secrets as environment variables, never in a file of the project: `API_BASE_URL`, `API_TOKEN`.
+3. The database connection is read from `PG_URL` or `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS` (`BD/db_config.py`); the defaults are the current local installation.
+
+Rules of the API import:
+
+- From the start date on (by default the last day in the database minus `overlap_days`), the API is the reference: the ticket lines of those days are **replaced**, so running it twice never duplicates sales. Older days are not touched.
+- Everything is downloaded and checked before anything is written, then written in one transaction: on any error the database stays as it was.
+- It refuses (and writes nothing) if line identifiers are duplicated or already used by older days, or if a quantity is not a whole number. Lines with a negative quantity (returns) are skipped and counted in the report, because `fact_ticket_lines` does not accept them.
+- It rebuilds `daily_aggregates` and `monthly_ca` from the ticket lines, extends `dim_dates` (15 days after the last sale), and adds new products and categories. The season comes from the date.
+- **Events** (Noël, Pâques, Galette des Rois...): if the API provides an `event` field it is used; otherwise the day is labelled from the calendar in `BD/events_config.json` (rules in `BD/events_calendar.py`). The French events are kept by default and are easy to switch off:
+  - all of them: set `"enabled": false` at the top of the file (every day becomes `Jour Normal`);
+  - one of them: set that event's `"enabled": false`;
+  - other countries or shops: add events with the rule types `fixed`, `month`, `range`, `easter`, `nth_weekday` (e.g. US Thanksgiving) or `mothers_day_fr`. `--events-config other.json` tries a different file.
+  - Official public holidays are not duplicated here: the forecast already handles them with `jours_feries_pays` in `forecasting/config.json`.
+  - The calendar reproduces the event labels of 655 of the 658 sales days already in the database; the 3 others (1–3 April 2024, within three days of Easter) were labelled `Jour Normal` by the original notebook, which missed events crossing a month boundary.
+- **Sales speed and association rules** (`product_velocity_stats`, `association_rules`) are recomputed from the ticket lines in the same transaction (`BD/analytics.py`; `--no-analytics` skips it). Sales speed uses the original notebook's formulas and reproduces the stored values exactly for all 144 products. The rules use the same Apriori settings; one deliberate correction: a ticket is the pair (day, ticket number), as everywhere else in the dashboard, whereas the notebook used the ticket number alone (numbers are reused from one day to the next: 131,315 distinct numbers for 131,853 real tickets). Result on the current data: the same 50 rules (61 rows) with lift within 0.02 and confidence within 0.005 of the old stored values before the COUPE removal (the live table was then recomputed: 22 rows, 18 rules). Articles listed in `basket_excluded_articles` (client_settings.json) are removed from the baskets first; for the demo bakery that is COUPE (bread slicing, 0.20 EUR), which was in 34 of the 50 stored rules. `product_penetration` is not recomputed: no dashboard page reads it.
+- **Open days.** `daily_aggregates` only holds days the shop was open (the dashboard reads "the last day" there, and the forecast history). A day is open when it reaches `open_day_min_ratio` (15 %) of the usual number of tickets, the median of the 28 previous sales days: a few stray sales on a closed Monday or Wednesday do not make an open day, whatever the size of the shop. This is the same rule the forecast uses (`seuil_jour_ouvert_pct` in `forecasting/config.json`: keep the two in agreement). `open_day_min_tickets` in `client_settings.json` replaces it with a fixed number if you prefer. The stray days' ticket lines are still imported; they just do not count as open days.
+- **Tourist season flag.** `dim_dates.is_touristic` is set from the months listed in `touristic_months` (client_settings.json; none by default) up to the last day with sales, and corrected on days that were put in the calendar before their sales arrived. It is deliberately left false after the last sale: the forecast then projects last year's season. A half-filled future calendar would make it think the calendar is complete and drop the season.
+- **Fixing what the till sends.** In `api_mapping.json`: `article_aliases` merges two names of one product (a duplicated till button), `category_overrides` corrects a wrong family.
+- The forecasts are refreshed at the end (`--no-refresh` to skip).
 
 ## Database Schema
 

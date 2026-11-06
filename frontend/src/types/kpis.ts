@@ -7,6 +7,7 @@ export interface HourlyData {
   qte: number;
   panier_h: number;
   ca_cum: number;
+  ca_ref?: number;      // chiffre moyen de cette heure les jours de comparaison
 }
 
 export interface ProductRow {
@@ -14,6 +15,7 @@ export interface ProductRow {
   quantity?: number;
   total_revenue?: number;
   nb_tkt?: number;
+  ref_revenue?: number; // chiffre moyen du produit les jours de comparaison
 }
 
 export interface CategoryRow {

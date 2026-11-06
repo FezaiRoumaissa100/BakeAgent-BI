@@ -2,8 +2,8 @@ import { DailyKPIs } from "@/types/kpis";
 
 const API_BASE = "http://127.0.0.1:8000/api";
 
-export async function fetchDailyKPIs(): Promise<DailyKPIs> {
-  const res = await fetch(`${API_BASE}/daily-kpis`, { cache: "no-store" });
+export async function fetchDailyKPIs(jour?: string | null): Promise<DailyKPIs> {
+  const res = await fetch(`${API_BASE}/daily-kpis${jour ? `?jour=${encodeURIComponent(jour)}` : ""}`, { cache: "no-store" });
   if (!res.ok) throw new Error("Erreur API daily-kpis");
   return res.json();
 }
@@ -111,7 +111,7 @@ export async function fetchMatrix(year = "Toutes"): Promise<any> {
 }
 
 // Période couverte par les ventes (dates min / max et années présentes)
-export async function fetchDataPeriod(): Promise<{ date_debut_fr: string | null; date_fin_fr: string | null; annees: number[] }> {
+export async function fetchDataPeriod(): Promise<{ date_debut?: string | null; date_fin?: string | null; date_debut_fr: string | null; date_fin_fr: string | null; annees: number[] }> {
   const res = await fetch(`${API_BASE}/data-period`, { cache: "no-store" });
   if (!res.ok) throw new Error("Erreur API data-period");
   return res.json();
@@ -148,6 +148,34 @@ export async function saveProduction(date: string, rows: { product_id: number; p
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ date, rows }),
   });
   if (!res.ok) throw new Error("Erreur API production (enregistrement)");
+  return res.json();
+}
+
+// Part des ventes de chaque produit par tranche horaire (plan par fournée de la liste « À préparer »)
+export async function fetchProductionSlots(date: string): Promise<any> {
+  const res = await fetch(`${API_BASE}/production/slots?date=${encodeURIComponent(date)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Erreur API production/slots");
+  return res.json();
+}
+
+// Tailles de plaque : pièces par plaque de chaque produit (liste « À préparer », saisie du stock en plaques)
+export async function fetchTrays(): Promise<any> {
+  const res = await fetch(`${API_BASE}/production/trays`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Erreur API production/trays");
+  return res.json();
+}
+
+export async function saveTray(productId: number, piecesPerTray: number | string, rounding: "up" | "nearest" | "none"): Promise<any> {
+  const res = await fetch(`${API_BASE}/production/trays/${productId}`, {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pieces_per_tray: piecesPerTray, rounding }),
+  });
+  if (!res.ok) throw new Error("Erreur API production/trays (enregistrement)");
+  return res.json();
+}
+
+export async function deleteTray(productId: number): Promise<any> {
+  const res = await fetch(`${API_BASE}/production/trays/${productId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Erreur API production/trays (suppression)");
   return res.json();
 }
 

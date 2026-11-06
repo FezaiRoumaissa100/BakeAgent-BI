@@ -1,0 +1,16 @@
+{
+  "_comment": "Calendrier des événements de la boutique, utilisé par l'import API quand l'API ne donne pas le nom de l'événement. Voir BD/events_calendar.py pour les types de règle. Pour retirer TOUS les événements français : 'enabled': false ci-dessous. Pour en retirer un seul : son 'enabled': false. L'ordre compte : à égalité, le premier de la liste gagne. Les jours fériés officiels sont gérés ailleurs (forecasting/config.json, 'jours_feries_pays').",
+  "profile": "FR",
+  "enabled": true,
+  "events": [
+    { "name": "Jour de l'An",       "enabled": true, "rule": { "type": "fixed", "month": 1, "day": 1 } },
+    { "name": "Galette des Rois",   "enabled": true, "rule": { "type": "month", "month": 1 } },
+    { "name": "Saint-Valentin",     "enabled": true, "rule": { "type": "fixed", "month": 2, "day": 14 } },
+    { "name": "Paques",             "enabled": true, "rule": { "type": "easter", "offset_from": -3, "offset_to": 3 } },
+    { "name": "Fete des Meres",     "enabled": true, "rule": { "type": "mothers_day_fr" } },
+    { "name": "Fete de la Musique", "enabled": true, "rule": { "type": "fixed", "month": 6, "day": 21 } },
+    { "name": "Toussaint",          "enabled": true, "rule": { "type": "fixed", "month": 11, "day": 1 } },
+    { "name": "Noel",               "enabled": true, "rule": { "type": "range", "from": [12, 20], "to": [12, 25] } },
+    { "name": "Reveillon",          "enabled": true, "rule": { "type": "fixed", "month": 12, "day": 31 } }
+  ]
+}

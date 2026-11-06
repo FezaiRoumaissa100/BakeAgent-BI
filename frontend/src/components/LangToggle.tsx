@@ -22,8 +22,8 @@ export function LangToggle() {
           borderRadius: "999px",
           border: "none",
           cursor: active ? "default" : "pointer",
-          background: active ? "var(--dk-pill, #1F2B23)" : "transparent",
-          color: active ? "#fff" : "var(--dk-chrome-text, #4A524C)",
+          background: active ? "var(--dk-pill, #2B2747)" : "transparent",
+          color: active ? "#fff" : "var(--dk-chrome-text, #3A3655)",
           fontSize: "0.75rem",
           fontWeight: 800,
           letterSpacing: "0.04em",
@@ -44,7 +44,7 @@ export function LangToggle() {
         gap: "2px",
         padding: "3px",
         borderRadius: "999px",
-        background: "var(--dk-chrome-chip, #F5F6F1)",
+        background: "var(--dk-chrome-chip, #FFFFFF)",
         border: "1px solid var(--dk-chrome-chip-line, #E3E4DD)",
       }}
     >
