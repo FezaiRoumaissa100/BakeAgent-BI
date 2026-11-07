@@ -53,7 +53,64 @@ const CHIP: Record<string, { fr: string; en: string; c: string; bg: string }> = 
   SURSTOCK: { fr: "Prévoir moins", en: "Make less", c: "#fff", bg: "#7FA3C8" },
 };
 
-export function PrepListCard() {
+// Lignes de la liste à préparer pour un jour (partagé avec la carte « Demain » de la page Alertes)
+export function prepRows(items: any[], ds: string | undefined, trayMap?: Map<number, TrayInfo>) {
+  if (!ds) return [];
+  return items.map((i) => ({ i, d: (i.days || []).find((x: any) => x.ds === ds) }))
+    .filter(({ d }) => d && d.statut !== "FERMÉ" && (d.yhat >= 1 || d.usual >= 1))
+    .map(({ i, d }) => {
+      const prep = Math.max(0, Math.ceil(d.conseille ?? d.yhat));
+      return { product_id: i.product_id, article: i.article, category: i.category, prix: i.prix, ...d, prep, tp: planTrays(prep, trayMap?.get(i.product_id)) };
+    })
+    .sort((a: any, b: any) => (a.category || "").localeCompare(b.category || "") || b.prep - a.prep);
+}
+
+// Jours ouverts à venir (les 7 premiers : une semaine de boutons) dans une réponse de /api/alerts/products
+export function prepOpenDays(data: any): string[] {
+  const items: any[] = data?.items || [];
+  return (data?.dates || []).filter((ds: string) =>
+    items.some((i) => (i.days || []).some((d: any) => d.ds === ds && d.statut !== "FERMÉ"))).slice(0, 7);
+}
+
+// Impression de la liste : feuille rangée par famille, avec « Préparé » et « Restant le soir » à remplir à la main
+export function usePrepPrint() {
+  const [printing, setPrinting] = useState(false);
+  const print = () => {
+    setPrinting(true);
+    document.documentElement.classList.add("print-prep");
+    setTimeout(() => {
+      try { window.print(); } finally {
+        document.documentElement.classList.remove("print-prep");
+        setPrinting(false);
+      }
+    }, 50);
+  };
+  return { printing, print };
+}
+export function PrepSheet({ rows, ds }: { rows: any[]; ds: string }) {
+  const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+  const dayLong = cap(new Date(ds + "T12:00:00").toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" }));
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="prep-sheet">
+      <h1>{siteConfig.bakeryName || siteConfig.productName} — {tr("À préparer", "To prepare")}</h1>
+      <p>{dayLong} · {fmt(rows.length)} {tr("produits", "products")}</p>
+      <table>
+        <thead><tr><th>{tr("Produit", "Product")}</th><th>{tr("Famille", "Family")}</th><th>{tr("Habituel", "Usual")}</th><th>{tr("À préparer", "To prepare")}</th><th>{tr("Note", "Note")}</th><th>{tr("Préparé", "Made")}</th><th>{tr("Restant le soir", "Left at close")}</th></tr></thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.article}>
+              <td>{r.article}</td><td>{trData(r.category)}</td><td>{fmt(r.usual)}</td><td><b>{fmt(r.prep)}</b></td>
+              <td>{CHIP[r.statut] ? `${tr(CHIP[r.statut].fr, CHIP[r.statut].en)} — ${raisonText(r.raison)}` : ""}</td><td></td><td></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>, document.body);
+}
+
+// bare : sans le titre de section (la liste complète est rangée dans « Voir le détail » de la page Alertes)
+export function PrepListCard({ bare = false }: { bare?: boolean } = {}) {
   const [data, setData] = useState<any>(null);
   const [day, setDay] = useState<string | null>(null);
   const [all, setAll] = useState(false);
@@ -68,8 +125,7 @@ export function PrepListCard() {
 
   const items: any[] = data?.items || [];
   // Jours ouverts proposés (les 4 premiers)
-  const openDays: string[] = useMemo(() => (data?.dates || []).filter((ds: string) =>
-    items.some((i) => (i.days || []).some((d: any) => d.ds === ds && d.statut !== "FERMÉ"))).slice(0, 4), [data, items]);
+  const openDays: string[] = useMemo(() => prepOpenDays(data), [data]);
   const ds = day && openDays.includes(day) ? day : openDays[0];
 
   // Parts des ventes par tranche horaire pour le jour choisi (chargées seulement si le plan par fournée est affiché)
@@ -92,16 +148,7 @@ export function PrepListCard() {
     return r.tp ? { vals: splitQty(r.tp.trays, sh), unit: tr(" pl.", " tr.") } : { vals: splitQty(r.prep, sh), unit: "" };
   };
 
-  const rows = useMemo(() => {
-    if (!ds) return [];
-    return items.map((i) => ({ i, d: (i.days || []).find((x: any) => x.ds === ds) }))
-      .filter(({ d }) => d && d.statut !== "FERMÉ" && (d.yhat >= 1 || d.usual >= 1))
-      .map(({ i, d }) => {
-        const prep = Math.max(0, Math.ceil(d.conseille ?? d.yhat));
-        return { product_id: i.product_id, article: i.article, category: i.category, prix: i.prix, ...d, prep, tp: planTrays(prep, trayMap.get(i.product_id)) };
-      })
-      .sort((a, b) => (a.category || "").localeCompare(b.category || "") || b.prep - a.prep);
-  }, [items, ds, trayMap]);
+  const rows = useMemo(() => prepRows(items, ds, trayMap), [items, ds, trayMap]);
 
   if (!data || !data.available || !ds) return null;
 
@@ -148,12 +195,12 @@ export function PrepListCard() {
 
   return (
     <>
-      <div className="alert-part">
+      {!bare && <div className="alert-part">
         <div className="alert-part-k">{tr("Liste de production", "Production list")}</div>
         <h2 className="alert-part-t">{tr("À ", "To ")}<span style={{ color: "var(--dk-accent)" }}>{tr("préparer", "prepare")}</span></h2>
         <p className="alert-part-d">{tr("Quantité conseillée par produit = prévision + une petite marge, calculée pour limiter les invendus jetés le soir sans trop manquer de ventes. À imprimer pour la production.", "Suggested quantity per product = forecast + a small margin, set to limit unsold items thrown away in the evening without missing too many sales. Print it for production.")}</p>
-      </div>
-      <div className="sw">
+      </div>}
+      <div className={bare ? undefined : "sw"}>
         <div className="cc">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <div className="prep-days">

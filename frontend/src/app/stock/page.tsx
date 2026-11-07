@@ -154,6 +154,7 @@ export default function StockPage() {
         setDirty(false);
         setStatus({ ok: true, text: tr(`Enregistré : ${res.saved} produit(s), le ${res.updated_at}.`, `Saved: ${res.saved} product(s), on ${res.updated_at}.`) });
         loadSummary();
+        window.dispatchEvent(new Event("stock-saved"));   // menu de gauche : le bouton « Stock du soir » passe à « fait »
       } else {
         setStatus({ ok: false, text: res?.message || tr("Enregistrement refusé.", "Save refused.") });
       }
@@ -173,9 +174,11 @@ export default function StockPage() {
     <div style={{ paddingBottom: 90 }}>
       <div style={{ marginBottom: 16, padding: "0 28px" }}>
         <h1 className="page-h1" style={{ margin: 0 }}>{tr("Saisie du ", "Stock ")}<span style={{ color: "var(--dk-accent)" }}>{tr("stock", "entry")}</span></h1>
-        <p style={{ color: "var(--dk-muted)", fontSize: ".82rem", marginTop: 6, maxWidth: 680, lineHeight: 1.5 }}>
-          {tr("Chaque soir, indiquez pour chaque produit ce qui a été préparé et ce qui reste à la fermeture. Les ventes viennent de la caisse : le tableau de bord calcule les vrais invendus, la part vendue et les produits épuisés.",
-              "Each evening, enter for each product what was made and what is left at closing. Sales come from the till: the dashboard works out real unsold items, the share sold and sold-out products.")}
+        <p className="page-lead">
+          <span className="page-lead-ic" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.3-2.4 3.6M12 17h.01" /></svg></span>
+          <span>
+          {tr("Chaque soir : ce qui a été préparé et ce qui reste. Le tableau de bord en déduit les invendus et les ruptures.", "Each evening: what was made and what is left. The dashboard works out unsold items and sell-outs.")}
+          </span>
         </p>
       </div>
 

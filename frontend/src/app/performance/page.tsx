@@ -391,18 +391,18 @@ const niceName = (x: string) => String(x || "").toLowerCase().split(" ")
   .map((w, i) => (i > 0 && SMALL_W.has(w) ? w : w.replace(/(^|[\-'(])(\p{L})/gu, (_m, a, c) => a + c.toUpperCase()))).join(" ");
 
 // Classement compact : nom · barre fine · montant et part ; bulle au survol
-type RankItem = { article: string; value: number; part: number; evo?: number | null };
+type RankItem = { article: string; value: number; part: number; evo?: number | null; extra?: [string, string][] };
 const evoTxt = (d: number) => `${d >= 0 ? "▲ +" : "▼ −"}${fmt(Math.abs(d), 0)}\u00a0%`;
 
 // Classement compact : rang · nom · barre fine · valeur · part · tendance ; deux colonnes au-delà de 10 produits
-function TopRankList({ items, fmtV, fmtS, evoRef, evoHead = "", valLbl }: { items: RankItem[]; fmtV: (v: number) => string; fmtS: (v: number) => string; evoRef: string | null; evoHead?: string; valLbl: string }) {
+function TopRankList({ items, fmtV, fmtS, evoRef, evoHead = "", valLbl, itemLbl, hl = null, onHl }: { items: RankItem[]; fmtV: (v: number) => string; fmtS: (v: number) => string; evoRef: string | null; evoHead?: string; valLbl: string; itemLbl?: string; hl?: string | null; onHl?: (k: string | null) => void }) {
   const [hov, setHov] = useState<number | null>(null);
   const hasEvo = items.some((it) => it.evo != null);
   const twoCols = items.length > 10;
   const head = (k: string) => (
     <div key={k} className="rank-row rank-head">
       <span />
-      <span>{tr("Produit", "Product")}</span>
+      <span>{itemLbl || tr("Produit", "Product")}</span>
       <span className="r">{valLbl === tr("Chiffre d'affaires", "Revenue") ? tr("CA", "Revenue") : valLbl === tr("Quantité vendue", "Quantity sold") ? tr("Qté", "Qty") : valLbl}</span>
       {!twoCols && <span className="r">{tr("Part", "Share")}</span>}
       {hasEvo && <span className="r">{evoHead}</span>}
@@ -411,9 +411,9 @@ function TopRankList({ items, fmtV, fmtS, evoRef, evoHead = "", valLbl }: { item
   return (
     <div className="rank-wrap">
     <div className={`rank-heads${twoCols ? " two" : ""}${hasEvo ? " evo" : ""}`}>{twoCols ? [head("a"), head("b")] : head("a")}</div>
-    <div className={`rank${twoCols ? " two" : ""}${hasEvo ? " evo" : ""}`} style={twoCols ? { gridTemplateRows: `repeat(${Math.ceil(items.length / 2)}, auto)` } : undefined} onMouseLeave={() => setHov(null)}>
+    <div className={`rank${twoCols ? " two" : ""}${hasEvo ? " evo" : ""}`} style={twoCols ? { gridTemplateRows: `repeat(${Math.ceil(items.length / 2)}, auto)` } : undefined} onMouseLeave={() => { setHov(null); onHl?.(null); }}>
       {items.map((it, i) => (
-        <div key={i} className={`rank-row${i < 3 ? " top" : ""}${hov === i ? " on" : ""}`} onMouseEnter={() => setHov(i)}>
+        <div key={i} className={`rank-row${i < 3 ? " top" : ""}${hov === i ? " on" : ""}${hov == null && hl && hl === (i < 3 ? `p${i + 1}` : "pn") ? " lit" : ""}`} onMouseEnter={() => { setHov(i); onHl?.(i < 3 ? `p${i + 1}` : "pn"); }}>
           <span className="rank-n num">{i + 1}</span>
           <span className="rank-name">{niceName(it.article)}</span>
           <span className="rank-val num"><b>{fmtS(it.value)}</b></span>
@@ -425,6 +425,7 @@ function TopRankList({ items, fmtV, fmtS, evoRef, evoHead = "", valLbl }: { item
               <div className="ch-tip-row"><span className="ch-tip-k">{valLbl}</span><b className="num">{fmtV(it.value)}</b></div>
               <div className="ch-tip-row"><span className="ch-tip-k">{tr("Part du total", "Share of total")}</span><b className="num">{fmt(it.part, 1)} %</b></div>
               {it.evo != null && evoRef && <div className="ch-tip-row"><span className="ch-tip-k">{evoRef}</span><b className="num" style={{ color: it.evo >= 0 ? "var(--dk-ok)" : "var(--dk-alert)" }}>{evoTxt(it.evo)}</b></div>}
+              {(it.extra || []).map(([k, v]) => <div key={k} className="ch-tip-row"><span className="ch-tip-k">{k}</span><b className="num">{v}</b></div>)}
               <div className="ch-tip-row"><span className="ch-tip-k">{tr("Rang", "Rank")}</span><b className="num">{i + 1} / {items.length}</b></div>
             </div>
           )}
@@ -436,19 +437,21 @@ function TopRankList({ items, fmtV, fmtS, evoRef, evoHead = "", valLbl }: { item
 }
 
 // Petit anneau « part du total » : n°1 · les suivants du classement · tous les autres
-function ShareDonut({ items }: { items: RankItem[] }) {
+function ShareDonut({ items, fam = false, fmtV, hl = null, onHl }: { items: RankItem[]; fam?: boolean; fmtV?: (v: number) => string; hl?: string | null; onHl?: (k: string | null) => void }) {
   // Les 3 premiers produits chacun leur part, puis le reste du classement, puis tous les autres produits
   const top = items.slice(0, 3);
   const pTop = top.reduce((a, it) => a + (it.part || 0), 0);
   const pN = items.slice(3).reduce((a, it) => a + (it.part || 0), 0);
   const rest = Math.max(0, 100 - pTop - pN);
   const segs = [
-    ...top.map((it, i) => ({ k: `p${i + 1}`, w: it.part || 0, lbl: niceName(it.article) })),
-    { k: "pn", w: pN, lbl: tr(`les ${Math.max(0, items.length - 3)} suivants`, `the next ${Math.max(0, items.length - 3)}`) },
-    { k: "po", w: rest, lbl: tr("tous les autres", "all the others") },
+    ...top.map((it, i) => ({ k: `p${i + 1}`, w: it.part || 0, lbl: niceName(it.article), v: it.value as number | null })),
+    { k: "pn", w: pN, v: items.slice(3).reduce((a, it) => a + it.value, 0) as number | null, lbl: fam ? tr(`les ${Math.max(0, items.length - 3)} suivantes`, `the next ${Math.max(0, items.length - 3)}`) : tr(`les ${Math.max(0, items.length - 3)} suivants`, `the next ${Math.max(0, items.length - 3)}`) },
+    { k: "po", w: rest, v: null as number | null, lbl: tr("tous les autres", "all the others") },
   ].filter((x) => x.w > 0.05);
   const p1 = pTop;
-  const [hov, setHov] = useState<string | null>(null);
+  const [own, setOwn] = useState<string | null>(null);
+  const hov = own ?? hl;
+  const setHov = (k: string | null) => { setOwn(k); onHl?.(k); };
   const R = 52, C = 2 * Math.PI * R;
   let acc = 0;
   const on = segs.find((x) => x.k === hov);
@@ -458,11 +461,12 @@ function ShareDonut({ items }: { items: RankItem[] }) {
         <circle cx="70" cy="70" r={R} fill="none" stroke="var(--dk-line)" strokeWidth="16" />
         {segs.map((x) => {
           const len = (x.w / 100) * C, off = acc; acc += len;
-          return <circle key={x.k} className={`sd-seg ${x.k}${hov && hov !== x.k ? " dim" : ""}`} cx="70" cy="70" r={R} fill="none" strokeWidth={hov === x.k ? 19 : 16}
+          return <circle key={x.k} className={`sd-seg ${x.k}${hov && hov !== x.k ? " dim" : ""}`} cx="70" cy="70" r={R} fill="none" strokeWidth={hov === x.k ? 22 : 16}
             strokeDasharray={`${Math.max(0, len - 2)} ${C}`} strokeDashoffset={-off} transform="rotate(-90 70 70)" onMouseEnter={() => setHov(x.k)} />;
         })}
-        <text x="70" y="67" textAnchor="middle" className="sd-big">{fmt(on ? on.w : p1 + pN, 0)} %</text>
-        <text x="70" y="84" textAnchor="middle" className="sd-small">{on ? (on.lbl.length > 16 ? on.lbl.slice(0, 15) + "…" : on.lbl) : tr(`les ${items.length} premiers`, `the top ${items.length}`)}</text>
+        <text x="70" y={on && on.v != null && fmtV ? 62 : 67} textAnchor="middle" className="sd-big">{fmt(on ? on.w : fam ? p1 : p1 + pN, 0)} %</text>
+        {on && on.v != null && fmtV && <text x="70" y="94" textAnchor="middle" className="sd-small sd-val">{fmtV(on.v)}</text>}
+        <text x="70" y={on && on.v != null && fmtV ? 79 : 84} textAnchor="middle" className="sd-small">{on ? (on.lbl.length > 16 ? on.lbl.slice(0, 15) + "…" : on.lbl) : fam ? tr("les 3 premières", "the top 3") : tr(`les ${items.length} premiers`, `the top ${items.length}`)}</text>
       </svg>
       <div className="sd-leg">
         {segs.map((x) => (
@@ -470,59 +474,6 @@ function ShareDonut({ items }: { items: RankItem[] }) {
             <span className={`share-dot ${x.k}`} />{!/^p\d$/.test(x.k) && <b className="num">{fmt(x.w, 0)} %</b>}<span className={`sd-lbl${/^p\d$/.test(x.k) ? " wide" : ""}`}>{x.lbl}</span>
           </span>
         ))}
-      </div>
-    </div>
-  );
-}
-
-// Jour × heure : une case par heure et par jour, plus la couleur est foncée plus la boutique vend à ce moment
-function WeekHourHeat({ cells, rareDays, onPick }: { cells: Array<{ dow: number; hour: number; ca_moy: number; tk_moy: number }>; rareDays: number[]; onPick?: (c: any) => void }) {
-  const [hov, setHov] = useState<{ dow: number; hour: number } | null>(null);
-  const DAYS = [tr("Lun", "Mon"), tr("Mar", "Tue"), tr("Mer", "Wed"), tr("Jeu", "Thu"), tr("Ven", "Fri"), tr("Sam", "Sat"), tr("Dim", "Sun")];
-  const DAYS_L = [tr("Lundi", "Monday"), tr("Mardi", "Tuesday"), tr("Mercredi", "Wednesday"), tr("Jeudi", "Thursday"), tr("Vendredi", "Friday"), tr("Samedi", "Saturday"), tr("Dimanche", "Sunday")];
-  const useful = cells.filter((c) => c.ca_moy > 0.5 && !rareDays.includes(c.dow));
-  if (!useful.length) return null;
-  const hours = Array.from(new Set(cells.filter((c) => c.ca_moy > 0.5).map((c) => c.hour))).sort((a, b) => a - b);
-  const h0 = hours[0], h1 = hours[hours.length - 1];
-  const cols = Array.from({ length: h1 - h0 + 1 }, (_, i) => h0 + i);
-  const vmax = Math.max(...useful.map((c) => c.ca_moy), 1);
-  const get = (d: number, h: number) => cells.find((c) => c.dow === d && c.hour === h);
-  const top = [...useful].sort((a, b) => b.ca_moy - a.ca_moy)[0];
-  const hc = hov ? get(hov.dow, hov.hour) : null;
-  return (
-    <div className="whh" onMouseLeave={() => setHov(null)}>
-      <div className="whh-grid" style={{ gridTemplateColumns: `44px repeat(${cols.length}, minmax(0, 1fr))` }}>
-        <span />
-        {cols.map((h) => <span key={h} className="whh-h num">{String(h).padStart(2, "0")}h</span>)}
-        {DAYS.map((dl, d) => {
-          const rare = rareDays.includes(d);
-          return (
-            <React.Fragment key={d}>
-              <span className={`whh-d${rare ? " rare" : ""}`} title={rare ? tr("Rarement ouvert", "Rarely open") : undefined}>{dl}</span>
-              {cols.map((h) => {
-                const c = get(d, h);
-                const v = c ? c.ca_moy : 0;
-                const t = v / vmax;
-                const isTop = top && top.dow === d && top.hour === h;
-                return (
-                  <span key={h} className={`whh-c${rare ? " rare" : ""}${v <= 0.5 ? " zero" : ""}${isTop ? " top" : ""}${hov && hov.dow === d && hov.hour === h ? " on" : ""}`}
-                    style={!rare && v > 0.5 ? { background: `color-mix(in srgb, var(--whh) ${Math.round(12 + t * 88)}%, var(--dk-surface))` } : undefined}
-                    onMouseEnter={() => setHov({ dow: d, hour: h })} onClick={() => c && onPick && onPick(c)} />
-                );
-              })}
-            </React.Fragment>
-          );
-        })}
-      </div>
-      <div className="whh-foot">
-        <span className="whh-leg"><span>{tr("Calme", "Quiet")}</span><span className="whh-ramp" /><span>{tr("Très chargé", "Very busy")}</span></span>
-        <span className="whh-info">
-          {hc && hov
-            ? (rareDays.includes(hov.dow)
-                ? tr(`${DAYS_L[hov.dow]} ${hov.hour}h : rarement ouvert`, `${DAYS_L[hov.dow]} ${hov.hour}:00: rarely open`)
-                : tr(`${DAYS_L[hov.dow]} ${hov.hour}h–${hov.hour + 1}h : ${fmt(hc.ca_moy)} € et ${fmt(hc.tk_moy)} tickets en moyenne`, `${DAYS_L[hov.dow]} ${hov.hour}:00–${hov.hour + 1}:00: €${fmt(hc.ca_moy)} and ${fmt(hc.tk_moy)} transactions on average`))
-            : tr("Survolez une case : chiffre d'affaires et tickets de cette heure, un jour habituel.", "Hover a cell: revenue and transactions for that hour on a typical day.")}
-        </span>
       </div>
     </div>
   );
@@ -643,8 +594,10 @@ function DayOfWeekBars({ days, mode }: {
   const scale = niceScale(maxRegular * 1.12);
   const getY = (v: number) => padT + (H - padT - padB) * (1 - Math.min(v, scale.max) / scale.max);
   const unit = mode === "total" ? (v: number) => fmtAxisEuro(v, locale()) : (v: number) => `${fmt(v)} €`;
+  const [hov, setHov] = useState<number | null>(null);
 
   return (
+    <div style={{ position: "relative", width: "100%", height: "100%" }} onMouseLeave={() => setHov(null)}>
     <svg ref={boxRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="xMidYMid meet">
       {scale.ticks.map((v, i) => (
         <g key={i}>
@@ -663,10 +616,9 @@ function DayOfWeekBars({ days, mode }: {
         const cx = padL + i * slot + slot / 2;
         const best = !rare && v === maxRegular, worst = !rare && v === minRegular;
         return (
-          <g key={i}>
-            <title>{rare
-              ? tr(`${d.day} : ouvert seulement ${(d as any).nb_jours} jours (moyenne ${fmt(v)} € ces jours-là, non comparable)`, `${d.day}: open only ${(d as any).nb_jours} days (average €${fmt(v)} those days, not comparable)`)
-              : `${d.day} : ${unit(v)}${(d as any).nb_jours ? tr(` · ${(d as any).nb_jours} jours ouverts`, ` · ${(d as any).nb_jours} open days`) : ""}`}</title>
+          <g key={i} onMouseEnter={() => setHov(i)} style={{ cursor: "default" }}>
+            {hov === i && <rect x={cx - slot / 2 + 3} y={padT} width={slot - 6} height={getY(0) - padT} rx={8} fill="var(--dk-soft)" />}
+            <rect x={cx - slot / 2} y={padT} width={slot} height={H - padT} fill="transparent" />
             {!rare && (
               <>
                 <rect x={cx - bw / 2} y={getY(v)} width={bw} height={getY(0) - getY(v)} rx={4}
@@ -684,6 +636,28 @@ function DayOfWeekBars({ days, mode }: {
         );
       })}
     </svg>
+    {hov != null && days[hov] && (() => {
+      const d: any = days[hov], v = valFn(d), rare = isRare(d);
+      const cxp = padL + hov * slot + slot / 2, right = cxp / W < 0.6;
+      const sx = (right ? cxp + slot * 0.42 : cxp - slot * 0.42) / W;
+      const dv = mean ? ((v - mean) / mean) * 100 : 0;
+      return (
+        <div className="ch-tip" style={{ left: `${sx * 100}%`, transform: right ? "none" : "translateX(-100%)" }}>
+          <div className="ch-tip-d">{trData(d.day)}</div>
+          {rare ? (
+            <div className="ch-tip-s" style={{ whiteSpace: "normal", maxWidth: 220 }}>{tr(`Rarement ouvert (${d.nb_jours ?? 0} jours) : sa moyenne (${fmt(v)} €) n'est pas comparable aux autres jours.`, `Rarely open (${d.nb_jours ?? 0} days): its average (€${fmt(v)}) isn't comparable with other days.`)}</div>
+          ) : (
+            <>
+              <div className="ch-tip-row"><span className="ch-tip-k">{mode === "total" ? tr("CA total", "Total revenue") : tr("CA moyen par jour", "Average revenue per day")}</span><b className="num">{unit(v)}</b></div>
+              {d.nb_jours != null && <div className="ch-tip-row"><span className="ch-tip-k">{tr("Jours ouverts", "Open days")}</span><b className="num">{fmt(d.nb_jours)}</b></div>}
+              <div className="ch-tip-sep" />
+              <div className="ch-tip-row ch-tip-cmp"><span className="ch-tip-k">{tr("vs un jour moyen", "vs an average day")}</span><b className="num" style={{ color: dv >= 0 ? "var(--dk-ok)" : "var(--dk-alert)" }}>{dv >= 0 ? "+" : "−"}{fmt(Math.abs(dv), 0)} %</b></div>
+            </>
+          )}
+        </div>
+      );
+    })()}
+    </div>
   );
 }
 
@@ -700,8 +674,11 @@ function HourlyDual({ data, nbJours }: { data: Array<{ hour: number; heure_label
   const bw = Math.min(46, groupW * 0.62);
   const getY = (v: number) => padT + (H - padT - padB) * (1 - v / scale.max);
   const peak = rows.reduce((m, d) => (d.caJ > m.caJ ? d : m), rows[0] || ({ caJ: 0, hour: -1 } as any));
+  const dayTot = rows.reduce((a, d) => a + d.caJ, 0) || 1;
+  const [hov, setHov] = useState<number | null>(null);
 
   return (
+    <div style={{ position: "relative", width: "100%", height: "100%" }} onMouseLeave={() => setHov(null)}>
     <svg ref={boxRef} viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "100%" }} preserveAspectRatio="xMidYMid meet">
       {scale.ticks.map((v, i) => (
         <g key={i}>
@@ -714,8 +691,9 @@ function HourlyDual({ data, nbJours }: { data: Array<{ hour: number; heure_label
         const isPeak = d.hour === peak?.hour;
         const showVal = isPeak;
         return (
-          <g key={i}>
-            <title>{tr(`${d.heure_label} : ${fmt(d.caJ)} € en moyenne un jour ouvert · ${fmt(d.tkJ, 1)} tickets`, `${d.heure_label}: €${fmt(d.caJ)} on an average open day · ${fmt(d.tkJ, 1)} transactions`)}</title>
+          <g key={i} onMouseEnter={() => setHov(i)}>
+            {hov === i && <rect x={cx - groupW / 2 + 1} y={padT - 8} width={groupW - 2} height={getY(0) - padT + 8} rx={6} fill="var(--dk-soft)" />}
+            <rect x={cx - groupW / 2} y={0} width={groupW} height={H} fill="transparent" />
             <rect x={cx - bw / 2} y={getY(d.caJ)} width={bw} height={getY(0) - getY(d.caJ)} rx={3}
                   fill={isPeak ? ORANGE : "var(--ch-1)"} fillOpacity={isPeak ? 0.95 : 0.55}/>
             {showVal && (
@@ -726,6 +704,21 @@ function HourlyDual({ data, nbJours }: { data: Array<{ hour: number; heure_label
         );
       })}
     </svg>
+    {hov != null && rows[hov] && (() => {
+      const d = rows[hov];
+      const cxp = padL + hov * groupW + groupW / 2, right = cxp / W < 0.6;
+      const sx = (right ? cxp + groupW * 0.55 : cxp - groupW * 0.55) / W;
+      return (
+        <div className="ch-tip" style={{ left: `${sx * 100}%`, transform: right ? "none" : "translateX(-100%)" }}>
+          <div className="ch-tip-d">{`${d.hour}h – ${d.hour + 1}h`}</div>
+          <div className="ch-tip-row"><span className="ch-tip-k">{tr("CA moyen", "Average revenue")}</span><b className="num">{fmt(d.caJ)} €</b></div>
+          <div className="ch-tip-row"><span className="ch-tip-k">{tr("Tickets", "Transactions")}</span><b className="num">{fmt(d.tkJ, 1)}</b></div>
+          <div className="ch-tip-sep" />
+          <div className="ch-tip-row ch-tip-cmp"><span className="ch-tip-k">{tr("Part de la journée", "Share of the day")}</span><b className="num">{fmt(d.caJ / dayTot * 100, 0)} %</b></div>
+        </div>
+      );
+    })()}
+    </div>
   );
 }
 
@@ -907,7 +900,7 @@ function CatHBar({ data, field, labelFn }: {
 /* ════════════════════════════════════════════════
    PAGE PRINCIPALE
    ════════════════════════════════════════════════ */
-type TabId = "evolution" | "top" | "saison" | "categories";
+type TabId = "evolution" | "top" | "saison";
 
 export default function PerformancePage() {
   // Assistant IA : bouton « poser une question sur ce graphique » sur chaque carte
@@ -926,6 +919,10 @@ export default function PerformancePage() {
   const [topN, setTopN] = useState(10);
   // Classement selon : chiffre d'affaires, quantité vendue ou nombre de tickets
   const [topMetric, setTopMetric] = useState<"ca" | "qte" | "tkt">("ca");
+  // Meilleurs produits : classer les produits ou les familles
+  const [topLevel, setTopLevel] = useState<"prod" | "fam">("prod");
+  // Survol partagé entre l'anneau et la liste (survoler l'un éclaire l'autre)
+  const [shareHl, setShareHl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1124,34 +1121,9 @@ export default function PerformancePage() {
         <p className="page-lead">
           <span className="page-lead-ic" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.3-2.4 3.6M12 17h.01" /></svg></span>
           <span>
-          {tr("Comment la boutique vend : l'évolution des ventes, les produits qui rapportent, les jours et heures forts, et le poids de chaque famille.",
-              "How the shop sells: the sales trend, the products that earn, the strong days and hours, and the weight of each family.")}
+          {tr("Comment la boutique vend : évolution, produits et familles, jours et heures.", "How the shop sells: trend, products and families, days and hours.")}
           </span>
         </p>
-      </div>
-
-      {/* ══════ FILTRES — une seule barre compacte : année et mois en boutons, le reste en petites listes ══════ */}
-      <div className="sw" style={{ marginBottom: "8px" }}>
-        <div className="filter-bar">
-          <span className="fd-title">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8Z" /></svg>
-            {tr("Filtres", "Filters")}
-          </span>
-          {/* Quatre listes déroulantes, même style : année, mois, famille, événement */}
-          <span className="per-note">{tr("Période : en haut à droite", "Period: top right")}</span>
-          <FilterDrop label={tr("Famille", "Family")} value={categorie} allValue="Toutes" onChange={setCategorie}
-            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" /><circle cx="7.5" cy="7.5" r="1.5" /></svg>}
-            options={filters.categories.map((o: string) => ({ value: o, label: o === "Toutes" ? tr("Toutes", "All") : trData(o) }))} />
-          <FilterDrop label={tr("Jour de fête", "Holiday")} value={evenement} allValue="Tous" onChange={setEvenement}
-            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9Z" /></svg>}
-            options={filters.evenements.map((o: string) => ({ value: o, label: o === "Tous" ? tr("Toutes", "All") : trData(o) }))} />
-          {(saison !== "Toutes" || categorie !== "Toutes" || evenement !== "Tous") && (
-            <button type="button" className="filter-reset" title={tr("Effacer les filtres", "Clear filters")} aria-label={tr("Effacer les filtres", "Clear filters")}
-              onClick={() => { setSaison("Toutes"); setCategorie("Toutes"); setEvenement("Tous"); }}>
-              ×
-            </button>
-          )}
-        </div>
       </div>
 
       {selDay && (
@@ -1202,13 +1174,13 @@ export default function PerformancePage() {
       {/* ══════════════════════════════════════════════
           4 ONGLETS (icônes SVG + pas emojis)
           ══════════════════════════════════════════════ */}
-      <div className="sw" style={{ marginTop: 16 }}>
+      <div className="sw tabs-sticky" style={{ marginTop: 12 }}>
+        <div className="perf-tabbar">
         <div className="prod-tabs perf-tabs">
           {([
             { id:"evolution", Icon: IconTrendUp, label:tr("Évolution des ventes", "Sales trend"), sub: tr("mois par mois", "month by month") },
-            { id:"top",       Icon: IconTrophy,  label:tr("Meilleurs produits", "Best products"), sub: tr("ce qui rapporte le plus", "top earners") },
+            { id:"top",       Icon: IconTrophy,  label:tr("Meilleurs produits", "Best products"), sub: tr("produits et familles", "products and families") },
             { id:"saison",    Icon: IconCalendar, label:tr("Jours & heures", "Days & hours"), sub: tr("quand la boutique vend", "when the shop sells") },
-            { id:"categories",Icon: IconTag,     label:tr("Familles", "Families"), sub: tr("poids de chaque famille", "weight of each family") },
           ] as const).map((t) => {
             const on = activeTab === t.id;
             const Ic = t.Icon as any;
@@ -1226,6 +1198,22 @@ export default function PerformancePage() {
             );
           })}
         </div>
+        {/* Filtres (la période est en haut à droite) : à côté des onglets, pour gagner une ligne */}
+        <div className="tab-filters" role="group" aria-label={tr("Filtres", "Filters")}>
+          <FilterDrop label={tr("Famille", "Family")} value={categorie} allValue="Toutes" onChange={setCategorie}
+            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z" /><circle cx="7.5" cy="7.5" r="1.5" /></svg>}
+            options={filters.categories.map((o: string) => ({ value: o, label: o === "Toutes" ? tr("Toutes", "All") : trData(o) }))} />
+          <FilterDrop label={tr("Jour de fête", "Holiday")} value={evenement} allValue="Tous" onChange={setEvenement}
+            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9Z" /></svg>}
+            options={filters.evenements.map((o: string) => ({ value: o, label: o === "Tous" ? tr("Toutes", "All") : trData(o) }))} />
+          {(saison !== "Toutes" || categorie !== "Toutes" || evenement !== "Tous") && (
+            <button type="button" className="filter-reset" title={tr("Effacer les filtres", "Clear filters")} aria-label={tr("Effacer les filtres", "Clear filters")}
+              onClick={() => { setSaison("Toutes"); setCategorie("Toutes"); setEvenement("Tous"); }}>
+              ×
+            </button>
+          )}
+        </div>
+        </div>
       </div>
 
       {/* ──────────────────────────────────────────────
@@ -1233,9 +1221,6 @@ export default function PerformancePage() {
           ────────────────────────────────────────────── */}
       {activeTab === "evolution" && (
         <div className="sw" style={{ paddingTop:"14px" }}>
-          <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-            <IconTrendUp size={16} /> {tr("Comment les ventes évoluent, mois par mois", "How sales move, month by month")}
-          </div>
           {/* Un seul mois choisi (ex. un jour choisi dans la barre du haut) : le chiffre d'affaires jour par jour de ce mois */}
           {oneMonth && (() => {
             const open = dailyRows.filter((d: any) => d.ca > 0);
@@ -1269,7 +1254,8 @@ export default function PerformancePage() {
                     {sel && <InsightBox icon={<IconCalendar size={16} color={ORANGE} />} color={ORANGE} title={tr("Jour choisi", "Chosen day")} strong={`${dLbl(sel.date)} — ${fmt(sel.ca)} €`} />}
                     {best && <InsightBox icon={<IconArrowMaxUp size={16} color={ORANGE} />} color={ORANGE} title={tr("Meilleur jour", "Best day")} strong={`${dLbl(best.date)} — ${fmt(best.ca)} €`} />}
                     {worst && <InsightBox icon={<IconArrowMinDown size={16} color={C1} />} color={C1} title={tr("Jour ouvert le plus faible", "Weakest open day")} strong={`${dLbl(worst.date)} — ${fmt(worst.ca)} €`} />}
-                    <InsightBox icon={<IconScale size={16} color={C3} />} color={C3} title={tr("Jour moyen", "Average day")} strong={tr(`${fmt(avg)} € sur ${open.length} jours ouverts`, `€${fmt(avg)} over ${open.length} open days`)} />
+                    <InsightBox icon={<IconScale size={16} color={C3} />} color={C3} title={tr("Jour moyen", "Average day")} strong={tr(`${fmt(avg)} € sur ${open.length} jours ouverts`, `€${fmt(avg)} over ${open.length} open days`)} />
+
                     {ck && ck.kpis_prec?.total_ca > 0 && ck.kpis_der?.total_ca > 0 && (() => {
                       const d = ((ck.kpis_der.total_ca - ck.kpis_prec.total_ca) / ck.kpis_prec.total_ca) * 100;
                       const md = (x: string) => { const [m, dd] = String(x).split("-").map(Number); return `${dd}/${String(m).padStart(2, "0")}`; };
@@ -1445,9 +1431,17 @@ export default function PerformancePage() {
           TAB 2 · TOP PRODUITS
           ────────────────────────────────────────────── */}
       {activeTab === "top" && (() => {
+        const isFam = topLevel === "fam";
         const src: any[] = topMetric === "qte" ? (topProds.by_qte || []) : topMetric === "tkt" ? (topProds.by_tkt || []) : (topProds.by_ca || []);
-        const all: RankItem[] = src.map((it: any) => ({ article: it.article, value: Number(topMetric === "qte" ? it.quantity : topMetric === "tkt" ? it.nb_tkt : it.total_revenue) || 0, part: Number(it.part) || 0, evo: it.evo ?? null }));
-        const shown = all.slice(0, topN);
+        const famItems: RankItem[] = categories.map((c: any) => ({
+          article: trData(c.category),
+          value: Number(topMetric === "qte" ? c.qte : topMetric === "tkt" ? c.tickets : c.ca) || 0,
+          part: Number(topMetric === "qte" ? c.part_qte : topMetric === "tkt" ? c.part_tk : c.part) || 0,
+          evo: (topMetric === "qte" ? c.evo_qte : topMetric === "tkt" ? c.evo_tk : c.evo) ?? null,
+          extra: [[tr("Panier dans la famille", "Basket in the family"), `${fmt(c.panier, 2)} €`], [tr("Produits vendus", "Products sold"), fmt(c.produits)]] as [string, string][],
+        })).sort((a: RankItem, b: RankItem) => b.value - a.value);
+        const all: RankItem[] = isFam ? famItems : src.map((it: any) => ({ article: it.article, value: Number(topMetric === "qte" ? it.quantity : topMetric === "tkt" ? it.nb_tkt : it.total_revenue) || 0, part: Number(it.part) || 0, evo: it.evo ?? null }));
+        const shown = isFam ? all : all.slice(0, topN);
         const p1 = shown[0];
         const fmtV = (v: number) => topMetric === "ca" ? (v >= 1000 ? `${fmt(v / 1000, 1)} k€` : `${fmt(v, 0)} €`) : topMetric === "qte" ? tr(`${fmt(v, 0)} vendus`, `${fmt(v, 0)} sold`) : tr(`${fmt(v, 0)} tickets`, `${fmt(v, 0)} tickets`);
         const fmtS = (v: number) => topMetric === "ca" ? fmtV(v) : fmt(v, 0);
@@ -1463,7 +1457,12 @@ export default function PerformancePage() {
         const top3 = shown.slice(0, 3).reduce((a, it) => a + it.part, 0);
         const strong = topMetric !== "tkt" && (shown.length <= 10 ? sumShown >= 60 : sumShown >= 75);
         const noun = topMetric === "ca" ? tr("du chiffre d'affaires", "of revenue") : topMetric === "qte" ? tr("des articles vendus", "of items sold") : tr("des tickets", "of transactions");
-        const keepText = !p1 ? "" : topMetric === "tkt"
+        const p2 = shown[1];
+        const keepText = !p1 ? "" : isFam
+          ? (topMetric === "tkt"
+              ? tr(`${p1.article} est dans ${fmt(p1.part, 0)} % des tickets : c'est la famille qui fait venir les clients.`, `${p1.article} is in ${fmt(p1.part, 0)} % of transactions: it is the family that brings customers in.`)
+              : tr(`${p1.article} fait ${fmt(p1.part, 0)} % ${noun}${p2 ? `, devant ${p2.article} (${fmt(p2.part, 0)} %)` : ""}.`, `${p1.article} makes ${fmt(p1.part, 0)} % ${noun}${p2 ? `, ahead of ${p2.article} (${fmt(p2.part, 0)} %)` : ""}.`))
+          : topMetric === "tkt"
           ? tr(`${niceName(p1.article)} est dans ${fmt(p1.part, 0)} % des tickets : c'est le produit qui fait venir les clients.`, `${niceName(p1.article)} is in ${fmt(p1.part, 0)} % of transactions: it is what brings customers in.`)
           : p1.part >= 15
             ? tr(`Un seul produit, ${niceName(p1.article)}, fait ${fmt(p1.part, 0)} % ${noun} : c'est le pilier de la boutique.`, `One product, ${niceName(p1.article)}, makes ${fmt(p1.part, 0)} % ${noun}: it is the shop's backbone.`)
@@ -1471,54 +1470,66 @@ export default function PerformancePage() {
               ? tr(`Les ${shown.length} premiers produits font ${fmt(sumShown, 0)} % ${noun} : l'essentiel se joue sur peu de produits.`, `The top ${shown.length} products make ${fmt(sumShown, 0)} % ${noun}: a few products carry the shop.`)
               : tr(`Les ventes sont réparties sur beaucoup de produits : les ${shown.length} premiers font ${fmt(sumShown, 0)} % ${noun}.`, `Sales are spread over many products: the top ${shown.length} make ${fmt(sumShown, 0)} % ${noun}.`);
         const bigDrop = fall && (fall.evo as number) <= -10 ? fall : null;
-        const keepTip = !p1 ? "" : ((p1.part >= 15 || topMetric === "tkt")
+        const keepTip = !p1 ? "" : isFam
+          ? tr(`garder ${p1.article} toujours bien fourni`, `keep ${p1.article} well stocked at all times`)
+            + (bigDrop ? tr(`, et regarder pourquoi ${bigDrop.article} baisse (prix, choix, place en vitrine).`, `, and look into why ${bigDrop.article} is dropping (price, range, display).`) : ".")
+          : ((p1.part >= 15 || topMetric === "tkt")
           ? tr(`ne jamais manquer de ${niceName(p1.article)}`, `never run out of ${niceName(p1.article)}`)
           : tr("surveiller le stock des 3 premiers produits chaque jour", "check stock of the top 3 products every day"))
           + (bigDrop ? tr(`, et regarder pourquoi ${niceName(bigDrop.article)} baisse (prix, qualité, place en vitrine).`, `, and look into why ${niceName(bigDrop.article)} is dropping (price, quality, display).`) : ".");
-        const title = topMetric === "ca" ? tr(`Les ${topN} produits qui rapportent le plus`, `The ${topN} top-earning products`)
+        const title = isFam ? (topMetric === "ca" ? tr("Les familles qui rapportent le plus", "The top-earning families")
+            : topMetric === "qte" ? tr("Les familles les plus vendues", "The best-selling families")
+            : tr("Les familles les plus présentes dans les tickets", "The families in the most transactions"))
+          : topMetric === "ca" ? tr(`Les ${topN} produits qui rapportent le plus`, `The ${topN} top-earning products`)
           : topMetric === "qte" ? tr(`Les ${topN} produits les plus vendus`, `The ${topN} best-selling products`)
           : tr(`Les ${topN} produits les plus présents dans les tickets`, `The ${topN} products in the most transactions`);
-        const calc = topMetric === "ca" ? tr("Chiffre d'affaires total du produit et sa part du total", "Product's total revenue and its share of the total")
+        const calc = isFam ? (topMetric === "ca" ? tr("Chiffre d'affaires de la famille et sa part du total", "Family revenue and its share of the total")
+            : topMetric === "qte" ? tr("Articles vendus de la famille et leur part", "Family items sold and their share")
+            : tr("Tickets qui contiennent au moins un produit de la famille", "Transactions with at least one product of the family"))
+          : topMetric === "ca" ? tr("Chiffre d'affaires total du produit et sa part du total", "Product's total revenue and its share of the total")
           : topMetric === "qte" ? tr("Quantité vendue et sa part de tous les articles vendus", "Quantity sold and its share of all items sold")
           : tr("Nombre de tickets qui contiennent le produit", "Number of transactions containing the product");
+        const famBasket: any = isFam && categories.length ? categories.reduce((m: any, c: any) => (c.panier > m.panier ? c : m), categories[0]) : null;
         const tiles: any[] = [
           rise && (rise.evo as number) > 0 ? { tone: "teal", icon: <IconArrowMaxUp size={15} color="#fff" />, k: tr(`Plus forte hausse · ${evoRef}`, `Biggest rise · ${evoRef}`), v: niceName(rise.article), chip: evoTxt(rise.evo as number), note: tr(`N°${rankOf(rise)} du classement, sur la même période de l'année.`, `#${rankOf(rise)} in the ranking, same period of the year.`) } : null,
           fall && (fall.evo as number) < 0 ? { tone: "rose", icon: <IconArrowMinDown size={15} color="#fff" />, k: tr(`Plus forte baisse · ${evoRef}`, `Biggest drop · ${evoRef}`), v: niceName(fall.article), chip: evoTxt(fall.evo as number), note: tr(`N°${rankOf(fall)} du classement, sur la même période de l'année.`, `#${rankOf(fall)} in the ranking, same period of the year.`) } : null,
-          withEvo.length === 0 ? { tone: "gold", icon: <IconBar size={15} color="#fff" />, k: tr("Top 3", "Top 3"), v: `${fmt(top3, 1)} %`, chip: noun, note: shown.slice(0, 3).map((it) => niceName(it.article)).join(" · ") } : null,
-          topMetric !== "tkt" ? { tone: "violet", icon: <IconScale size={15} color="#fff" />, k: tr("Concentration", "Concentration"), v: strong ? tr("Forte", "High") : tr("Modérée", "Moderate"), info: true,
+          !isFam && withEvo.length === 0 ? { tone: "gold", icon: <IconBar size={15} color="#fff" />, k: tr("Top 3", "Top 3"), v: `${fmt(top3, 1)} %`, chip: noun, note: shown.slice(0, 3).map((it) => niceName(it.article)).join(" · ") } : null,
+          isFam && famBasket ? { tone: "violet", icon: <IconCart size={15} color="#fff" />, k: tr("Plus gros panier", "Biggest basket"), v: trData(famBasket.category), chip: tr(`${fmt(famBasket.panier, 2)} € / ticket`, `€${fmt(famBasket.panier, 2)} / ticket`),
+            note: tr("Ce que dépense un client dans cette famille quand il en achète.", "What a customer spends in this family when buying from it.") } : null,
+          !isFam && topMetric !== "tkt" ? { tone: "violet", icon: <IconScale size={15} color="#fff" />, k: tr("Concentration", "Concentration"), v: strong ? tr("Forte", "High") : tr("Modérée", "Moderate"), info: true,
             note: strong ? tr("Quelques produits font l'essentiel des ventes.", "A few products make most of the sales.") : tr("Les ventes sont réparties sur beaucoup de produits.", "Sales are spread over many products.") } : null,
         ].filter(Boolean);
         return (
         <div className="sw" style={{ paddingTop:"14px" }}>
-          <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-            <IconTrophy size={16} /> {topMetric === "ca" ? tr("Les produits qui rapportent le plus", "The products that earn the most")
-              : topMetric === "qte" ? tr("Les produits les plus vendus", "The best-selling products")
-              : tr("Les produits les plus présents dans les tickets", "The products in the most transactions")}
-          </div>
           <div className="evo-grid top-grid">
             <div className="evo-left">
               <div className="cc" style={{ padding:"20px 24px" }}>
-                <ChartAssistantButton chartType="top_products_revenue" chartData={{ items: shown, metrique: topMetric, n: topN, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="TopNHBar"
-                  userQuestion="Explique ce graphique des top produits" position="top-right" onOpenChat={openChat} />
+                <ChartAssistantButton chartType={isFam ? "category_performance_hbar" : "top_products_revenue"} chartData={{ items: shown, niveau: isFam ? "familles" : "produits", metrique: topMetric, n: topN, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName={isFam ? "FamilyRanking" : "TopNHBar"}
+                  userQuestion={isFam ? "Explique ce classement des familles de produits" : "Explique ce graphique des top produits"} position="top-right" onOpenChat={openChat} />
                 <div className="top-head">
                   <div className="ct" style={{ margin: 0 }}>{title}</div>
                   <div className="top-ctrls">
+                    <div className="seg-n" role="group" aria-label={tr("Produits ou familles", "Products or families")}>
+                      {([["prod", tr("Produits", "Products")], ["fam", tr("Familles", "Families")]] as const).map(([k, l]) => (
+                        <button key={k} type="button" className={topLevel === k ? "on" : ""} aria-pressed={topLevel === k} onClick={() => setTopLevel(k)}>{l}</button>
+                      ))}
+                    </div>
                     <div className="seg-n" role="group" aria-label={tr("Classer selon", "Rank by")}>
                       {([["ca", tr("Chiffre d'affaires", "Revenue")], ["qte", tr("Quantité", "Quantity")], ["tkt", tr("Tickets", "Transactions")]] as const).map(([k, l]) => (
                         <button key={k} type="button" className={topMetric === k ? "on" : ""} aria-pressed={topMetric === k} onClick={() => setTopMetric(k)}>{l}</button>
                       ))}
                     </div>
-                    <div className="seg-n" role="group" aria-label={tr("Nombre de produits", "Number of products")}>
+                    {!isFam && <div className="seg-n" role="group" aria-label={tr("Nombre de produits", "Number of products")}>
                       {[5, 10, 15, 20].filter((k) => k <= Math.max(5, all.length)).map((k) => (
                         <button key={k} type="button" className={topN === k ? "on" : ""} aria-pressed={topN === k} onClick={() => setTopN(k)}>{k}</button>
                       ))}
-                    </div>
+                    </div>}
                   </div>
                 </div>
                 <Scope period={scopePeriod} calc={calc} unit={topMetric === "ca" ? "€" : topMetric === "qte" ? tr("unités", "units") : tr("tickets", "transactions")} />
                 <div className={`top-body${topMetric === "tkt" ? " solo" : ""}${shown.length > 10 ? " wide" : ""}`}>
-                  {shown.length > 0 && topMetric !== "tkt" && <ShareDonut items={shown} />}
-                  {shown.length > 0 && <TopRankList items={shown} fmtV={fmtV} fmtS={fmtS} evoRef={evoRef} evoHead={evoHead} valLbl={valLbl} />}
+                  {shown.length > 0 && topMetric !== "tkt" && <ShareDonut items={shown} fam={isFam} fmtV={fmtV} hl={shareHl} onHl={setShareHl} />}
+                  {shown.length > 0 && <TopRankList items={shown} fmtV={fmtV} fmtS={fmtS} evoRef={evoRef} evoHead={evoHead} valLbl={valLbl} itemLbl={isFam ? tr("Famille", "Family") : undefined} hl={shareHl} onHl={setShareHl} />}
                 </div>
                 {withEvo.length > 0 && evoRef && <div className="rank-foot">{tr(`Classement sur ${periodTxt} · ▲▼ : ${evoRef}, sur la même période de l'année.`, `Ranking over ${periodTxt} · ▲▼: ${evoRef}, same period of the year.`)}</div>}
               </div>
@@ -1586,7 +1597,6 @@ export default function PerformancePage() {
       {activeTab === "saison" && (() => {
         const days: any[] = seasonality.days || [];
         const hourly: any[] = seasonality.hourly || [];
-        const heat: any[] = seasonality.heatmap || [];
         const DOWS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
         const rareIdx = (saisonInsights?.rare || []).map((d: any) => DOWS.indexOf(d.day)).filter((x: number) => x >= 0);
         const totH = hourly.reduce((a: number, x: any) => a + x.ca, 0) || 1;
@@ -1598,8 +1608,6 @@ export default function PerformancePage() {
           const s3 = hourly.filter((y: any) => y.hour >= x.hour && y.hour < x.hour + 3).reduce((a: number, y: any) => a + y.ca, 0);
           if (!rush || s3 / totH * 100 > rush.part) rush = { h: x.hour, part: s3 / totH * 100 };
         }
-        const usefulHeat = heat.filter((c: any) => !rareIdx.includes(c.dow) && c.ca_moy > 0.5);
-        const topCell = usefulHeat.length ? usefulHeat.reduce((m: any, c: any) => (c.ca_moy > m.ca_moy ? c : m), usefulHeat[0]) : null;
         const best = saisonInsights?.best, worst = saisonInsights?.worst;
         const dayL = (d: string) => trData(d);
         const tiles: any[] = [
@@ -1607,223 +1615,95 @@ export default function PerformancePage() {
             note: worst ? tr(`${fmt(saisonInsights!.ratio, 1)} fois le jour le plus calme (${dayL(worst.day).toLowerCase()}, ${fmt(worst.ca_moyen)} €).`, `${fmt(saisonInsights!.ratio, 1)}× the quietest day (${dayL(worst.day)}, €${fmt(worst.ca_moyen)}).`) : "" } : null,
           pk ? { tone: "rose", icon: <IconClock size={15} color="#fff" />, k: tr("Heure de pointe", "Peak hour"), v: `${pk.hour}h – ${pk.hour + 1}h`, chip: `${fmt(pk.ca / totH * 100, 0)} %`,
             note: rush ? tr(`Le coup de feu : ${rush.h}h – ${rush.h + 3}h fait ${fmt(rush.part, 0)} % des ventes.`, `Rush: ${rush.h}:00–${rush.h + 3}:00 makes ${fmt(rush.part, 0)}% of sales.`) : "" } : null,
-          topCell ? { tone: "gold", icon: <IconCalendar size={15} color="#fff" />, k: tr("Moment le plus chargé", "Busiest moment"), v: tr(`${DOWS[topCell.dow]} ${topCell.hour}h`, `${trData(DOWS[topCell.dow])} ${topCell.hour}:00`),
-            chip: tr(`${fmt(topCell.tk_moy)} tickets`, `${fmt(topCell.tk_moy)} transactions`), note: tr(`${fmt(topCell.ca_moy)} € en une heure, un jour habituel.`, `€${fmt(topCell.ca_moy)} in one hour on a typical day.`) } : null,
           hourly.length ? { tone: "teal", icon: <IconClock size={15} color="#fff" />, k: tr("Après 13 h", "After 1 pm"), v: tr(`${fmt(100 - before13, 0)} % des ventes`, `${fmt(100 - before13, 0)}% of sales`),
             note: 100 - before13 < 35 ? tr("L'après-midi est calme : petites fournées, moins de produits frais en fin de journée.", "Afternoons are quiet: small batches, fewer fresh products late in the day.")
               : tr("L'après-midi compte aussi : garder du choix jusqu'à la fermeture.", "Afternoons matter too: keep a good choice until closing.") } : null,
         ].filter(Boolean);
         const keepText = pk ? tr(`${fmt(before13, 0)} % des ventes se font avant 13 h, et ${rush ? `${rush.h}h – ${rush.h + 3}h` : `${pk.hour}h`} est le moment clé de la journée.`,
                                  `${fmt(before13, 0)}% of sales happen before 1 pm, and ${rush ? `${rush.h}:00–${rush.h + 3}:00` : `${pk.hour}:00`} is the key moment of the day.`) : "";
-        const keepTip = rush ? tr(`avoir les produits phares prêts avant ${rush.h}h${topCell ? `, et renforcer l'équipe le ${DOWS[topCell.dow].toLowerCase()} matin` : ""}${worst ? ` ; le ${worst.day.toLowerCase()}, préparer moins` : ""}.`,
-                                  `have the best sellers ready before ${rush.h}:00${topCell ? `, and add staff on ${trData(DOWS[topCell.dow])} mornings` : ""}${worst ? `; on ${trData(worst.day)}, prepare less` : ""}.`) : "";
+        const keepTip = rush ? tr(`avoir les produits phares prêts avant ${rush.h}h${best ? `, et renforcer l'équipe le ${best.day.toLowerCase()} matin` : ""}${worst ? ` ; le ${worst.day.toLowerCase()}, préparer moins` : ""}.`,
+                                  `have the best sellers ready before ${rush.h}:00${best ? `, and add staff on ${trData(best.day)} mornings` : ""}${worst ? `; on ${trData(worst.day)}, prepare less` : ""}.`) : "";
+        // Morceaux de l'onglet (même allure que les autres onglets)
+        const filt = { annee, saison, mois, categorie, evenement };
+        const dayCard = (h: number) => (
+          <div className="cc" style={{ padding:"20px 24px" }}>
+            <ChartAssistantButton chartType="day_of_week_bars" chartData={{ days, mode: "moyen", filtres_page: filt }} chartName="DayOfWeekBars"
+              userQuestion="Explique ce graphique du CA moyen par jour de la semaine" position="top-right" onOpenChat={openChat} />
+            <div className="ct">{tr("Chiffre d'affaires moyen par jour d'ouverture", "Average revenue per opening day")}</div>
+            <Scope period={scopePeriod} calc={tr("Moyenne d'un jour ouvert (ex. : un lundi habituel)", "Average of one open day (e.g. a typical Monday)")} unit={tr("€ par jour", "€ per day")} />
+            <div style={{ height: `${h}px`, width:"100%", marginTop:"8px" }}>
+              {days.length > 0 && <DayOfWeekBars days={days} mode="moyen"/>}
+            </div>
+          </div>
+        );
+        const hourCard = (h: number) => hourly.length > 0 && (
+          <div className="cc" style={{ padding:"20px 24px" }}>
+            <ChartAssistantButton chartType="hourly_dual" chartData={{ data: hourly, filtres_page: filt }} chartName="HourlyDual"
+              userQuestion="Explique ce graphique du CA et des tickets par heure" position="top-right" onOpenChat={openChat} />
+            <div className="ct">{tr("Chiffre d'affaires moyen par heure", "Average revenue by hour")}</div>
+            <Scope period={scopePeriod} calc={tr("Moyenne d'un jour ouvert, heure par heure", "Average open day, hour by hour")} unit={tr("€ par heure", "€ per hour")} />
+            <div style={{ height: `${h}px`, width:"100%", marginTop:"8px" }}>
+              <HourlyDual data={hourly} nbJours={kpis.nb_jours_ouverts}/>
+            </div>
+          </div>
+        );
+        const tilesEl = (cls: string) => (
+          <div className={cls}>
+            {tiles.map((r: any) => (
+              <div key={r.k} className={`rep-tile rt-${r.tone}`}>
+                <span className="rep-ic" aria-hidden="true">{r.icon}</span>
+                <div className="rep-body">
+                  <div className="rep-k">{r.k}</div>
+                  <div className="rep-line">
+                    <span className="rep-v num">{r.v}</span>
+                    {r.chip && <span className="rep-chip">{r.chip}</span>}
+                  </div>
+                  {r.note && <div className="rep-note">{r.note}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+        const headEl = (
+          <div className="rep-head">
+            <span className="rep-head-ic" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" fillOpacity=".3" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round"><path d="M6.5 3.5h11a1 1 0 0 1 1 1V21l-6.5-4.4L5.5 21V4.5a1 1 0 0 1 1-1z" /></svg>
+            </span>
+            <div style={{ minWidth: 0 }}>
+              <div className="rep-head-t">{tr("Repères", "Landmarks")}</div>
+              <div className="rep-head-s">{tr("Ce qu'il faut retenir des jours et des heures", "What to take from days and hours")}</div>
+            </div>
+          </div>
+        );
+        const keepEl = keepText ? (
+          <div className="rep-keep">
+            <div className="rep-keep-k">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4Z" /></svg>
+              {tr("À retenir", "Key takeaway")} <span className="rep-keep-ref num">{periodTxt}</span>
+            </div>
+            <div className="rep-keep-t">{keepText}</div>
+            {rareNote(true) && <div className="rep-keep-p">{tr(rareNote(true).trim(), rareNote(false).trim())}</div>}
+            <div className="rep-keep-do">
+              <span className="rep-keep-ic" aria-hidden="true">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </span>
+              <span><b>{tr("Que faire :", "What to do:")}</b> {keepTip}</span>
+            </div>
+          </div>
+        ) : null;
         return (
-        <div className="sw" style={{ paddingTop:"14px" }}>
-          <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-            <IconCalendar size={16} /> {tr("Quand la boutique vend : jours et heures", "When the shop sells: days and hours")}
-          </div>
-          <div className="evo-grid jh-grid">
-            <div className="evo-left">
-              {heat.length > 0 && (
-                <div className="cc" style={{ padding:"20px 24px" }}>
-                  <ChartAssistantButton chartType="week_hour_heatmap" chartData={{ cellules: heat, jours_rares: rareIdx, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="WeekHourHeat"
-                    userQuestion="Explique cette carte des ventes par jour et par heure" position="top-right" onOpenChat={openChat} />
-                  <div className="ct">{tr("La semaine, heure par heure", "The week, hour by hour")}</div>
-                  <Scope period={scopePeriod} calc={tr("Chiffre d'affaires moyen de chaque heure, un jour d'ouverture habituel", "Average revenue of each hour on a typical open day")} unit={tr("€ par heure", "€ per hour")} />
-                  <WeekHourHeat cells={heat} rareDays={rareIdx} />
-                </div>
-              )}
-              <div className="jh-pair">
-                <div className="cc" style={{ padding:"18px 20px" }}>
-                  <ChartAssistantButton chartType="day_of_week_bars" chartData={{ days, mode: "moyen", filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="DayOfWeekBars"
-                    userQuestion="Explique ce graphique du CA moyen par jour de la semaine" position="top-right" onOpenChat={openChat} />
-                  <div className="ct">{tr("Par jour", "By day")}</div>
-                  <Scope period={scopePeriod} calc={tr("Un jour d'ouverture habituel", "A typical open day")} unit={tr("€ par jour", "€ per day")} />
-                  <div style={{ height:"200px", width:"100%", marginTop:"6px" }}>
-                    {days.length > 0 && <DayOfWeekBars days={days} mode="moyen"/>}
-                  </div>
-                </div>
-                {hourly.length > 0 && (
-                  <div className="cc" style={{ padding:"18px 20px" }}>
-                    <ChartAssistantButton chartType="hourly_dual" chartData={{ data: hourly, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="HourlyDual"
-                      userQuestion="Explique ce graphique du CA et des tickets par heure" position="top-right" onOpenChat={openChat} />
-                    <div className="ct">{tr("Par heure", "By hour")}</div>
-                    <Scope period={scopePeriod} calc={tr("Un jour d'ouverture habituel", "A typical open day")} unit={tr("€ par heure", "€ per hour")} />
-                    <div style={{ height:"200px", width:"100%", marginTop:"6px" }}>
-                      <HourlyDual data={hourly} nbJours={kpis.nb_jours_ouverts}/>
-                    </div>
-                  </div>
-                )}
-              </div>
+          <div className="sw" style={{ paddingTop:"14px" }}>
+            <div className="evo-grid jh-grid">
+              <div className="evo-left">{dayCard(220)}{hourCard(220)}</div>
+              {tiles.length > 0 && <div className="evo-side">{headEl}{tilesEl("evo-rep")}{keepEl}</div>}
             </div>
-            {tiles.length > 0 && (
-            <div className="evo-side">
-              <div className="rep-head">
-                <span className="rep-head-ic" aria-hidden="true">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" fillOpacity=".3" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round"><path d="M6.5 3.5h11a1 1 0 0 1 1 1V21l-6.5-4.4L5.5 21V4.5a1 1 0 0 1 1-1z" /></svg>
-                </span>
-                <div style={{ minWidth: 0 }}>
-                  <div className="rep-head-t">{tr("Repères", "Landmarks")}</div>
-                  <div className="rep-head-s">{tr("Ce qu'il faut retenir des jours et des heures", "What to take from days and hours")}</div>
-                </div>
-              </div>
-              <div className="evo-rep">
-                {tiles.map((r: any) => (
-                  <div key={r.k} className={`rep-tile rt-${r.tone}`}>
-                    <span className="rep-ic" aria-hidden="true">{r.icon}</span>
-                    <div className="rep-body">
-                      <div className="rep-k">{r.k}</div>
-                      <div className="rep-line">
-                        <span className="rep-v num">{r.v}</span>
-                        {r.chip && <span className="rep-chip">{r.chip}</span>}
-                      </div>
-                      {r.note && <div className="rep-note">{r.note}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {keepText && (
-                <div className="rep-keep">
-                  <div className="rep-keep-k">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4Z" /></svg>
-                    {tr("À retenir", "Key takeaway")} <span className="rep-keep-ref num">{periodTxt}</span>
-                  </div>
-                  <div className="rep-keep-t">{keepText}</div>
-                  {rareNote(true) && <div className="rep-keep-p">{tr(rareNote(true).trim(), rareNote(false).trim())}</div>}
-                  <div className="rep-keep-do">
-                    <span className="rep-keep-ic" aria-hidden="true">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                    </span>
-                    <span><b>{tr("Que faire :", "What to do:")}</b> {keepTip}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-            )}
           </div>
-        </div>
         );
       })()}
 
       {/* ──────────────────────────────────────────────
           TAB 4 · CATÉGORIES
           ────────────────────────────────────────────── */}
-      {activeTab === "categories" && (
-        <div className="sw" style={{ paddingTop:"14px" }}>
-          <div className="sec-title" style={{ display:"flex", alignItems:"center", gap:"9px"}}>
-            <IconTag size={16} /> {tr("Ce que pèse chaque famille de produits", "What each product family weighs")}
-          </div>
-
-          {/* Treemap des catégories retiré : il répétait le graphique et le tableau ci-dessous. */}
-          {categories.length > 0 && (
-            <div style={{ display:"grid", gridTemplateColumns:"1fr", gap:"32px", marginBottom:"40px" }}>
-              <div className="cc" style={{ padding:"28px 32px" }}>
-                <ChartAssistantButton chartType="category_performance_hbar" chartData={{ data: categories, field: "ca", filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="CategoryPerformanceHBar"
-                  userQuestion="Explique la répartition du chiffre d'affaires par catégorie" position="top-right" onOpenChat={openChat} />
-                <div className="ct">{tr("Chiffre d'affaires par catégorie", "Revenue by category")}</div>
-                <Scope period={scopePeriod} calc={tr("Total de la famille et sa part du total", "Family total and its share")} unit="€" />
-                <div style={{ marginTop:"20px" }}>
-                  <CatHBar data={categories} field="ca"
-                    labelFn={(_v, r) => `${fmtAxisEuro(r.ca, locale())} · ${fmt(r.part, 1)} %`} />
-                </div>
-                {categories[0] && (
-                  <Takeaway>
-                    {tr(
-                      `${categories[0].category} fait ${fmt(categories[0].part, 0)} % du chiffre d'affaires${categories[1] ? `, devant ${categories[1].category} (${fmt(categories[1].part, 0)} %)` : ""}.`,
-                      `${trData(categories[0].category)} makes ${fmt(categories[0].part, 0)}% of revenue${categories[1] ? `, ahead of ${trData(categories[1].category)} (${fmt(categories[1].part, 0)}%)` : ""}.`
-                    )}
-                  </Takeaway>
-                )}
-              </div>
-            </div>
-          )}
-
-          {categories.length > 0 && (
-            <Details label={tr("Voir le détail : les familles en chiffres", "See details: families in figures")}>
-              <div className="cc" style={{ padding:"20px 32px 32px", marginTop:"14px" }}>
-                <ChartAssistantButton chartType="category_summary_table" chartData={{ categories, filtres_page: { annee, saison, mois, categorie, evenement } }} chartName="CategorySummaryTable"
-                  userQuestion="Explique le tableau récapitulatif des catégories" position="top-right" onOpenChat={openChat} />
-                <div style={{ overflowX:"auto" }}>
-                  <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:0, marginTop:"8px" }}>
-                    <thead>
-                      <tr style={{ borderBottom:"1px solid var(--dk-line, #ECEDE7)", color:MUTED,
-                                  fontSize:"0.68rem", textTransform:"uppercase",
-                                  letterSpacing:"0.05em", textAlign:"right", fontWeight:800 }}>
-                        <th style={{ textAlign:"left", padding:"14px 8px"}}>{tr("Catégorie", "Category")}</th>
-                        <th style={{ padding:"14px 8px", minWidth:"200px"}}>{tr("Chiffre d'affaires", "Revenue")}</th>
-                        <th style={{ padding:"14px 8px", minWidth:"160px"}}>{tr("Part du total", "Share of total")}</th>
-                        <th style={{ padding:"14px 8px"}}>{tr("Tickets", "Transactions")}</th>
-                        <th style={{ padding:"14px 8px"}} title={tr("Montant moyen dépensé dans la catégorie par ticket qui la contient", "Average amount spent in the category per transaction that includes it")}>{tr("Dépense / ticket", "Spend / transaction")}</th>
-                        <th style={{ padding:"14px 8px"}}>{tr("Produits", "Products")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        const maxCa = Math.max(...categories.map(c=>c.ca), 1);
-                        return categories.map((c, i) => {
-                          const caPct = (c.ca / maxCa) * 100;
-                          const partPct = Math.min(c.part, 100);
-                          return (
-                            <tr key={i} style={{ borderBottom:"1px solid var(--dk-surface, #FFFFFF)" }}>
-                              <td style={{ padding:"13px 8px", fontSize:"0.82rem", fontWeight:800,
-                                           color:INK, textAlign:"left",
-                                           display:"flex", alignItems:"center", gap:"10px" }}>
-                                <div style={{ width:"9px", height:"9px", borderRadius:"50%",
-                                              background: PALETTE[i % PALETTE.length],
-                                              boxShadow:`0 0 0 2px color-mix(in srgb, ${PALETTE[i % PALETTE.length]} 15%, transparent)` }}/>
-                                {trData(c.category)}
-                              </td>
-                              <td style={{ padding:"13px 8px" }}>
-                                <div style={{ display:"flex", alignItems:"center", gap:"8px"}}>
-                                  <div style={{ flex:1, height:"14px", borderRadius:"4px",
-                                                background:"var(--dk-soft, #F4F1FC)", overflow:"hidden" }}>
-                                    <div style={{
-                                      width:`${caPct}%`, height:"100%",
-                                      background:`linear-gradient(90deg, color-mix(in srgb, ${ORANGE} 33%, transparent), color-mix(in srgb, ${ORANGE} 80%, transparent))` }}/>
-                                  </div>
-                                  <span style={{ fontSize:"0.78rem", fontWeight:800, color:INK,
-                                                 whiteSpace:"nowrap", width:"72px", textAlign:"right" }}>
-                                    {fmt(c.ca)} €
-                                  </span>
-                                </div>
-                              </td>
-                              <td style={{ padding:"13px 8px" }}>
-                                <div style={{ display:"flex", alignItems:"center", gap:"8px"}}>
-                                  <div style={{ flex:1, height:"14px", borderRadius:"4px",
-                                                background:"var(--dk-soft, #F4F1FC)", overflow:"hidden" }}>
-                                    <div style={{ width:`${partPct}%`, height:"100%",
-                                                  background:`linear-gradient(90deg, color-mix(in srgb, ${C1} 33%, transparent), color-mix(in srgb, ${C3} 67%, transparent))` }}/>
-                                  </div>
-                                  <span style={{ fontSize:"0.78rem", fontWeight:800, color:MUTED,
-                                                 whiteSpace:"nowrap", width:"42px", textAlign:"right" }}>
-                                    {fmt(c.part, 1)} %
-                                  </span>
-                                </div>
-                              </td>
-                              <td style={{ padding:"13px 8px", textAlign:"right",
-                                           fontSize:"0.78rem", fontWeight:600, color:INK }}>
-                                {fmt(c.tickets)}
-                              </td>
-                              <td style={{ padding:"13px 8px", textAlign:"right",
-                                           fontSize:"0.78rem", fontWeight:600, color:INK }}>
-                                {fmt(c.panier, 2)} €
-                              </td>
-                              <td style={{ padding:"13px 8px", textAlign:"right",
-                                           fontSize:"0.78rem", fontWeight:600, color:MUTED }}>
-                                {fmt(c.produits)}
-                              </td>
-                            </tr>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </Details>
-          )}
-        </div>
-      )}
     </div>
   );
 }

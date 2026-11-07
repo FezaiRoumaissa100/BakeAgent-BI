@@ -37,7 +37,8 @@ function cellStyle(d: any): { bg: string; c: string } {
   return { bg: `color-mix(in srgb, ${s.bg} ${pct}%, var(--dk-surface, #fff))`, c: pct >= 70 ? "#fff" : "var(--dk-ink)" };
 }
 
-export function ProductRiskCard() {
+// bare : sans le titre de section (rangée dans « Voir le détail » de la page Alertes)
+export function ProductRiskCard({ bare = false }: { bare?: boolean } = {}) {
   const { openChat } = useChat();
   const [data, setData] = useState<any>(null);
   const [fam, setFam] = useState("Toutes");
@@ -71,13 +72,13 @@ export function ProductRiskCard() {
 
   return (
     <>
-      <div className="alert-part">
+      {!bare && <div className="alert-part">
         <div className="alert-part-k">{tr("Par produit", "By product")}</div>
         <h2 className="alert-part-t">{tr("Les 14 prochains", "The next 14")} <span style={{ color: "var(--dk-accent)" }}>{tr("jours", "days")}</span></h2>
         <p className="alert-part-d">{tr("Le plus utile au quotidien : quels produits risquent de manquer ou de rester invendus, et quel jour.", "Most useful day to day: which products may run short or stay unsold, and on which day.")}</p>
-      </div>
-      <div className="sw">
-        <div className="cc hero-card" style={{ marginBottom: 16 }}>
+      </div>}
+      <div className={bare ? undefined : "sw"}>
+        <div className="cc hero-card" style={{ marginBottom: bare ? 0 : 16 }}>
           <ChartAssistantButton chartType="product_risk_grid" chartData={{
             dates, famille: fam, seulement_produits_a_risque: onlyRisk, nb_produits: rows.length,
             // Pour chaque produit : seulement les jours qui ne sont pas « normaux », pour rester lisible

@@ -99,9 +99,13 @@ Setting up the API import (`BD/002_import_from_api.py`):
 
 Rules of the API import:
 
-- From the start date on (by default the last day in the database minus `overlap_days`), the API is the reference: the ticket lines of those days are **replaced**, so running it twice never duplicates sales. Older days are not touched.
+- From the start date on (by default the last day in the database minus `overlap_days`), the API is the reference: the ticket lines of those days are **replaced**, so running it twice never duplicates sales. Only the days from `--since` to `--until` are replaced: older days and days after `--until` are never touched.
+- **Pages** are read until an empty page, so an API that caps its page size (e.g. 100 lines when 1000 are asked) does not lose lines. An API that ignores the page number is detected (same page twice) and nothing is written. If the API gives a total (`response.total_path`), the import checks it received every line.
+- **Time zone.** Timestamps with a zone (`...Z`, `...+01:00`) are converted to the shop's time zone (`timezone`, Europe/Paris by default) before taking the day and the hour; one extra day is fetched on each side because the API usually filters on the UTC date. A warning is printed if more than 5 % of sales fall between midnight and 4 am.
+- **Products sold by weight** (quantity 0.35 kg…): each line counts as 1 item, at the amount actually paid, so revenue stays exact. Detected automatically from a non-whole quantity; `weight_articles` lists products that can land on a round weight.
+- **Families follow the till.** Each product takes its most recent family; `category_overrides` also applies to products already in the database. A missing family (`Autre`) never replaces a real one.
 - Everything is downloaded and checked before anything is written, then written in one transaction: on any error the database stays as it was.
-- It refuses (and writes nothing) if line identifiers are duplicated or already used by older days, or if a quantity is not a whole number. Lines with a negative quantity (returns) are skipped and counted in the report, because `fact_ticket_lines` does not accept them.
+- It refuses (and writes nothing) if line identifiers are duplicated or already used by days outside the import. Lines with a negative quantity (returns) are skipped and counted in the report, because `fact_ticket_lines` does not accept them.
 - It rebuilds `daily_aggregates` and `monthly_ca` from the ticket lines, extends `dim_dates` (15 days after the last sale), and adds new products and categories. The season comes from the date.
 - **Events** (Noël, Pâques, Galette des Rois...): if the API provides an `event` field it is used; otherwise the day is labelled from the calendar in `BD/events_config.json` (rules in `BD/events_calendar.py`). The French events are kept by default and are easy to switch off:
   - all of them: set `"enabled": false` at the top of the file (every day becomes `Jour Normal`);
@@ -113,7 +117,8 @@ Rules of the API import:
 - **Open days.** `daily_aggregates` only holds days the shop was open (the dashboard reads "the last day" there, and the forecast history). A day is open when it reaches `open_day_min_ratio` (15 %) of the usual number of tickets, the median of the 28 previous sales days: a few stray sales on a closed Monday or Wednesday do not make an open day, whatever the size of the shop. This is the same rule the forecast uses (`seuil_jour_ouvert_pct` in `forecasting/config.json`: keep the two in agreement). `open_day_min_tickets` in `client_settings.json` replaces it with a fixed number if you prefer. The stray days' ticket lines are still imported; they just do not count as open days.
 - **Tourist season flag.** `dim_dates.is_touristic` is set from the months listed in `touristic_months` (client_settings.json; none by default) up to the last day with sales, and corrected on days that were put in the calendar before their sales arrived. It is deliberately left false after the last sale: the forecast then projects last year's season. A half-filled future calendar would make it think the calendar is complete and drop the season.
 - **Fixing what the till sends.** In `api_mapping.json`: `article_aliases` merges two names of one product (a duplicated till button), `category_overrides` corrects a wrong family.
-- The forecasts are refreshed at the end (`--no-refresh` to skip).
+- The forecasts are refreshed at the end (`--no-refresh` to skip). The Performance page notices new data by itself (it compares a small fingerprint of `daily_aggregates`), so there is no need to restart the backend.
+- Tested against a fake supplier API (`tests/fake_supplier_api.py`): capped pages, UTC timestamps, sales by weight, a family change, returns.
 
 ## Database Schema
 

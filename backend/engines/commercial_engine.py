@@ -23,8 +23,15 @@ _PERF_TTL = 300  # secondes : une même demande (mêmes filtres) est resservie p
 
 
 def calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="Tous", categorie="Toutes", evenement="Tous"):
-    """Mémorise les réponses récentes : revenir sur une période déjà vue est immédiat."""
-    key = (annee, saison, mois, categorie, evenement)
+    """Mémorise les réponses récentes : revenir sur une période déjà vue est immédiat.
+    La mémoire est oubliée dès que les données changent (nouvel import) : on compare une petite empreinte de la table
+    des journées (nombre de jours, dernier jour, total), lue en quelques millisecondes."""
+    try:
+        r = sql_fetch_one("SELECT COUNT(*) AS n, MAX(date_id) AS d, SUM(ca_jour) AS ca, SUM(nb_tickets) AS tk FROM daily_aggregates")
+        version = (r or {}).get('n'), str((r or {}).get('d')), str((r or {}).get('ca')), (r or {}).get('tk')
+    except Exception:
+        version = None
+    key = (annee, saison, mois, categorie, evenement, version)
     hit = _PERF_CACHE.get(key)
     if hit and _time.time() - hit[0] < _PERF_TTL:
         return hit[1]
@@ -443,23 +450,6 @@ def _calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="
     """
 
     hourly_raw = sql_fetch_all(hourly_query, tuple(params))
-
-    # Jour × heure : chiffre d'affaires et tickets d'une heure, pour un jour d'ouverture habituel de ce jour de la semaine
-    heat_raw = sql_fetch_all(f"""
-    SELECT d.day_of_week AS dow, f.hour AS h, SUM(f.total_revenue) AS ca,
-           COUNT(DISTINCT (f.date_id::text || '|' || f.ticket_number::text)) AS tk
-    {BASE_JOINS}
-    WHERE {where_sql}
-      AND f.hour IS NOT NULL
-      AND (NOT EXISTS (SELECT 1 FROM daily_aggregates) OR f.date_id IN (SELECT date_id FROM daily_aggregates))
-    GROUP BY 1, 2
-    """, tuple(params))
-    heatmap = []
-    for r in heat_raw:
-        dw = int(r['dow']); nj = int((dow_dict.get(dw) or {}).get('nb_jours') or 0)
-        if nj <= 0:
-            continue
-        heatmap.append({"dow": dw, "hour": int(r['h']), "ca_moy": safe_num(r['ca']) / nj, "tk_moy": int(r['tk'] or 0) / nj})
     hourly_dist = []
     for r in hourly_raw:
         h = int(r['hour']) if r['hour'] is not None else 0
@@ -477,7 +467,8 @@ def _calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="
         SUM(f.total_revenue) / NULLIF(COUNT(DISTINCT (f.date_id::text || '|' || f.ticket_number::text)), 0) as panier,
         AVG(f.total_revenue) as montant_ligne,
         COUNT(DISTINCT (f.date_id::text || '|' || f.ticket_number::text)) as tickets,
-        COUNT(DISTINCT f.product_id) as produits
+        COUNT(DISTINCT f.product_id) as produits,
+        SUM(f.quantity) as qte
     FROM fact_ticket_lines f
     JOIN dim_products p ON f.product_id = p.product_id
     JOIN dim_categories c ON p.category_id = c.category_id
@@ -494,9 +485,38 @@ def _calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="
     if total_cat_ca <= 0:
         total_cat_ca = 1.0
 
+    total_cat_q = sum(safe_num(r['qte']) for r in cat_raw) or 1.0
+    # Tendance de chaque famille : même période de l'année, année comparée face à l'année d'avant (comme les indicateurs)
+    cat_evo = {}
+    if comp_kpis:
+        cy_a, cy_b = comp_kpis["prec"], comp_kpis["der"]
+        for r in sql_fetch_all(f"""
+        SELECT c.category_name AS category, EXTRACT(YEAR FROM f.date_id)::int AS y,
+               SUM(f.total_revenue) AS ca, SUM(f.quantity) AS q,
+               COUNT(DISTINCT (f.date_id::text || '|' || f.ticket_number::text)) AS tk
+        {BASE_JOINS}
+        WHERE {where_no_year_sql} AND c.category_name IS NOT NULL AND c.category_name != 'A CLASSIFIER'
+          AND EXTRACT(YEAR FROM f.date_id) IN (%s, %s)
+          AND TO_CHAR(f.date_id, 'MM-DD') BETWEEN %s AND %s
+        GROUP BY 1, 2
+        """, tuple(params_no_year) + (cy_a, cy_b, comp_kpis["debut"], comp_kpis["fin"])):
+            cat_evo.setdefault(r['category'], {})[int(r['y'])] = (safe_num(r['ca']), safe_num(r['q']), int(r['tk'] or 0))
+    def cevo(cat, k):
+        m = cat_evo.get(cat, {})
+        if not comp_kpis:
+            return None
+        a, b = m.get(comp_kpis["prec"]), m.get(comp_kpis["der"])
+        if not a or not b or not a[k]:
+            return None
+        return safe_num((b[k] - a[k]) / a[k] * 100)
+
     categories_summary = []
     for r in cat_raw:
         categories_summary.append({
+            "qte": safe_num(r['qte']),
+            "part_qte": safe_num(safe_num(r['qte']) / total_cat_q * 100),
+            "part_tk": safe_num(int(r['tickets'] or 0) / nb_tickets * 100) if nb_tickets else 0.0,
+            "evo": cevo(r['category'], 0), "evo_qte": cevo(r['category'], 1), "evo_tk": cevo(r['category'], 2),
             "category": r['category'],
             "ca": safe_num(r['ca']),
             "part": safe_num(safe_num(r['ca']) / total_cat_ca * 100),
@@ -548,8 +568,7 @@ def _calculate_commercial_performance_pg(annee="Toutes", saison="Toutes", mois="
         },
         "seasonality": {
             "days": seasonality_days,
-            "hourly": hourly_dist,
-            "heatmap": heatmap
+            "hourly": hourly_dist
         },
         "categories": categories_summary,
         "available_filters": {

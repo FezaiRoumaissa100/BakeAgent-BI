@@ -2272,7 +2272,7 @@ export default function ProduitsPage() {
       {/* Indicateurs de l'onglet (même style compact que les autres pages) + période en boutons */}
       <div className="sw">
         {/* Barre de période (les chiffres clés sont dans le bandeau et dans chaque onglet) */}
-        <div className="cc" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "12px 18px" }}>
+        <div className="cc" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "7px 14px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: ".75rem", fontWeight: 700, color: INK, textTransform: "uppercase", letterSpacing: ".05em" }}>
             <IconCalendarDays size={16} color={ORANGE} />
             {tr("Période analysée", "Period analysed")}
@@ -2287,7 +2287,7 @@ export default function ProduitsPage() {
       </div>
 
       {/* ── TABS Selector ── */}
-      <div style={{ margin: "18px 28px 16px" }}>
+      <div className="tabs-sticky" style={{ margin: "18px 28px 16px" }}>
         <div className="prod-tabs">
           {TABS.map((t) => {
             const Icon = t.Icon;

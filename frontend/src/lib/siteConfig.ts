@@ -10,6 +10,10 @@ export const siteConfig = {
   // Change les boutons, le menu, la grande carte du jour et les titres en couleur. Vide = violet BakeAgent (thème « Pastel »).
   // Choisir une couleur assez foncée : le texte des boutons est blanc. Les couleurs des graphiques ne changent pas.
   brandColor: "",
+  // Couleur du bouton « Saisir le stock du soir » (en bas du menu de gauche) :
+  //   "" = violet BakeAgent (par défaut) · "brand" = la couleur de la boulangerie ci-dessus (brandColor)
+  //   ou un code couleur, ex. "#1F4E79". Choisir une couleur assez foncée : le texte du bouton est blanc.
+  stockButtonColor: "" as string,
   // Motif en filigrane (le dessin léger en bas à droite et dans la grande carte du jour) :
   //   "wheat" = épi de blé (par défaut) · "none" = aucun motif
   //   ou le chemin d'une image déposée dans frontend/public/, ex. "/motif.svg" (de préférence un SVG ou un PNG

@@ -19,7 +19,9 @@
   "response": {
     "records_path": "data",
     "pagination": "page",
-    "_pagination_values": "page = pages numérotées à partir de 1, arrêt sur une page vide ou plus courte que page_size_value | none = une seule réponse par fenêtre de dates"
+    "_pagination_values": "page = pages numérotées à partir de 1, lues jusqu'à une page vide (une API qui plafonne la taille des pages ne fait pas perdre de lignes) | none = une seule réponse par fenêtre de dates",
+    "total_path": null,
+    "_total_path": "Si l'API donne le nombre total de lignes (ex. \"total\" ou \"meta.total\"), l'indiquer ici : l'import vérifie qu'il a bien tout reçu et n'écrit rien sinon. null = pas de vérification."
   },
 
   "fields": {
@@ -38,7 +40,10 @@
   "_fields_comment": "Valeur = nom du champ dans la réponse de l'API (null = absent). Il faut soit 'timestamp', soit 'date' + 'hour'. 'line_id' absent => identifiant calculé de façon stable à partir de la ligne. 'category' absent => 'Autre'. 'event' absent => 'Jour Normal'. 'unit_price' ou 'total_revenue' : l'un des deux suffit.",
 
   "timezone": null,
-  "_timezone_comment": "Ex. 'Europe/Paris' : si les horodatages de l'API sont en UTC, ils sont convertis en heure locale avant d'extraire la date et l'heure. null = pris tels quels.",
+  "_timezone_comment": "Fuseau de la boutique, ex. 'Europe/Paris'. Un horodatage avec fuseau ('...Z', '...+01:00') est toujours converti dans ce fuseau (Europe/Paris si null) avant d'extraire la date et l'heure. Un horodatage sans fuseau est pris tel quel, sauf si timezone est renseigné : il est alors lu comme UTC.",
+
+  "weight_articles": [],
+  "_weight_articles": "Produits vendus au poids (quantité en kg) : chaque ligne compte pour 1 article, au montant encaissé. Un produit avec une quantité non entière (0,35) est reconnu tout seul ; lister ici ceux qui peuvent tomber sur un nombre rond (ex. 1 kg tout juste).",
 
   "overlap_days": 3,
 

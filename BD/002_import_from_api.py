@@ -28,6 +28,12 @@ Règles :
     BD/events_calendar.py + BD/events_config.json (garder ou retirer les événements français).
   * Recalcule ensuite, dans la même transaction, la vitesse de vente et les règles d'association
     (BD/analytics.py). product_penetration n'est pas recalculée : aucune page ne la lit.
+  * Seuls les jours de --since à --until sont remplacés : les jours après --until ne sont jamais touchés.
+  * Pages : on lit jusqu'à une page vide (une API qui plafonne la taille des pages ne fait plus perdre de lignes).
+  * Produits vendus au poids (quantité 0,35 kg…) : chaque ligne compte pour 1 article, au montant réel encaissé.
+  * Heures : un horodatage avec fuseau (« Z », « +01:00 ») est converti en heure locale de la boutique
+    (réglage "timezone", par défaut Europe/Paris) avant de prendre le jour et l'heure.
+  * Famille : si la caisse change la famille d'un produit, la famille la plus récente est enregistrée.
 """
 
 import argparse
@@ -52,6 +58,7 @@ from db_config import PG_URL
 HERE = Path(__file__).resolve().parent
 DEFAULT_MAPPING = HERE / "api_mapping.json"
 JOUR_NORMAL = "Jour Normal"
+DEFAULT_SHOP_TZ = "Europe/Paris"    # fuseau de la boutique si api_mapping.json ne dit rien (réglage "timezone")
 SEASONS = ["Hiver", "Printemps", "Ete", "Automne"]
 MOIS_NOMS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
              "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
@@ -208,6 +215,7 @@ def fetch_records(mapping: dict, d_from: date, d_to: date) -> list:
         raise SystemExit("[ERREUR] response.pagination : 'page' ou 'none'.")
 
     records, start = [], d_from
+    total_path = resp.get("total_path")
     while start <= d_to:
         end = min(start + timedelta(days=window - 1), d_to)
         base_params = dict(auth_params)
@@ -216,24 +224,48 @@ def fetch_records(mapping: dict, d_from: date, d_to: date) -> list:
         if p.get("date_to"):
             base_params[p["date_to"]] = (end if inclusive else end + timedelta(days=1)).strftime(fmt)
         if paginated:
-            page = 1
+            # On lit jusqu'à une page VIDE : beaucoup d'API plafonnent la taille des pages (ex. 100 lignes même si on en
+            # demande 1000) ; s'arrêter à la première page « plus courte » faisait alors perdre des lignes sans erreur.
+            page, prev_sig, got, expected = 1, None, 0, None
             while True:
                 q = dict(base_params)
                 q[p.get("page", "page")] = page
                 if p.get("page_size"):
                     q[p["page_size"]] = page_size
-                chunk = _walk(_get_json(url, headers, q), resp.get("records_path"))
-                records.extend(chunk)
-                if len(chunk) < page_size:
+                payload = _get_json(url, headers, q)
+                chunk = _walk(payload, resp.get("records_path"))
+                if total_path and expected is None:
+                    expected = _total(payload, total_path)
+                if not chunk:
                     break
+                sig = hashlib.blake2b(json.dumps(chunk[:3], sort_keys=True, default=str).encode(), digest_size=8).hexdigest()
+                if sig == prev_sig:   # l'API ignore le numéro de page : elle renvoie toujours la même page
+                    raise SystemExit("[ERREUR] L'API renvoie deux fois la même page : vérifier params.page dans api_mapping.json.")
+                prev_sig = sig
+                records.extend(chunk)
+                got += len(chunk)
                 page += 1
                 if page > 100000:
                     raise SystemExit("[ERREUR] Pagination sans fin (plus de 100 000 pages).")
+            if expected is not None and got != expected:
+                raise SystemExit(f"[ERREUR] {start} → {end} : l'API annonce {expected} lignes mais en a envoyé {got}. Rien n'a été écrit.")
         else:
             records.extend(_walk(_get_json(url, headers, base_params), resp.get("records_path")))
         print(f"   API {start} → {end} : {len(records):,} lignes au total")
         start = end + timedelta(days=1)
     return records
+
+
+def _total(payload, path):
+    cur = payload
+    for key in str(path).split("."):
+        if not isinstance(cur, dict) or key not in cur:
+            return None
+        cur = cur[key]
+    try:
+        return int(cur)
+    except (TypeError, ValueError):
+        return None
 
 
 # ───────────────────────── Normalisation ─────────────────────────
@@ -246,7 +278,7 @@ def _stable_id(date_id, ticket, article, nth) -> int:
 def normalise(records: list, mapping: dict):
     """Lignes brutes de l'API → table au format de fact_ticket_lines (+ rapport de ce qui est écarté)."""
     report = {"received": len(records), "dropped_invalid": 0, "excluded_negative_qty": 0,
-              "excluded_negative_revenue": 0.0}
+              "excluded_negative_revenue": 0.0, "weighed_lines": 0, "weighed_products": [], "timezone": None}
     if not records:
         return pd.DataFrame(columns=NORMALISED_COLS), report
 
@@ -268,9 +300,16 @@ def normalise(records: list, mapping: dict):
 
     tz = mapping.get("timezone")
     if f.get("timestamp"):
-        ts = pd.to_datetime(col("timestamp"), errors="coerce", utc=bool(tz))
-        if tz:
-            ts = ts.dt.tz_convert(tz)
+        raw_ts = col("timestamp").astype(str).str.strip()
+        # Horodatage AVEC fuseau (« ...Z », « ...+01:00 ») : c'est un instant précis, on le ramène à l'heure locale de la
+        # boutique. Sans cela, une vente de 0 h 30 à Paris (23 h 30 UTC) tombait la veille, et toutes les heures étaient décalées.
+        aware = raw_ts.str.contains(r"(?:Z|[+-]\d{2}:?\d{2})$", regex=True).mean() > 0.5
+        if aware or tz:
+            shop_tz = tz or DEFAULT_SHOP_TZ
+            ts = pd.to_datetime(raw_ts, errors="coerce", utc=True, format="mixed").dt.tz_convert(shop_tz)
+            report["timezone"] = shop_tz + ("" if tz else " (par défaut)")
+        else:
+            ts = pd.to_datetime(raw_ts, errors="coerce", format="mixed")
         df["date_id"] = ts.dt.date
         df["hour"] = ts.dt.hour
     else:
@@ -324,10 +363,18 @@ def normalise(records: list, mapping: dict):
     report["excluded_negative_revenue"] = float(df.loc[neg, "total_revenue"].sum())
     df = df[~neg].copy()
 
-    if (df["quantity"] % 1 != 0).any():
-        n = int((df["quantity"] % 1 != 0).sum())
-        raise SystemExit(f"[ERREUR] {n} ligne(s) avec une quantité non entière (ex. produit vendu au poids) : "
-                         "la table fact_ticket_lines stocke des quantités entières. Rien n'a été écrit.")
+    # Produits vendus au poids (quantité 0,35 kg…) : la table compte des ARTICLES (nombres entiers). Chaque ligne d'un
+    # produit au poids compte pour 1 article vendu, au montant réellement encaissé (le chiffre d'affaires reste exact).
+    # Un produit est « au poids » s'il est listé dans weight_articles, ou s'il a au moins une quantité non entière.
+    listed = {client_settings.norm(a) for a in (mapping.get("weight_articles") or [])}
+    frac = df.loc[df["quantity"] % 1 != 0, "article"]
+    weighed = set(frac) | {a for a in df["article"].unique() if client_settings.norm(a) in listed}
+    w = df["article"].isin(weighed)
+    report["weighed_lines"] = int(w.sum())
+    report["weighed_products"] = sorted(weighed)
+    if w.any():
+        df.loc[w, "unit_price"] = df.loc[w, "total_revenue"]
+        df.loc[w, "quantity"] = 1
     df["quantity"] = df["quantity"].astype("int64")
     df["hour"] = df["hour"].astype("int64").clip(0, 23)
     df["unit_price"] = df["unit_price"].astype(float)
@@ -343,6 +390,7 @@ def normalise(records: list, mapping: dict):
         df["source_row_id"] = [_stable_id(d, t, a, n) for d, t, a, n in
                                zip(df["date_id"], df["ticket_number"], df["article"], nth)]
 
+    df = df.sort_values(["date_id", "hour"], kind="stable")
     df = df[NORMALISED_COLS].drop_duplicates().reset_index(drop=True)
     dup = df["source_row_id"].duplicated(keep=False)
     if dup.any():
@@ -377,20 +425,23 @@ def calendar_rows(first: date, last: date, sale_dates: set, season_ids: dict, la
     return rows
 
 
-def write_to_db(conn, df: pd.DataFrame, since: date, settings: dict = None) -> dict:
-    """Écrit dans la transaction ouverte (le commit / rollback est décidé par l'appelant)."""
+def write_to_db(conn, df: pd.DataFrame, since: date, settings: dict = None, until: date = None, mapping: dict = None) -> dict:
+    """Écrit dans la transaction ouverte (le commit / rollback est décidé par l'appelant).
+    Seuls les jours de `since` à `until` (inclus) sont remplacés ; les jours après `until` ne sont pas touchés."""
     stats = {}
     cfg = settings if settings is not None else client_settings.load()
     tmonths, hemi = cfg["touristic_months"], cfg["hemisphere"]
-    df = df[df["date_id"] >= since].copy()
+    if until is None:
+        until = max(df["date_id"]) if len(df) else since
+    df = df[(df["date_id"] >= since) & (df["date_id"] <= until)].copy()
 
     # 1) Identifiants déjà pris par des lignes AUTRES que celles qu'on remplace : on s'arrête net
     ids = [int(x) for x in df["source_row_id"]]
     clash = []
     for part in _chunks(ids, 20000):
         clash += conn.execute(text("SELECT source_row_id FROM fact_ticket_lines "
-                                   "WHERE source_row_id = ANY(:ids) AND date_id < :since LIMIT 5"),
-                              {"ids": part, "since": since}).scalars().all()
+                                   "WHERE source_row_id = ANY(:ids) AND (date_id < :since OR date_id > :until) LIMIT 5"),
+                              {"ids": part, "since": since, "until": until}).scalars().all()
         if clash:
             break
     if clash:
@@ -412,14 +463,34 @@ def write_to_db(conn, df: pd.DataFrame, since: date, settings: dict = None) -> d
         conn.execute(text("INSERT INTO dim_categories (category_name) VALUES (:n) ON CONFLICT (category_name) DO NOTHING"), {"n": c})
     cat_ids = {r[1]: r[0] for r in conn.execute(text("SELECT category_id, category_name FROM dim_categories"))}
 
-    first_cat = df.groupby("article")["category"].first()
-    new_products = 0
-    for art, c in first_cat.items():
-        res = conn.execute(text("INSERT INTO dim_products (article_name, category_id) VALUES (:a, :c) "
-                                "ON CONFLICT (article_name) DO NOTHING"), {"a": art, "c": cat_ids.get(c)})
-        new_products += res.rowcount
+    # Famille : la plus RÉCENTE vue pour chaque produit (les lignes sont triées par jour et heure). Si la caisse change la
+    # famille d'un produit, le produit suit. « Autre » (famille absente) ne remplace jamais une vraie famille.
+    last_cat = df.groupby("article")["category"].last()
+    known = {r[0]: r[1] for r in conn.execute(text(
+        "SELECT p.article_name, c.category_name FROM dim_products p LEFT JOIN dim_categories c ON c.category_id = p.category_id"))}
+    new_products, changed = 0, []
+    for art, c in last_cat.items():
+        if art not in known:
+            conn.execute(text("INSERT INTO dim_products (article_name, category_id) VALUES (:a, :c) "
+                              "ON CONFLICT (article_name) DO NOTHING"), {"a": art, "c": cat_ids.get(c)})
+            new_products += 1
+        elif c != "Autre" and known[art] != c:
+            conn.execute(text("UPDATE dim_products SET category_id = :c WHERE article_name = :a"), {"a": art, "c": cat_ids.get(c)})
+            changed.append(f"{art} : {known[art] or '—'} → {c}")
+    # Familles corrigées à la main (category_overrides) : appliquées aussi aux produits déjà en base
+    overrides = {client_settings.norm(k): str(v).strip() for k, v in ((mapping or {}).get("category_overrides") or {}).items()}
+    if overrides:
+        for v in set(overrides.values()):
+            conn.execute(text("INSERT INTO dim_categories (category_name) VALUES (:n) ON CONFLICT (category_name) DO NOTHING"), {"n": v})
+        cat_ids = {r[1]: r[0] for r in conn.execute(text("SELECT category_id, category_name FROM dim_categories"))}
+        for art, cur in list(known.items()):
+            want = overrides.get(client_settings.norm(art))
+            if want and cur != want and art not in last_cat.index:
+                conn.execute(text("UPDATE dim_products SET category_id = :c WHERE article_name = :a"), {"a": art, "c": cat_ids[want]})
+                changed.append(f"{art} : {cur or '—'} → {want}")
     prod_ids = {r[1]: r[0] for r in conn.execute(text("SELECT product_id, article_name FROM dim_products"))}
     stats["new_products"] = new_products
+    stats["family_changes"] = changed
 
     # 3) Calendrier : jours manquants entre le départ et la dernière vente (+ marge), saison des jours vendus
     sale_dates = set(df["date_id"])
@@ -444,7 +515,8 @@ def write_to_db(conn, df: pd.DataFrame, since: date, settings: dict = None) -> d
         {"s": since, "e": last_sale, "m": list(tmonths)}).rowcount
 
     # 4) Lignes de ticket : remplacement des jours >= since
-    stats["deleted_lines"] = conn.execute(text("DELETE FROM fact_ticket_lines WHERE date_id >= :s"), {"s": since}).rowcount
+    stats["deleted_lines"] = conn.execute(text("DELETE FROM fact_ticket_lines WHERE date_id BETWEEN :s AND :u"),
+                                          {"s": since, "u": until}).rowcount
     rows = [{
         "source_row_id": int(r.source_row_id), "date_id": r.date_id, "ticket_number": r.ticket_number,
         "product_id": int(prod_ids[r.article]), "quantity": int(r.quantity), "unit_price": float(r.unit_price),
@@ -462,11 +534,11 @@ def write_to_db(conn, df: pd.DataFrame, since: date, settings: dict = None) -> d
     #    daily_aggregates ne contient que les jours OUVERTS (le tableau de bord y lit « le dernier jour » et l'historique des
     #    prévisions) : quelques ventes isolées un jour de fermeture ne doivent pas en faire un jour ouvert. Règle relative à
     #    l'habitude de la boutique (open_days), réglée par client_settings.json ; les 60 jours précédents servent de repère.
-    conn.execute(text("DELETE FROM daily_aggregates WHERE date_id >= :s"), {"s": since})
+    conn.execute(text("DELETE FROM daily_aggregates WHERE date_id BETWEEN :s AND :u"), {"s": since, "u": until})
     ctx = conn.execute(text("""SELECT date_id, COUNT(DISTINCT ticket_number) FROM fact_ticket_lines
-                               WHERE date_id >= :s GROUP BY date_id"""), {"s": since - timedelta(days=60)}).all()
+                               WHERE date_id BETWEEN :s AND :u GROUP BY date_id"""), {"s": since - timedelta(days=60), "u": until}).all()
     counts = pd.Series({r[0]: int(r[1]) for r in ctx}, dtype="int64")
-    opened = sorted(d for d in open_days(counts, cfg["open_day_min_ratio"], cfg["open_day_min_tickets"]) if d >= since)
+    opened = sorted(d for d in open_days(counts, cfg["open_day_min_ratio"], cfg["open_day_min_tickets"]) if since <= d <= until)
     if opened:
         conn.execute(text("""INSERT INTO daily_aggregates (date_id, nb_tickets, nb_articles, ca_jour, ref_actives)
                              SELECT date_id, COUNT(DISTINCT ticket_number), COALESCE(SUM(quantity), 0),
@@ -537,10 +609,17 @@ def main(argv=None):
             records = _walk(json.load(fh), mapping["response"].get("records_path"))
         print(f"[INFO] {len(records):,} lignes lues dans {args.from_json}")
     else:
-        records = fetch_records(mapping, since, until)
+        # Un jour de plus de chaque côté : l'API filtre souvent sur la date UTC, alors qu'une vente de 0 h 30 heure de
+        # Paris est la veille en UTC. On garde ensuite seulement les jours de since à until, en heure locale.
+        records = fetch_records(mapping, since - timedelta(days=1), until + timedelta(days=1))
 
     df, rep = normalise(records, mapping)
     print(f"[INFO] Reçues : {rep['received']:,}   |   valides : {len(df):,}   |   inutilisables écartées : {rep['dropped_invalid']:,}")
+    if rep["timezone"]:
+        print(f"[INFO] Horodatages avec fuseau : convertis en heure locale ({rep['timezone']}).")
+    if rep["weighed_lines"]:
+        print(f"[INFO] {rep['weighed_lines']:,} ligne(s) de produits vendus au poids ({', '.join(rep['weighed_products'][:5])}"
+              f"{'…' if len(rep['weighed_products']) > 5 else ''}) : 1 article par ligne, au montant encaissé.")
     if rep["excluded_negative_qty"]:
         print(f"[ATTENTION] {rep['excluded_negative_qty']:,} ligne(s) à quantité négative (retours ?) non importées "
               f"(montant : {rep['excluded_negative_revenue']:,.2f}). La base n'accepte pas les quantités négatives.")
@@ -565,7 +644,11 @@ def main(argv=None):
 
     with engine.connect() as conn:
         try:
-            stats = write_to_db(conn, df, since, settings)
+            night = float(((df["hour"] >= 0) & (df["hour"] < 4)).mean()) if len(df) else 0.0
+            if night > 0.05:
+                print(f"[ATTENTION] {night:.0%} des ventes entre 0 h et 4 h : les heures de l'API sont peut-être dans un autre "
+                      "fuseau. Régler \"timezone\" dans api_mapping.json (ex. \"Europe/Paris\").")
+            stats = write_to_db(conn, df, since, settings, until, mapping)
             if args.no_analytics:
                 stats["analytics"] = None
             else:
@@ -581,6 +664,9 @@ def main(argv=None):
             raise
     print(f"[OK] {stats['deleted_lines']:,} lignes remplacées par {stats['inserted_lines']:,} "
           f"(nouveaux produits : {stats['new_products']}). Agrégats journaliers et mensuels mis à jour.")
+    if stats.get("family_changes"):
+        print(f"[INFO] Famille mise à jour pour {len(stats['family_changes'])} produit(s) : " + " ; ".join(stats["family_changes"][:5])
+              + (" …" if len(stats["family_changes"]) > 5 else ""))
     if stats["days_below_threshold"]:
         print(f"[INFO] {stats['days_below_threshold']} jour(s) trop calmes pour compter comme ouverts (fermeture avec quelques "
               "ventes isolées) : leurs lignes sont gardées mais ils ne comptent pas comme jours ouverts.")

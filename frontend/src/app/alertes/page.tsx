@@ -6,6 +6,7 @@ import { ExpertNote } from "@/components/Expert";
 import { Details, Scope } from "@/components/Ui";
 import { ProductRiskCard } from "@/components/ProductRisk";
 import { PrepListCard } from "@/components/PrepList";
+import { AlertsToday, AlertsWatch } from "@/components/AlertsToday";
 import { fetchAlerts } from "@/lib/api";
 import { tr, trData, locale } from "@/lib/i18n";
 import { ChartAssistantButton } from "@/components/ChartAssistantButton";
@@ -54,11 +55,9 @@ function fmt(n: number, dec = 0) {
 export default function AlertesPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const mois = "Tout";   // toute la saison (le calendrier sépare déjà les mois)
+  const mois = "Tout";   // toute la saison
   // Détail opérationnel : replié (10 premiers jours) ou déplié (tous les jours)
   const [allDays, setAllDays] = useState(false);
-  // Calendrier de la saison : un mois à la fois (boutons), ou « all » pour toute la saison
-  const [calMonth, setCalMonth] = useState<string | null>(null);
   const { openChat } = useChat();
 
   useEffect(() => {
@@ -96,192 +95,82 @@ export default function AlertesPage() {
     return best ? { fr: `${best[0].slice(8, 10)}/${best[0].slice(5, 7)}/${best[0].slice(0, 4)}`, total: best[1] } : null;
   })();
 
+  // Phrase de la saison : jours chargés, jour et semaine les plus chargés
+  const openSeason = days.filter((d: any) => d.yhat > 0).length;
+  const seasonText = tr(
+    `${statuts["RUPTURE"] || 0} jour(s) très chargé(s) et ${statuts["VIGILANCE"] || 0} chargé(s) sur ${openSeason} jours ouverts. Le plus chargé : le ${kpis.pic_date}.${busiestWeek ? ` La semaine la plus chargée commence le lundi ${busiestWeek.fr} : prévoir le personnel et les commandes à l'avance.` : ""}`,
+    `${statuts["RUPTURE"] || 0} very busy and ${statuts["VIGILANCE"] || 0} busy day(s) out of ${openSeason} open days. Busiest: ${kpis.pic_date}.${busiestWeek ? ` The busiest week starts on Monday ${busiestWeek.fr}: plan staff and orders ahead.` : ""}`);
+
   return (
       <div style={{ paddingBottom: "40px" }}>
-      {/* ── TITRE + DESCRIPTION ── */}
-      <div style={{ marginBottom: "16px", padding: "0 28px" }}>
+      {/* ── TITRE ── */}
+      <div style={{ marginBottom: "14px", padding: "0 28px" }}>
         <h1 style={{ fontSize:"1.8rem", fontWeight:800, color:INK,
                      letterSpacing:"-0.03em", lineHeight:1.1, margin:0 }}>
           {tr("Alertes &", "Alerts &")} <span style={{ color: ORANGE }}>{tr("Stock", "Stock")}</span>
         </h1>
-        <p style={{ color:MUTED, fontSize:"0.82rem", marginTop:"6px",
-                    maxWidth:"640px", lineHeight:1.5 }}>
-          {tr("Ce qu'il faut préparer : la liste du prochain jour, le risque produit par produit sur 14 jours, puis la saison à venir pour toute la boutique.", "What to prepare: the list for the next day, the risk product by product over 14 days, then the coming season for the whole shop.")}
+        <p className="page-lead">
+          <span className="page-lead-ic" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.3-2.4 3.6M12 17h.01" /></svg></span>
+          <span>{tr("Ce qui change demain, les produits à surveiller, la saison.", "What changes tomorrow, products to watch, the season.")}</span>
         </p>
-        <a href="/stock" className="prep-print-btn" style={{ marginTop: 10, textDecoration: "none" }}>
-          {tr("Saisir le stock du jour (préparé / restant) →", "Enter today's stock (made / left) →")}
-        </a>
       </div>
 
-      {/* ── 1. LE PLUS UTILE AU QUOTIDIEN : la liste à préparer, puis le risque par produit sur 14 jours ── */}
-      <PrepListCard />
-      <ProductRiskCard />
+      {/* ── 1. DEMAIN : seulement ce qui change, et la liste à imprimer ── */}
+      <AlertsToday />
 
-      {/* ── 2. LA SAISON À VENIR, TOUTE LA BOUTIQUE ── */}
-      <div className="alert-part">
-        <div className="alert-part-k">{tr("Toute la boutique", "Whole shop")}</div>
-        <h2 className="alert-part-t">{tr("Saison", "Season")} <span style={{ color: "var(--dk-accent)" }}>{anneePrev}</span>{plage ? <span className="alert-part-s"> · {plage}</span> : null}</h2>
-        <p className="alert-part-d">{tr("Combien la boutique devrait vendre chaque jour de la saison, et quels jours seront plus chargés ou plus calmes qu'un jour habituel du même mois. Pour planifier le personnel, les congés et les commandes de matières premières.", "How much the shop should sell each day of the season, and which days will be busier or quieter than a usual day of the same month. To plan staff, time off and ingredient orders.")}</p>
-      </div>
+      {/* ── 2. À SURVEILLER sur les 14 prochains jours ── */}
+      <AlertsWatch />
 
-      {noSeason ? (
-        <div className="sw">
+      {/* ── 3. LA SAISON, en une bande ── */}
+      <div className="sw">
+        {noSeason ? (
+          <div>
           <div className="cc cs" style={{ lineHeight: 1.6 }}>
             {tr("Pas encore de prévision de saison : elle s'appuie sur la même période de l'année précédente, il faut donc environ un an de ventes. La liste « À préparer » et les 14 prochains jours, plus haut, fonctionnent déjà.",
                 "No season forecast yet: it relies on the same period of the previous year, so it needs about a year of sales. The “To prepare” list and the next 14 days above already work.")}
           </div>
         </div>
-      ) : (<>
-
-      {/* Plus de filtre par mois : le calendrier montre déjà toute la saison, mois par mois. */}
-
-      <div className="sec-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <IconActivity size={18} color={ORANGE} />
-        {tr("Les jours chargés de la saison", "The busy days of the season")}
-      </div>
-      <div className="sw">
-        {/* Calendrier (2/3) + chiffres de la saison et note à côté (1/3) */}
-        <div className="grid-main stretch">
-        <div className="cc" style={{ position: "relative" }}>
-          <ChartAssistantButton
-            chartType="alerts_demande_risque"
-            chartData={{
-              days,
-              statuts,
-              kpis,
-              filters: {
-                mois: mois
-              }
-            }}
-            chartName="AlertsDemandeRisque"
-            userQuestion="Explique la demande prévue et les niveaux de risque"
-            position="top-right"
-            onOpenChat={openChat}
-          />
-          {/* En-tête : titre à gauche, légende en dessous (le bouton ✦ reste seul en haut à droite) */}
-          <div style={{ paddingRight: 44 }}>
-            <div className="ct">{tr("Le calendrier de la saison", "The season calendar")}</div>
-            <Scope period={tr(`Prévision : saison ${anneePrev}${plage ? ` (${plage})` : ""}`, `Forecast: ${anneePrev} season${plage ? ` (${plage})` : ""}`)} calc={tr("Chaque case = total prévu ce jour-là, tous produits · couleur = comparé à un jour habituel du même mois", "Each cell = forecast total that day, all products · colour = vs a usual day of the same month")} unit={tr("articles par jour", "items per day")} />
-            <div className="cs">{tr("Chaque case est un jour, avec le nombre d'articles prévus. La couleur dit si le jour sera plus chargé ou plus calme qu'un jour habituel (même jour de la semaine, même mois).", "Each box is a day, with the number of items forecast. The colour says whether the day will be busier or quieter than a usual day (same weekday, same month).")}</div>
-          </div>
-          <div className="season-legend">
-            {(["RUPTURE", "VIGILANCE", "NORMAL", "SURSTOCK", "FERMÉ"] as const).map((k) => (
-              <span key={k}><i className={`season-dot st-${k === "FERMÉ" ? "FERME" : k}`} />{tr((STATUS_CONFIG[k] || STATUS_CONFIG.NORMAL).label, (STATUS_CONFIG[k] || STATUS_CONFIG.NORMAL).labelEn)} <b className="num">{statuts[k] || 0}</b> <small>· {tr((STATUS_CONFIG[k] || STATUS_CONFIG.NORMAL).desc, (STATUS_CONFIG[k] || STATUS_CONFIG.NORMAL).descEn)}</small></span>
-            ))}
-            <span>★ {tr("jour férié", "public holiday")}</span>
-          </div>
-          {(() => {
-            // Un petit calendrier par mois (lundi → dimanche)
-            const byMonth: Record<string, any[]> = {};
-            days.forEach((d: any) => { const k = String(d.ds).slice(0, 7); (byMonth[k] = byMonth[k] || []).push(d); });
-            const J = [tr("lu", "Mo"), tr("ma", "Tu"), tr("me", "We"), tr("je", "Th"), tr("ve", "Fr"), tr("sa", "Sa"), tr("di", "Su")];
-            const months = Object.keys(byMonth);
-            const sel = calMonth === "all" ? "all" : calMonth && byMonth[calMonth] ? calMonth : months[0];
-            const mName = (m: string) => { const t = new Date(m + "-01T12:00:00").toLocaleDateString(locale(), { month: "long" }); return t.charAt(0).toUpperCase() + t.slice(1); };
-            return (
-              <>
-              {months.length > 1 && (
-                <div className="seg" role="group" aria-label={tr("Mois affiché", "Month shown")} style={{ margin: "4px 0 12px" }}>
-                  {months.map((m) => (
-                    <button key={m} type="button" className={sel === m ? "on" : ""} aria-pressed={sel === m} onClick={() => setCalMonth(m)}>{mName(m)}</button>
-                  ))}
-                  <button type="button" className={sel === "all" ? "on" : ""} aria-pressed={sel === "all"} onClick={() => setCalMonth("all")}>{tr("Toute la saison", "Whole season")}</button>
-                </div>
-              )}
-              <div className="season-cal" style={sel === "all" ? undefined : { gridTemplateColumns: "minmax(0, 560px)" }}>
-                {Object.entries(byMonth).filter(([m]) => sel === "all" || m === sel).map(([m, list]) => {
-                  const first = new Date(m + "-01T12:00:00");
-                  const offset = (first.getDay() + 6) % 7;            // lundi = 0
-                  const nDays = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
-                  const byDay: Record<number, any> = {};
-                  list.forEach((d: any) => { byDay[Number(String(d.ds).slice(8, 10))] = d; });
-                  const title = first.toLocaleDateString(locale(), { month: "long", year: "numeric" });
-                  return (
-                    <div key={m} className="season-month">
-                      <div className="season-mtitle">{title.charAt(0).toUpperCase() + title.slice(1)}</div>
-                      <div className="season-grid">
-                        {J.map((j) => <div key={j} className="season-wd">{j}</div>)}
-                        {Array.from({ length: offset }).map((_, i) => <div key={"e" + i} />)}
-                        {Array.from({ length: nDays }).map((_, i) => {
-                          const d = byDay[i + 1];
-                          if (!d) return <div key={i} className="season-day st-NONE"><b>{i + 1}</b></div>;
-                          const st = d.statut === "FERMÉ" || !(d.yhat > 0) ? "FERME" : d.statut;
-                          const cfg = STATUS_CONFIG[d.statut] || STATUS_CONFIG.NORMAL;
-                          return (
-                            <div key={i} className={`season-day st-${st}`}
-                                 title={st === "FERME" ? tr(`${d.date_fr} : fermé`, `${d.date_fr}: closed`) : tr(`${d.date_fr} : ${fmt(d.yhat)} articles prévus (entre ${fmt(d.yhat_lower)} et ${fmt(d.yhat_upper)}), jour habituel ${d.jour_type ? fmt(d.jour_type) : "—"} · ${cfg.label}${d.ferie ? ` · ${d.ferie}` : d.veille_de ? ` · veille de ${d.veille_de}` : ""}`, `${d.date_fr}: ${fmt(d.yhat)} items forecast (between ${fmt(d.yhat_lower)} and ${fmt(d.yhat_upper)}), usual day ${d.jour_type ? fmt(d.jour_type) : "—"} · ${cfg.labelEn}${d.ferie ? ` · ${d.ferie}` : ""}`)}>
-                              <b>{i + 1}{d.ferie ? " ★" : ""}</b>
-                              <span className="num">{st === "FERME" ? "—" : fmt(d.yhat)}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
+        ) : (
+          <div className="al-season">
+            <ChartAssistantButton
+              chartType="alerts_demande_risque"
+              chartData={{ days, statuts, kpis, filters: { mois } }}
+              chartName="AlertsDemandeRisque"
+              userQuestion="Explique la demande prévue et les niveaux de risque"
+              position="top-right"
+              onOpenChat={openChat}
+            />
+            <div className="al-season-ic" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6" /></svg>
+            </div>
+            <div className="al-season-txt">
+              <div className="al-season-k">
+                {tr("La saison", "The season")} <b>{anneePrev}</b>{plage ? ` · ${plage}` : ""}
+                <span className="al-info" tabIndex={0} aria-label={tr("À savoir", "Good to know")}>
+                  i<span className="al-info-tip" role="tooltip">{tr(`Chaque jour est comparé à un jour habituel du même mois (même jour de la semaine) : « très chargé » veut dire au moins 20 % de plus. Les ventes en plus sont les articles au-dessus d'un jour habituel, au prix moyen réel par article (${fmt(kpis.prix_moyen_article, 2)} € en moyenne) ; si la boutique se prépare comme d'habitude ces jours-là, ce sont des ventes manquées. Plusieurs mois à l'avance, la prévision donne une tendance : la quantité exacte à préparer se décide avec la carte du jour, en haut de la page.`, `Each day is compared with a usual day of the same month (same weekday): "very busy" means at least 20% more. Extra sales are the items above a usual day, at the real average price per item (€${fmt(kpis.prix_moyen_article, 2)} on average); if the shop prepares as usual on those days, these are missed sales. Months ahead, the forecast gives a trend: the exact quantity to prepare is decided with the day card at the top of the page.`)}</span>
+                </span>
               </div>
-              </>
-            );
-          })()}
-          <div style={{ marginTop: 10, fontSize: ".8rem", color: INK, lineHeight: 1.45, borderLeft: `3px solid ${ORANGE}`, paddingLeft: 10 }}>
-            {tr(
-              `${statuts["RUPTURE"] || 0} jour(s) très chargé(s) et ${statuts["VIGILANCE"] || 0} chargé(s), sur ${days.filter((d: any) => d.yhat > 0).length} jours ouverts. Le jour le plus chargé est le ${kpis.pic_date} (${fmt(kpis.pic_val)} articles).${busiestWeek ? ` La semaine la plus chargée commence le lundi ${busiestWeek.fr} (${fmt(busiestWeek.total)} articles prévus) : prévoir le personnel et les commandes de matières premières à l'avance.` : ""}`,
-              `${statuts["RUPTURE"] || 0} very busy day(s) and ${statuts["VIGILANCE"] || 0} busy, out of ${days.filter((d: any) => d.yhat > 0).length} open days. The busiest day is ${kpis.pic_date} (${fmt(kpis.pic_val)} items).${busiestWeek ? ` The busiest week starts on Monday ${busiestWeek.fr} (${fmt(busiestWeek.total)} items forecast): plan staff and ingredient orders ahead.` : ""}`
-            )}
-          </div>
-          <ExpertNote>
-            ratio_pct = yhat / médiane(yhat du même jour de semaine, même mois, jours ouverts) × 100. Statuts (clés backend) : RUPTURE ≥ 120 %, VIGILANCE ≥ 110 %, NORMAL ≥ 80 %, SURSTOCK &lt; 80 %, FERMÉ si yhat = 0 (config.py). commande_recommandee = quantile de la prévision au niveau 1 − coût / prix (PART_COUT_DEFAUT, config.py ; 65 % par défaut), interpolé entre yhat (50 %) et yhat_upper (90 %) — et non plus yhat_upper, qui faisait des restes presque tous les soirs. ca_prevu = yhat × (CA / articles du même mois sur les 12 derniers mois). ca_risque = Σ max(0, yhat − jour type) × prix. Stock réel non disponible.
-          </ExpertNote>
-        </div>
-          <div className="side-col kpi-stack">
-          <div className="kpi">
-            <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>
-              {tr("Articles prévus", "Forecast items")}
+              <p>{seasonText}</p>
             </div>
-            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: INK }}>
-              {fmt(kpis.total_articles)}
-            </div>
-            {kpis.articles_n1 ? (
-              <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 2 }}>
-                {tr(`Vendus en ${kpis.annee_n1} sur la même période : ${fmt(kpis.articles_n1)} (${kpis.total_articles >= kpis.articles_n1 ? "+" : ""}${fmt(((kpis.total_articles - kpis.articles_n1) / kpis.articles_n1) * 100, 1)} %)`,
-                    `Sold in ${kpis.annee_n1} over the same period: ${fmt(kpis.articles_n1)} (${kpis.total_articles >= kpis.articles_n1 ? "+" : ""}${fmt(((kpis.total_articles - kpis.articles_n1) / kpis.articles_n1) * 100, 1)}%)`)}
-              </div>
-            ) : null}
-          </div>
-          <div className="kpi">
-            <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>
-              {tr("CA prévu", "Forecast revenue")}
-            </div>
-            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: ORANGE }}>
-              {fmt(kpis.ca_total_prevu)} €
-            </div>
-            {kpis.ca_n1 ? (
-              <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 2 }}>
-                {tr(`Réalisé en ${kpis.annee_n1} : ${fmt(kpis.ca_n1)} € (${kpis.ca_total_prevu >= kpis.ca_n1 ? "+" : ""}${fmt(((kpis.ca_total_prevu - kpis.ca_n1) / kpis.ca_n1) * 100, 1)} %)`, `Actual ${kpis.annee_n1}: €${fmt(kpis.ca_n1)} (${kpis.ca_total_prevu >= kpis.ca_n1 ? "+" : ""}${fmt(((kpis.ca_total_prevu - kpis.ca_n1) / kpis.ca_n1) * 100, 1)}%)`)}
-              </div>
-            ) : null}
-          </div>
-          <div className="kpi">
-            <div style={{ fontSize: ".62rem", color: MUTED, textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>
-              {tr("Ventes en plus les jours chargés", "Extra sales on busy days")}
-            </div>
-            <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "var(--dk-alert)" }}>
-              {fmt(kpis.ca_risque)} €
-            </div>
-            <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 2 }}>
-              {tr("à capter en préparant plus que d'habitude ces jours-là (sinon, ventes manquées)", "to capture by preparing more than usual on those days (otherwise, missed sales)")}
+            <div className="al-season-chips">
+              <div><b className="num">{fmt(kpis.total_articles)}</b><span>{tr("articles prévus", "items forecast")}</span></div>
+              <div><b className="num">{fmt(kpis.ca_total_prevu)} €</b><span>{tr("de CA prévu", "forecast revenue")}</span></div>
+              <div className="hot"><b className="num">{fmt(kpis.ca_risque)} €</b><span>{tr("à gagner les jours chargés", "to gain on busy days")}</span></div>
             </div>
           </div>
-        <div style={{ background: "rgba(212,165,42,0.06)", borderLeft: "4px solid var(--ch-moss)", padding: "16px 20px", borderRadius: "0 12px 12px 0", fontSize: "0.75rem", color: "var(--dk-ink2, #3A3655)", marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "10px", lineHeight: 1.55 }}>
-          <span style={{ flex: "none", display: "inline-flex", marginTop: "1px" }}><IconAlertTriangle size={16} color="var(--ch-moss)" /></span>
-          <span style={{ flex: 1, minWidth: 0 }}><strong style={{ whiteSpace: "nowrap" }}>{tr("À savoir :", "Good to know:")}</strong> {tr(`Chaque jour est comparé à un jour habituel du même mois (même jour de la semaine) : « très chargé » veut dire au moins 20 % de plus. Les ventes en plus sont les articles au-dessus d'un jour habituel, au prix moyen réel par article (${fmt(kpis.prix_moyen_article, 2)} € en moyenne) ; si la boutique se prépare comme d'habitude ces jours-là, ce sont des ventes manquées. Plusieurs mois à l'avance, la prévision donne une tendance : la quantité exacte à préparer se décide avec la liste « À préparer » en haut de la page.`, `Each day is compared with a usual day of the same month (same weekday): "very busy" means at least 20% more. Extra sales are the items above a usual day, at the real average price per item (€${fmt(kpis.prix_moyen_article, 2)} on average); if the shop prepares as usual on those days, these are missed sales. Months ahead, the forecast gives a trend: the exact quantity to prepare is decided with the "To prepare" list at the top of the page.`)}</span>
-        </div>
-          </div>
-        </div>
+        )}
       </div>
 
-      <div className="sw">
-        <Details label={tr("Voir le détail : détail opérationnel et jours à surveiller", "See details: operational detail and days to watch")}>
+      {/* ── 4. LE DÉTAIL, replié : liste complète, grille des 14 jours, détail de la saison ── */}
+      <div className="sw al-more">
+        <Details label={tr("La liste complète à préparer", "The full list to prepare")}>
+          <PrepListCard bare />
+        </Details>
+        <Details label={tr("Les 14 prochains jours, produit par produit", "The next 14 days, product by product")}>
+          <ProductRiskCard bare />
+        </Details>
+        {!noSeason && (<>
+        <Details label={tr("La saison jour par jour, et les jours à surveiller", "The season day by day, and the days to watch")}>
         <div className="cc" style={{ position: "relative" }}>
           <ChartAssistantButton
             chartType="alerts_detail_operationnel"
@@ -370,9 +259,8 @@ export default function AlertesPage() {
           </div>
         </div>
         </Details>
+        </>)}
       </div>
-      </>)}
-
     </div>
   );
 }

@@ -177,10 +177,15 @@ function PlotlyBarChart({
 }) {
   const vals = data.map((d) => Number(d[valueKey]) || 0);
   const max = Math.max(...vals, 1);
+  const total = vals.reduce((a, b) => a + b, 0);
+  // Barre survolée : bulle de chiffres (même style que les autres graphiques), les autres barres s'effacent un peu
+  const [hov, setHov] = React.useState<number | null>(null);
+  const isEur = unit.trim() === "€";
+  const fmtV = (v: number) => (isEur ? `${fmt(v)} €` : `${fmt(v)}${unit ? " " + unit.trim() : ""}`);
 
   return (
     <div style={typeof height === "number" ? { height } : { flex: 1, minHeight: 0 }} className="w-full flex flex-col justify-between pt-2">
-      <div className="flex items-end gap-1.5 flex-1 w-full relative" style={{ paddingTop: 16 }}>
+      <div className="flex items-end gap-1.5 flex-1 w-full relative" style={{ paddingTop: 16 }} onMouseLeave={() => setHov(null)}>
         {/* Horizontal grid lines */}
         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40">
           <div className="w-full border-b border-[color:var(--dk-line)] border-dashed" />
@@ -192,15 +197,32 @@ function PlotlyBarChart({
           const v = vals[i];
           const isMax = v === max;
           const pct = Math.max(3, (v / max) * 100);
+          const on = hov === i;
+          const dim = hov !== null && !on;
+          // Bulle à côté de la barre (à droite dans la première moitié, à gauche ensuite), en haut du graphique : elle ne cache pas la barre
+          const side = i < data.length / 2 ? { left: "calc(100% + 8px)" } : { right: "calc(100% + 8px)" };
+          const ref = Number(d.ca_ref) || 0;
+          const h0 = Number(d.hour);
           return (
             <div
               key={i}
-              className="flex-1 flex flex-col items-center justify-end h-full group relative z-10 cursor-pointer"
+              className={`hb-col flex-1 flex flex-col items-center justify-end h-full relative${on ? " on" : ""}`}
+              onMouseEnter={() => setHov(i)}
             >
-              {/* Tooltip */}
-              <div className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 text-white text-[11px] font-bold py-1 px-2 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-30 shadow-lg" style={{ background: "var(--dk-pill, #2B2747)" }}>
-                {d.heure}{tr(" : ", ": ")}{fmt(v)} {unit}
-              </div>
+              {on && (
+                <div className="ch-tip hb-tip" style={{ top: 0, ...side }}>
+                  <div className="ch-tip-d">{isFinite(h0) ? tr(`${h0} h – ${h0 + 1} h`, `${h0}:00 – ${h0 + 1}:00`) : d.heure}</div>
+                  <div className="ch-tip-row"><span className="ch-tip-k">{valueKey === "ca" ? tr("Chiffre d'affaires", "Revenue") : tr("Valeur", "Value")}</span><b className="num">{fmtV(v)}</b></div>
+                  {valueKey === "ca" && Number(d.tkt) > 0 && <div className="ch-tip-row"><span className="ch-tip-k">{tr("Clients", "Customers")}</span><b className="num">{fmt(Number(d.tkt))}</b></div>}
+                  {valueKey === "ca" && Number(d.tkt) > 0 && <div className="ch-tip-row"><span className="ch-tip-k">{tr("Panier moyen", "Average basket")}</span><b className="num">{(v / Number(d.tkt)).toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</b></div>}
+                  {total > 0 && <div className="ch-tip-row"><span className="ch-tip-k">{tr("Part de la journée", "Share of the day")}</span><b className="num">{v > 0 && (v / total) * 100 < 1 ? "< 1" : fmt((v / total) * 100)} %</b></div>}
+                  {valueKey === "ca" && ref > 0 && (<>
+                    <div className="ch-tip-sep" />
+                    <div className="ch-tip-row ch-tip-cmp"><span className="ch-tip-k">{tr("vs d'habitude", "vs usual")}</span>
+                      <b className="num" style={{ color: v >= ref ? "var(--dk-ok)" : "var(--dk-alert)" }}>{v >= ref ? "+" : "−"}{fmt(Math.abs((v / ref - 1) * 100))} %</b></div>
+                  </>)}
+                </div>
+              )}
               {/* Pas d'axe vertical : la valeur est écrite au-dessus de chaque barre */}
               {v > 0 && (
                 <div className="text-[10.5px] font-bold leading-none mb-1 whitespace-nowrap" style={{ color: isMax ? ORANGE : MUTED }}>
@@ -208,10 +230,11 @@ function PlotlyBarChart({
                 </div>
               )}
               <div
-                className="w-full transition-all group-hover:brightness-90"
+                className="hb-bar"
                 style={{
                   height: `${pct}%`,
-                  background: isMax ? ORANGE : "var(--ch-soft)",
+                  background: isMax || on ? ORANGE : "var(--ch-soft)",
+                  opacity: dim ? 0.45 : 1,
                   borderRadius: "6px 6px 2px 2px",
                 }}
               />

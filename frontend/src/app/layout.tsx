@@ -10,6 +10,8 @@ import { LangProvider } from "@/components/LangProvider";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { ChatDrawerWithContext } from "@/components/ChatDrawerWithContext";
+import { ScrollMotion } from "@/components/ScrollMotion";
+import { ChartTools } from "@/components/ChartTools";
 import { siteConfig } from "@/lib/siteConfig";
 
 // Thème « Pastel » : texte et titres en Plus Jakarta Sans (voir app/globals.css).
@@ -49,14 +51,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ChatProvider>
             <div className="app-shell flex min-h-screen">
               <Sidebar />
-              <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto">
+              {/* overflow-x-clip (et non hidden) : la barre du haut et la barre d'onglets restent collées en haut quand on descend */}
+              <div className="flex-1 min-w-0 overflow-x-clip">
                 <Navbar />
-                <div style={{ paddingTop: "28px", paddingBottom: "40px" }}>
+                <div data-rv-root style={{ paddingTop: "18px", paddingBottom: "32px" }}>
                   <PageFade>{children}</PageFade>
                 </div>
               </div>
             </div>
             <ChatDrawerWithContext />
+            {/* Animations au défilement, barre d'onglets collée en haut, bouton « Haut de page » */}
+            <ScrollMotion />
+            {/* Zoom et enregistrement (PNG / PDF) des graphiques, au survol des cartes */}
+            <ChartTools />
           </ChatProvider>
           </NotificationProvider>
         </LangProvider>
