@@ -58,12 +58,32 @@ export function Takeaway({ children, accent }: { children: React.ReactNode; acce
 }
 
 /** Carte « À retenir » : les phrases clés de la page, numérotées. */
-export function RetainCard({ max = 5, style }: { max?: number; style?: React.CSSProperties }) {
+export function RetainCard({ max = 5, style, variant = "card", tip }: { max?: number; style?: React.CSSProperties; variant?: "card" | "strip"; tip?: React.ReactNode }) {
   const ctx = useContext(RetainCtx);
   const [all, setAll] = useState(false);
   const items = ctx?.items || [];
   if (!items.length) return null;
   const shown = all ? items : items.slice(0, max);
+  // Variante « bandeau » : la boîte bleue « À retenir » de la page Performance, sur une ligne, sans cartes ni barres
+  if (variant === "strip") return (
+    <div className="rep-keep retain-strip" style={style}>
+      <div className="rep-keep-k">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4Z" /></svg>
+        {tr("À retenir", "Key takeaways")}
+      </div>
+      <ul className="retain-strip-list">
+        {shown.map((t, i) => <li key={i}>{t}</li>)}
+      </ul>
+      {tip && (
+        <div className="rep-keep-do">
+          <span className="rep-keep-ic" aria-hidden="true">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </span>
+          <span><b>{tr("Que faire :", "What to do:")}</b> {tip}</span>
+        </div>
+      )}
+    </div>
+  );
   return (
     <div className="cc retain" style={style}>
       <div className="ct" style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -1,4 +1,5 @@
 import { DailyKPIs } from "@/types/kpis";
+import { buildScreenContext, screenHeader } from "@/lib/chartRegistry";
 
 const API_BASE = "http://127.0.0.1:8000/api";
 
@@ -387,7 +388,9 @@ export function buildChartContext(meta?: Record<string, any>): string {
   try { json = JSON.stringify(compactForModel(meta.chart_data)); } catch { return ""; }
   const LIMIT = 14000;
   if (json.length > LIMIT) json = json.slice(0, LIMIT) + " …(tronqué)";
-  return `[DONNÉES DU GRAPHIQUE AFFICHÉ — graphique « ${meta.chart_name || ""} » (${meta.chart_type || ""}). ` +
+  let head = "";
+  try { head = screenHeader(); } catch { head = ""; }
+  return (head ? head + "\n" : "") + `[DONNÉES DU GRAPHIQUE AFFICHÉ — graphique « ${meta.chart_name || ""} » (${meta.chart_type || ""}). ` +
     `Ce sont exactement les données visibles à l'écran : utilise-les en priorité et décris cette période-là.]\n${json}`;
 }
 
@@ -402,7 +405,9 @@ export async function queryAgentWithMetadata(
 
   // Les données du graphique sont ajoutées au texte envoyé à Gemini : sans cela, le modèle ne les voit pas
   // (custom_metadata est seulement rangé dans la session). La bulle du chat, elle, n'affiche que la question.
-  const chartBlock = buildChartContext(customMetadata);
+  // Question écrite à la main (pas de bouton ✦) : on joint la page affichée, ses graphiques et les données de celui dont on parle.
+  let chartBlock = buildChartContext(customMetadata);
+  if (!chartBlock) { try { chartBlock = buildScreenContext(userMessage, compactForModel); } catch { chartBlock = ""; } }
   const payload = {
     app_name: AGENT_APP_NAME,
     user_id: AGENT_USER_ID,

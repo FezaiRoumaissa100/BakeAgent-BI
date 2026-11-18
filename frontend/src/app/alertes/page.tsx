@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react";
 import { colors } from "@/lib/theme";
 import { ExpertNote } from "@/components/Expert";
 import { Details, Scope } from "@/components/Ui";
-import { ProductRiskCard } from "@/components/ProductRisk";
 import { PrepListCard } from "@/components/PrepList";
 import { AlertsToday, AlertsWatch } from "@/components/AlertsToday";
 import { fetchAlerts } from "@/lib/api";
@@ -126,8 +125,8 @@ export default function AlertesPage() {
         {noSeason ? (
           <div>
           <div className="cc cs" style={{ lineHeight: 1.6 }}>
-            {tr("Pas encore de prévision de saison : elle s'appuie sur la même période de l'année précédente, il faut donc environ un an de ventes. La liste « À préparer » et les 14 prochains jours, plus haut, fonctionnent déjà.",
-                "No season forecast yet: it relies on the same period of the previous year, so it needs about a year of sales. The “To prepare” list and the next 14 days above already work.")}
+            {tr("Pas encore de prévision de saison : elle s'appuie sur la même période de l'année précédente, il faut donc environ un an de ventes. Ce qui change demain et la liste « À préparer » fonctionnent déjà.",
+                "No season forecast yet: it relies on the same period of the previous year, so it needs about a year of sales. What changes tomorrow and the “To prepare” list already work.")}
           </div>
         </div>
         ) : (
@@ -161,13 +160,10 @@ export default function AlertesPage() {
         )}
       </div>
 
-      {/* ── 4. LE DÉTAIL, replié : liste complète, grille des 14 jours, détail de la saison ── */}
+      {/* ── 4. LE DÉTAIL, replié : liste complète, détail de la saison ── */}
       <div className="sw al-more">
         <Details label={tr("La liste complète à préparer", "The full list to prepare")}>
           <PrepListCard bare />
-        </Details>
-        <Details label={tr("Les 14 prochains jours, produit par produit", "The next 14 days, product by product")}>
-          <ProductRiskCard bare />
         </Details>
         {!noSeason && (<>
         <Details label={tr("La saison jour par jour, et les jours à surveiller", "The season day by day, and the days to watch")}>

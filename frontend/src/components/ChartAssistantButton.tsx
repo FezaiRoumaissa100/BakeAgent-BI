@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
+import { registerChart } from "@/lib/chartRegistry";
 
 interface ChartAssistantButtonProps {
   chartType: string;
@@ -22,6 +23,13 @@ export function ChartAssistantButton({
   position = "top-right",
   onOpenChat,
 }: ChartAssistantButtonProps) {
+  // Inscrit ce graphique dans le registre de la page : une question écrite à la main dans le chat
+  // (sans cliquer sur ✦) peut ainsi recevoir ses données.
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const dataRef = useRef(chartData);
+  dataRef.current = chartData;
+  useEffect(() => registerChart({ el: btnRef.current, chartType, chartName, getData: () => dataRef.current }), [chartType, chartName]);
+
   const handleButtonClick = () => {
     const message = `@${chartName}\n${userQuestion}`;
     const metadata = {
@@ -40,6 +48,7 @@ export function ChartAssistantButton({
 
   return (
     <button
+      ref={btnRef}
       type="button"
       onClick={handleButtonClick}
       className="chart-ask"

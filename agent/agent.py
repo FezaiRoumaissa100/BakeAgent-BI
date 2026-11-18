@@ -21,14 +21,20 @@ sys.path.append(os.path.join(BASE_DIR, '..', 'backend'))
 sys.path.append(os.path.join(BASE_DIR, 'tools'))
 
 PROMPT_PATH = os.path.join(BASE_DIR, 'prompt', 'system_prompt.txt')
+# Guide de chaque graphique du tableau de bord (titre affiché, comment le lire, outil qui donne ses chiffres)
+CHART_GUIDE_PATH = os.path.join(BASE_DIR, 'prompt', 'chart_guide.txt')
 
 
 def load_system_instruction() -> str:
-    """Loads system prompt from prompt/system_prompt.txt file."""
+    """Loads system prompt from prompt/system_prompt.txt, followed by the chart guide (prompt/chart_guide.txt)."""
     if not os.path.isfile(PROMPT_PATH):
         raise FileNotFoundError(f"Prompt file not found: {PROMPT_PATH}")
     with open(PROMPT_PATH, 'r', encoding='utf-8') as f:
-        return f.read()
+        text = f.read()
+    if os.path.isfile(CHART_GUIDE_PATH):
+        with open(CHART_GUIDE_PATH, 'r', encoding='utf-8') as f:
+            text += "\n\n" + f.read()
+    return text
 
 
 from daily_tools import get_daily_kpis

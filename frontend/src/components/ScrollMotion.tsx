@@ -19,7 +19,7 @@ import { tr } from "@/lib/i18n";
 const CARD = ".cc, .bc, .band, .kpi-strip, .kpi, .rep-tile, .rep-keep, .rep-head, .fc-sum, .story, .bento-card, .al-today, .al-w, .al-season";
 const EASE = "cubic-bezier(.2,.7,.2,1)";
 // Flou à l'arrivée des cartes (léger, et seulement pendant l'animation). Mettre false pour le retirer.
-const BLUR = true;
+const BLUR = false;   // le flou à l'arrivée a été retiré : jugé trop chargé
 const STICK_TOP = 76;  // la barre d'onglets se colle à 76 px du haut (sous la barre du haut de 68 px) : même valeur que .tabs-sticky dans globals.css
 
 const reduceMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -220,15 +220,15 @@ export function ScrollMotion() {
       let k = 0;
       for (const el of hits) {
         if (el.getAttribute("data-rv") !== "0") continue;
-        const delay = Math.min(k++, 6) * 75;
+        const delay = Math.min(k++, 3) * 45;
         el.setAttribute("data-rv", "1");
         io.unobserve(el);
-        const from: Keyframe = { opacity: 0, transform: "translateY(22px) scale(.97)" };
+        const from: Keyframe = { opacity: 0, transform: "translateY(8px)" };
         if (BLUR) from.filter = "blur(6px)";
         const to: Keyframe = { opacity: 1, transform: "none" };
         if (BLUR) to.filter = "blur(0px)";
-        el.animate([from, to], { duration: 560, delay, easing: EASE, fill: "backwards" });
-        for (const c of contentsOf(el)) animateContent(c, delay + 260);
+        el.animate([from, to], { duration: 380, delay, easing: EASE, fill: "backwards" });
+        for (const c of contentsOf(el)) animateContent(c, delay + 120);
       }
       // Graphiques et chiffres hors carte, ou arrivés après leur carte
       for (const el of hits) {
@@ -288,22 +288,12 @@ export function ScrollMotion() {
   // 3-4. Barre d'onglets collée en haut, et bouton « Haut de page »
   useEffect(() => {
     let raf = 0;
+
     const update = () => {
       raf = 0;
       const y = window.scrollY;
       setShowTop(y > 700);
-      document.querySelectorAll<HTMLElement>(".tabs-sticky").forEach((el) => {
-        const stuck = y > 0 && el.getBoundingClientRect().top <= STICK_TOP + 1;
-        if (stuck === el.classList.contains("is-stuck")) return;
-        if (stuck) {
-          // On garde la place de la barre normale : la page ne saute pas quand elle s'affine
-          el.style.minHeight = el.offsetHeight + "px";
-          el.classList.add("is-stuck");
-        } else {
-          el.classList.remove("is-stuck");
-          el.style.minHeight = "";
-        }
-      });
+      // La barre d'onglets n'est plus collée en haut : elle défile avec la page (demande de l'utilisatrice).
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
     window.addEventListener("scroll", onScroll, { passive: true });

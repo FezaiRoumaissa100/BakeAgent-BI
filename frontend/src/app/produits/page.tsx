@@ -679,6 +679,8 @@ function MultiLineChart({
   const [isSelecting, setIsSelecting] = useState(false);
   const [selStart, setSelStart] = useState<number | null>(null);
   const [selCurrent, setSelCurrent] = useState<number | null>(null);
+  // Survol : une ligne verticale sur la semaine visée et la bulle standard avec les 5 produits
+  const [hovIdx, setHovIdx] = useState<number | null>(null);
 
   const effStart = zoomStart ?? 0;
   const effEnd = zoomEnd ?? n;
@@ -709,8 +711,8 @@ function MultiLineChart({
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!isSelecting) return;
     const idx = clientXToIdx(e.clientX);
+    if (!isSelecting) { setHovIdx(idx); return; }
     if (idx === null) return;
     setSelCurrent(idx);
   };
@@ -734,6 +736,7 @@ function MultiLineChart({
   };
 
   const handleMouseLeave = () => {
+    setHovIdx(null);
     if (isSelecting) {
       handleMouseUp();
     }
@@ -776,6 +779,21 @@ function MultiLineChart({
           </button>
         )}
       </div>
+      <div style={{ position: "relative" }}>
+      {hovIdx != null && !isSelecting && (() => {
+        const xPct = (toX(hovIdx) / W) * 100;
+        const rows = series.map((s0, si) => ({ name: s0.article, c: PALETTE_DISTINCTE[si % PALETTE_DISTINCTE.length], v: s0.series[hovIdx]?.rate }))
+          .filter((r) => r.v != null).sort((a, b) => (b.v as number) - (a.v as number));
+        return (
+          <div className="ch-tip" style={xPct > 60 ? { right: `${100 - xPct + 1.5}%`, top: 8 } : { left: `${xPct + 1.5}%`, top: 8 }}>
+            <div className="ch-tip-d">{tr(`Semaine du ${weeks[hovIdx]}`, `Week of ${weeks[hovIdx]}`)}</div>
+            {rows.map((r) => (
+              <div key={r.name} className="ch-tip-row"><span className="ch-tip-k"><i className="ch-tip-dot" style={{ background: r.c }} />{trData(r.name)}</span><b className="num">{fmt(r.v as number, 1)} %</b></div>
+            ))}
+            <div className="ch-tip-s" style={{ marginTop: 4 }}>{tr("% des paniers qui contiennent le produit", "% of baskets containing the product")}</div>
+          </div>
+        );
+      })()}
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H + 24}`}
@@ -829,23 +847,19 @@ function MultiLineChart({
                 strokeLinejoin="round"
                 strokeOpacity={0.96}
               />
-              {/* Survol : hitbox invisible sur TOUS les points visibles */}
-              {visiblePts.map(({ p, i }) => (
-                <circle
-                  key={`h-${i}`}
-                  cx={toX(i)}
-                  cy={toY(p.rate)}
-                  r={10}
-                  fill="transparent"
-                  stroke="transparent"
-                  style={{ cursor: "pointer" }}
-                >
-                  <title>{tr(`${s.article}\nSemaine : ${p.week}\nPrésent dans ${Number(p.rate).toFixed(1)} % des tickets`, `${s.article}\nWeek: ${p.week}\nIn ${Number(p.rate).toFixed(1)}% of transactions`)}</title>
-                </circle>
-              ))}
+
             </g>
           );
         })}
+        {/* Survol : ligne de la semaine et points de chaque produit */}
+        {hovIdx != null && !isSelecting && (
+          <g pointerEvents="none">
+            <line x1={toX(hovIdx)} x2={toX(hovIdx)} y1={pad.t} y2={H - pad.b} stroke="var(--dk-muted)" strokeOpacity={0.5} strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+            {series.map((s0, si) => s0.series[hovIdx] && (
+              <ellipse key={si} cx={toX(hovIdx)} cy={toY(s0.series[hovIdx].rate)} rx={6} ry={5.5} fill="var(--dk-surface, #fff)" stroke={PALETTE_DISTINCTE[si % PALETTE_DISTINCTE.length]} strokeWidth={3} vectorEffect="non-scaling-stroke" />
+            ))}
+          </g>
+        )}
         {/* Sélection rectangle */}
         {isSelecting && selStart !== null && selCurrent !== null && (
           <rect
@@ -862,6 +876,7 @@ function MultiLineChart({
           />
         )}
       </svg>
+      </div>
       {/* Légende */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 6, paddingLeft: 4 }}>
         {series.map((s, si) => (
@@ -960,8 +975,10 @@ function SimpleBar({
 }) {
   const vals = rows.map((r) => Number(r[valueKey]) || 0);
   const max = Math.max(...vals, 1);
+  const total = vals.reduce((t, v) => t + v, 0);
+  const [hov, setHov] = useState<number | null>(null);
   return (
-    <div style={{ height }} className="w-full flex flex-col justify-between pt-2">
+    <div style={{ height }} className="w-full flex flex-col justify-between pt-2" onMouseLeave={() => setHov(null)}>
       <div className="flex items-end gap-1.5 flex-1 w-full relative" style={{ paddingTop: 18 }}>
         <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-40">
           <div className="w-full border-b border-[color:var(--dk-line)] border-dashed" />
@@ -973,16 +990,27 @@ function SimpleBar({
           const pct = Math.max(3, (v / max) * 100);
           const isMax = v === max;
           return (
-            <div key={i} className="flex-1 flex flex-col items-center justify-end h-full group relative z-10">
-              <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-[color:var(--dk-tip-bg)] text-white text-[9px] font-bold py-0.5 px-1.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-30 shadow">
-                {trData(r[labelKey])} : {fmt(v)} {unit}
-              </div>
+            <div key={i} className="flex-1 flex flex-col items-center justify-end h-full relative" style={{ zIndex: hov === i ? 20 : 10, cursor: "pointer" }} onMouseEnter={() => setHov(i)}>
+              {hov === i && (
+                <div className="ch-tip" style={i > rows.length / 2 ? { right: "calc(100% + 8px)", top: 0 } : { left: "calc(100% + 8px)", top: 0 }}>
+                  <div className="ch-tip-d">{(() => { const m = /^(\d{1,2})h$/.exec(String(r[labelKey]).trim()); const h = m ? Number(m[1]) : NaN; return Number.isFinite(h) ? tr(`${h} h – ${h + 1} h`, `${h}:00 – ${h + 1}:00`) : trData(r[labelKey]); })()}</div>
+                  <div className="ch-tip-row"><span className="ch-tip-k">{labelKey === "heure_label" ? tr("Articles vendus", "Items sold") : tr("Valeur", "Value")}</span><b className="num">{fmt(v)}{labelKey === "heure_label" ? "" : ` ${unit}`}</b></div>
+                  {total > 0 && <div className="ch-tip-row"><span className="ch-tip-k">{labelKey === "heure_label" ? tr("Part de la journée", "Share of the day") : tr("Part du total", "Share of total")}</span><b className="num">{v > 0 && (v / total) * 100 < 1 ? "< 1" : fmt((v / total) * 100)} %</b></div>}
+                  {Array.isArray(r.per_product) && r.per_product.length > 0 && (<>
+                    <div className="ch-tip-sep" />
+                    <div className="ch-tip-k" style={{ fontSize: ".68rem", marginBottom: 2 }}>{tr("Ce qui part le plus", "Top sellers")}</div>
+                    {r.per_product.slice(0, 3).map((p: any) => (
+                      <div key={p.article} className="ch-tip-row"><span>{trData(p.article)}</span><b className="num">{fmt(p.qte_this_hour)}</b></div>
+                    ))}
+                  </>)}
+                </div>
+              )}
               <div className="text-[11px] font-bold leading-none mb-1 whitespace-nowrap" style={{ color: isMax ? ORANGE : MUTED }}>
                 {fmtAxisNum(v)}
               </div>
               <div
                 className="w-full rounded-t-sm transition-all"
-                style={{ height: `${pct}%`, background: isMax ? ORANGE : color, opacity: isMax ? 1 : 0.85 }}
+                style={{ height: `${pct}%`, background: isMax || hov === i ? ORANGE : color, opacity: hov != null && hov !== i ? 0.4 : isMax ? 1 : 0.85 }}
               />
             </div>
           );
@@ -1419,25 +1447,85 @@ function CardHeader({
   );
 }
 
-/* Matrice de décision (cahier des charges) : 4 cases simples, sans graphique.
-   Disposition classique : haut = vend beaucoup par jour, droite = présent dans beaucoup de tickets.
-   Chaque case : nombre de produits, part du chiffre d'affaires, action, et ses 5 premiers produits.
-   Le classement des produits reste celui du back-end (seuils = moyennes de la boutique).
-   Clic sur une case = filtre la fiche ci-dessous ; clic sur un produit = sa fiche. */
+/* « Que faire de chaque produit » (matrice de décision du cahier des charges), écrite pour un boulanger :
+   chaque groupe porte le nom de l'ACTION (« Ne jamais manquer »…), l'ancien nom (Star, Niche…) reste en petit.
+   Chaque case : nombre de produits, part du chiffre d'affaires, pourquoi en une ligne, et ses 3 premiers produits
+   avec leur présence dans les paniers. Le classement reste celui du back-end (seuils = moyennes de la boutique).
+   Clic sur une case = filtre la liste ci-dessous ; clic sur un produit = sa fiche. */
+// Nom de chaque groupe de la matrice, par l'action à mener (ce que lit le boulanger)
+const groupName = (k: string) => k === "Star" ? tr("Ne jamais manquer", "Never run out") : k === "Trafic" ? tr("Attire les clients", "Brings customers in")
+  : k === "Niche" ? tr("Pour les habitués", "For your regulars") : k === "Dormant" ? tr("À revoir", "To review") : k;
+
+/* Liste des produits d'un groupe de la matrice : 4 onglets (un par groupe), grille compacte sur 3 colonnes. */
+function GroupList({ items, start, colors: col }: { items: any[]; start: string; colors: Record<string, string> }) {
+  const openP = useOpenProduct();
+  const [g, setG] = useState(start);
+  const [all, setAll] = useState(false);
+  const keys = ["Star", "Trafic", "Niche", "Dormant"];
+  const list = (items || []).filter((i: any) => i.quadrant === g).sort((a: any, b: any) => (b.ca_total || 0) - (a.ca_total || 0));
+  const SHOW = 24;
+  const shown = all ? list : list.slice(0, SHOW);
+  const why: Record<string, string> = {
+    Star: tr("Ne jamais les laisser manquer.", "Never let them run out."),
+    Trafic: tr("Les garder bien en vue, en stock modéré.", "Keep them in view, moderate stock."),
+    Niche: tr("Prévoir assez pour ceux qui les prennent.", "Plan enough for those who buy them."),
+    Dormant: tr("Produire moins, ou les retirer.", "Make fewer, or drop them."),
+  };
+  return (
+    <div className="gl cc">
+      <div className="gl-tabs" role="tablist">
+        {keys.map((k) => {
+          const n = (items || []).filter((i: any) => i.quadrant === k).length;
+          return (
+            <button key={k} type="button" role="tab" aria-selected={g === k} className={`gl-tab${g === k ? " on" : ""}`}
+              style={{ ["--gc" as any]: col[k] }} onClick={() => { setG(k); setAll(false); }}>
+              <i aria-hidden="true" />{groupName(k)} <span className="num">{fmt(n)}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="gl-why"><b>{tr("Que faire :", "What to do:")}</b> {why[g]}</div>
+      <div className="gl-grid">
+        {shown.map((p: any) => (
+          <button key={p.article} type="button" className="gl-row" onClick={() => openP(p.article)}
+            title={tr(`${trData(p.article)} · ${trData(p.category)} · ${fmt(p.daily_velocity, 1)} articles par jour de vente`, `${trData(p.article)} · ${trData(p.category)} · ${fmt(p.daily_velocity, 1)} items per selling day`)}>
+            <span className="gl-name">{trData(p.article)}</span>
+            {p.alerte_horaire && <span className="gl-alarm">⏰ {String(p.alerte_horaire).replace(/[^0-9:h]/g, "")}</span>}
+            <span className="gl-pct num">{fmt(p.penetration_rate, 1)} %</span>
+            <span className="gl-ca num">{fmt(p.ca_total)} €</span>
+          </button>
+        ))}
+      </div>
+      <div className="gl-foot">
+        <span>{tr("% = part des paniers qui contiennent le produit · € = chiffre d'affaires de la période · cliquez un produit pour sa fiche", "% = share of baskets containing the product · € = revenue for the period · click a product for its sheet")}</span>
+        {list.length > SHOW && (
+          <button type="button" className="link-btn" onClick={() => setAll(!all)}>
+            {all ? tr("Afficher moins", "Show less") : tr(`Afficher les ${fmt(list.length)} produits`, `Show all ${fmt(list.length)} products`)}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MatrixGrid({ items, quadrants, seuils, active, onSelect, colors: col, labelsEn }: any) {
   const openP = useOpenProduct();
   const layout = [
-    { key: "Niche", Icon: IconGem, pos: tr("vend beaucoup · peu de tickets", "sells a lot · few transactions") },
-    { key: "Star", Icon: IconStar, pos: tr("vend beaucoup · beaucoup de tickets", "sells a lot · many transactions") },
-    { key: "Dormant", Icon: IconBox, pos: tr("vend peu · peu de tickets", "sells little · few transactions") },
-    { key: "Trafic", Icon: IconBasket, pos: tr("vend peu · beaucoup de tickets", "sells little · many transactions") },
+    { key: "Star", Icon: IconStar, title: tr("Ne jamais manquer", "Never run out"), old: "Star",
+      why: tr("Se vend beaucoup, et dans plus de paniers que la moyenne.", "Sells a lot, and in more baskets than average.") },
+    { key: "Trafic", Icon: IconBasket, title: tr("Attire les clients", "Brings customers in"), old: tr("Produit d'appel", "Traffic builder"),
+      why: tr("Dans plus de paniers que la moyenne, mais peu à la fois : à garder bien en vue.", "In more baskets than average, a little at a time: keep it in view.") },
+    { key: "Niche", Icon: IconGem, title: tr("Pour les habitués", "For your regulars"), old: "Niche",
+      why: tr("Se vend en quantité, mais dans moins de paniers : prévoir pour ceux qui le prennent.", "Sells in volume, but in fewer baskets: plan for those who buy it.") },
+    { key: "Dormant", Icon: IconBox, title: tr("À revoir", "To review"), old: tr("Stock dormant", "Dormant stock"),
+      why: tr("Se vend peu et rarement : produire moins, ou le retirer.", "Sells little and rarely: make fewer, or drop it.") },
   ];
   const byQuad = (k: string) => (items || []).filter((i: any) => i.quadrant === k).sort((a: any, b: any) => (b.ca_total || 0) - (a.ca_total || 0));
 
   return (
     <div style={{ marginTop: 12 }}>
-      <div className="mx-quad" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
-        {layout.map(({ key, Icon, pos }) => {
+      <div className="mx-quad" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+        {layout.map(({ key, Icon, title, old, why }) => {
           const d = quadrants[key] || {};
           const color = col[key];
           const list = byQuad(key);
@@ -1445,43 +1533,41 @@ function MatrixGrid({ items, quadrants, seuils, active, onSelect, colors: col, l
           const dim = active !== "Tous" && !on;
           return (
             <div key={key} style={{
-              borderRadius: 14, padding: "14px 16px", position: "relative",
+              borderRadius: 14, padding: "12px 14px", position: "relative",
               border: `1px solid ${on ? color : "var(--dk-line)"}`,
               boxShadow: on ? `0 0 0 1px ${color}` : "none",
               background: `color-mix(in srgb, ${color} ${key === "Star" ? 9 : 5}%, var(--dk-surface))`,
               opacity: dim ? 0.5 : 1, transition: "opacity .15s, box-shadow .15s",
             }}>
               <button type="button" onClick={() => onSelect(key)} aria-pressed={on}
-                title={tr("Filtrer la fiche ci-dessous", "Filter the sheet below")}
+                title={tr("Voir ces produits dans la liste ci-dessous", "Show these products in the list below")}
                 style={{ all: "unset", cursor: "pointer", display: "block", width: "100%" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ width: 30, height: 30, borderRadius: 9, background: color, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Icon size={15} color="#fff" />
+                  <span style={{ width: 28, height: 28, borderRadius: 9, background: color, display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon size={14} color="#fff" />
                   </span>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: ".92rem", fontWeight: 800, color: INK, lineHeight: 1.15 }}>
-                      {tr(String(d.label || key).replace(/\s*\(.*\)/, ""), String(labelsEn[key]?.label || key).replace(/\s*\(.*\)/, ""))}
-                    </div>
-                    <div style={{ fontSize: ".68rem", color: MUTED, fontWeight: 600 }}>{pos}</div>
+                    <div style={{ fontSize: ".95rem", fontWeight: 800, color: INK, lineHeight: 1.15 }}>{title}</div>
+                    <div style={{ fontSize: ".62rem", color: MUTED, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}>{old}</div>
+                  </div>
+                  <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    <div className="num" style={{ fontSize: "1.25rem", fontWeight: 800, color: INK, lineHeight: 1 }}>{fmt(d.nb || 0)}</div>
+                    <div style={{ fontSize: ".62rem", color: MUTED, fontWeight: 600 }}>{tr("produits", "products")}</div>
                   </div>
                 </div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 12, whiteSpace: "nowrap" }}>
-                  <span className="num" style={{ fontSize: "1.6rem", fontWeight: 800, color: INK, lineHeight: 1 }}>{fmt(d.nb || 0)}</span>
-                  <span style={{ fontSize: ".74rem", color: MUTED, fontWeight: 600 }}>{tr("produits", "products")}</span>
-                  <span className="num" style={{ marginLeft: "auto", fontSize: "1rem", fontWeight: 800, color: INK }}>{fmt(d.part_ca || 0, 0)} %</span>
-                  <span style={{ fontSize: ".7rem", color: MUTED }}>{tr("du CA", "of revenue")}</span>
-                </div>
-                <div style={{ height: 5, borderRadius: 99, background: "var(--dk-soft)", marginTop: 6, overflow: "hidden" }}>
-                  <div style={{ width: `${Math.min(100, d.part_ca || 0)}%`, height: "100%", background: color, borderRadius: 99 }} />
-                </div>
-                <div style={{ fontSize: ".76rem", color: "var(--dk-ink2)", marginTop: 8, lineHeight: 1.35 }}>
-                  <b style={{ color: INK }}>{tr("À faire : ", "Action: ")}</b>{tr(d.action || "", labelsEn[key]?.action || "")}
+                <div style={{ fontSize: ".74rem", color: "var(--dk-ink2)", marginTop: 8, lineHeight: 1.35 }}>{why}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                  <div style={{ flex: 1, height: 5, borderRadius: 99, background: "var(--dk-soft)", overflow: "hidden" }}>
+                    <div style={{ width: `${Math.min(100, d.part_ca || 0)}%`, height: "100%", background: color, borderRadius: 99 }} />
+                  </div>
+                  <span style={{ fontSize: ".7rem", color: MUTED, whiteSpace: "nowrap" }}><b className="num" style={{ color: INK }}>{fmt(d.part_ca || 0, 0)} %</b> {tr("du CA", "of revenue")}</span>
                 </div>
               </button>
 
-              <div style={{ marginTop: 10, borderTop: "1px solid var(--dk-line)" }}>
-                {list.slice(0, 5).map((p: any) => (
+              <div style={{ marginTop: 8, borderTop: "1px solid var(--dk-line)" }}>
+                {list.slice(0, 3).map((p: any) => (
                   <div key={p.article} onClick={() => openP(p.article)}
+                    title={tr(`${trData(p.article)} : dans ${fmt(p.penetration_rate, 1)} % des paniers, ${fmt(p.ca_total)} € sur la période`, `${trData(p.article)}: in ${fmt(p.penetration_rate, 1)}% of baskets, €${fmt(p.ca_total)} over the period`)}
                     style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", cursor: "pointer", borderBottom: "1px dashed var(--dk-line)" }}>
                     <span style={{ fontSize: ".76rem", fontWeight: 700, color: INK, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {trData(p.article)}
@@ -1490,12 +1576,12 @@ function MatrixGrid({ items, quadrants, seuils, active, onSelect, colors: col, l
                       <span title={tr(p.alerte_horaire, String(p.alerte_horaire).replace("Remplir avant", "Restock before"))}
                         style={{ fontSize: ".64rem", fontWeight: 800, color: ALERT }}>⏰ {String(p.alerte_horaire).replace(/[^0-9:h]/g, "")}</span>
                     )}
-                    <span className="num" style={{ fontSize: ".72rem", color: MUTED, fontWeight: 600 }}>{fmt(p.ca_total)} €</span>
+                    <span className="num" style={{ fontSize: ".7rem", color: MUTED, fontWeight: 600, whiteSpace: "nowrap" }}>{tr(`${fmt(p.penetration_rate, 0)} % des paniers`, `${fmt(p.penetration_rate, 0)}% of baskets`)}</span>
                   </div>
                 ))}
-                {list.length > 5 && (
+                {list.length > 3 && (
                   <button type="button" onClick={() => onSelect(key)}
-                    style={{ all: "unset", cursor: "pointer", fontSize: ".72rem", fontWeight: 700, color: "var(--dk-accent)", marginTop: 6, display: "inline-block" }}>
+                    style={{ all: "unset", cursor: "pointer", fontSize: ".7rem", fontWeight: 700, color: "var(--dk-accent)", marginTop: 6, display: "inline-block" }}>
                     {tr(`Voir les ${fmt(list.length)} produits →`, `See all ${fmt(list.length)} products →`)}
                   </button>
                 )}
@@ -1506,8 +1592,8 @@ function MatrixGrid({ items, quadrants, seuils, active, onSelect, colors: col, l
       </div>
       <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 10, lineHeight: 1.45 }}>
         {tr(
-          `Frontières = moyennes de la boutique : présent dans ${fmt(seuils.penetration_moyenne || 0, 1)} % des tickets et ${fmt(seuils.vitesse_moyenne || 0, 1)} articles par jour de vente. ⏰ = remplir le rayon avant cette heure. Cliquez sur une case pour filtrer la fiche, sur un produit pour l'ouvrir.`,
-          `Boundaries = shop averages: in ${fmt(seuils.penetration_moyenne || 0, 1)}% of transactions and ${fmt(seuils.vitesse_moyenne || 0, 1)} items per selling day. ⏰ = restock before this hour. Click a box to filter the sheet, a product to open it.`
+          `Comment c'est classé : « se vend beaucoup » = plus de ${fmt(seuils.vitesse_moyenne || 0, 1)} articles par jour de vente ; « plus de paniers que la moyenne » = dans plus de ${fmt(seuils.penetration_moyenne || 0, 1)} % des tickets. Ce sont les moyennes de la boutique. ⏰ = remplir le rayon avant cette heure.`,
+          `How it's sorted: "sells a lot" = more than ${fmt(seuils.vitesse_moyenne || 0, 1)} items per selling day; "more baskets than average" = in more than ${fmt(seuils.penetration_moyenne || 0, 1)}% of transactions. These are the shop averages. ⏰ = restock before this hour.`
         )}
       </div>
     </div>
@@ -1979,8 +2065,27 @@ function DowGroupedBars({ rows }: { rows: any[] }) {
   const bw = (gw * 0.78) / Math.max(series.length, 1);
   const y = (v: number) => padT + (H - padT - padB) * (1 - v / max);
   const short = (d: string) => trData(d).slice(0, 3) + ".";
+  // Survol : la bulle standard du tableau de bord (jour, chaque série, écart à un jour moyen) ; les autres jours s'estompent
+  const [hov, setHov] = useState<number | null>(null);
+  const avgAll = rows.reduce((t, r) => t + (Number(r.all) || 0), 0) / Math.max(rows.length, 1);
+  const hr = hov != null ? rows[hov] : null;
+  const hx = hov != null ? ((padL + hov * gw + gw / 2) / W) * 100 : 0;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }} preserveAspectRatio="xMidYMid meet">
+    <div style={{ position: "relative" }} onMouseLeave={() => setHov(null)}>
+    {hr && (
+      <div className="ch-tip" style={hx > 60 ? { right: `${100 - hx + 6}%` } : { left: `${hx + 6}%` }}>
+        <div className="ch-tip-d">{tr(`${trData(hr.day)} habituel`, `Typical ${trData(hr.day)}`)}</div>
+        {series.map((s0) => hr[s0.key] != null && (
+          <div key={s0.key} className="ch-tip-row"><span className="ch-tip-k"><i className="ch-tip-dot" style={{ background: s0.color }} />{s0.label}</span><b className="num">{fmt(hr[s0.key])} {tr("art.", "items")}</b></div>
+        ))}
+        {avgAll > 0 && (<>
+          <div className="ch-tip-sep" />
+          <div className="ch-tip-row ch-tip-cmp"><span className="ch-tip-k">{tr("vs un jour moyen", "vs an average day")}</span>
+            <b className="num" style={{ color: Number(hr.all) >= avgAll ? "var(--dk-ok)" : "var(--dk-alert)" }}>{Number(hr.all) >= avgAll ? "+" : "−"}{fmt(Math.abs((Number(hr.all) / avgAll - 1) * 100))} %</b></div>
+        </>)}
+      </div>
+    )}
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }} preserveAspectRatio="xMidYMid meet">
       {scale.ticks.map((v, i) => (
         <g key={i}>
           <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke="var(--dk-line, #ECEDE7)" />
@@ -1994,12 +2099,12 @@ function DowGroupedBars({ rows }: { rows: any[] }) {
             if (v == null) return null;
             const x = padL + i * gw + gw * 0.11 + j * bw;
             return (
-              <rect key={j} x={x} y={y(v)} width={bw - 2} height={y(0) - y(v)} rx={2} fill={s.color} fillOpacity={0.9}>
-                <title>{`${trData(r.day)} · ${s.label} : ${fmt(v)} ${tr("articles", "items")}`}</title>
-              </rect>
+              <rect key={j} x={x} y={y(v)} width={bw - 2} height={y(0) - y(v)} rx={2} fill={s.color} fillOpacity={hov != null && hov !== i ? 0.3 : 0.9} style={{ transition: "fill-opacity .15s ease" }} />
             );
           })}
           <text x={padL + i * gw + gw / 2} y={H - padB + 18} textAnchor="middle" fontSize="13" fill={INK} fontWeight="700">{short(r.day)}</text>
+          {/* zone de survol sur toute la hauteur du jour */}
+          <rect x={padL + i * gw} y={padT} width={gw} height={H - padT - padB + 24} fill="transparent" onMouseEnter={() => setHov(i)} style={{ cursor: "pointer" }} />
         </g>
       ))}
       <g transform={`translate(${padL}, ${H - 10})`}>
@@ -2011,6 +2116,7 @@ function DowGroupedBars({ rows }: { rows: any[] }) {
         ))}
       </g>
     </svg>
+    </div>
   );
 }
 
@@ -2099,9 +2205,84 @@ function ProductSearch({ value, onChange, onSubmit, names, active, onPick }: {
   );
 }
 
+/* Bandeau des 3 chiffres clés en tête de chaque onglet : le même « kpi-strip » que la page Performance
+   (pastille colorée, libellé, grande valeur, étiquette), avec une courte phrase dessous. */
+type Kpi = { tone: "a" | "b" | "c" | "r"; icon: React.ReactNode; lbl: string; val: string; chip?: string; note?: string };
+function Answers({ items }: { items: Kpi[] }) {
+  return (
+    <div className="kpi-strip pa-kpis">
+      {items.map((k) => (
+        <div key={k.lbl} className={`ks-item ks-${k.tone}`}>
+          <span className="ks-ic" aria-hidden="true">{k.icon}</span>
+          <div style={{ minWidth: 0 }}>
+            <div className="ks-lbl">{k.lbl}</div>
+            <div className="ks-line">
+              <span className="ks-val">{k.val}</span>
+              {k.chip && <span className="ks-d ks-n num">{k.chip}</span>}
+            </div>
+            {k.note && <div className="ks-note">{k.note}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* Colonne « Repères » à droite du graphique principal : mêmes tuiles et même carte « À retenir » que la page Performance. */
+function SideRep({ sub, tiles, keepText, keepTip, refTxt }: { sub: string; tiles: any[]; keepText: string; keepTip: string; refTxt?: string }) {
+  return (
+    <div className="evo-side">
+      <div className="rep-head">
+        <span className="rep-head-ic" aria-hidden="true">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" fillOpacity=".3" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round"><path d="M6.5 3.5h11a1 1 0 0 1 1 1V21l-6.5-4.4L5.5 21V4.5a1 1 0 0 1 1-1z" /></svg>
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <div className="rep-head-t">{tr("Repères", "Landmarks")}</div>
+          <div className="rep-head-s">{sub}</div>
+        </div>
+      </div>
+      <div className="evo-rep">
+        {tiles.map((r: any) => (
+          <div key={r.k} className={`rep-tile rt-${r.tone}`}>
+            <span className="rep-ic" aria-hidden="true">{r.icon}</span>
+            <div className="rep-body">
+              <div className="rep-k">{r.k}</div>
+              <div className="rep-line">
+                <span className="rep-v num">{r.v}</span>
+                {r.chip && <span className="rep-chip">{r.chip}</span>}
+              </div>
+              {r.note && <div className="rep-note">{r.note}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {keepText && (
+        <div className="rep-keep">
+          <div className="rep-keep-k">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4Z" /></svg>
+            {tr("À retenir", "Key takeaway")} {refTxt && <span className="rep-keep-ref num">{refTxt}</span>}
+          </div>
+          <div className="rep-keep-t">{keepText}</div>
+          {keepTip && (
+            <div className="rep-keep-do">
+              <span className="rep-keep-ic" aria-hidden="true">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </span>
+              <span><b>{tr("Que faire :", "What to do:")}</b> {keepTip}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProduitsPage() {
   const { openChat } = useChat();
-  const [tab, setTab] = useState<"matrix" | "pen" | "vel" | "ticket" | "freq" | "assoc">("matrix");
+  // 3 onglets (comme la page Performance) : que faire de chaque produit · rythme de vente · le panier
+  const [tab, setTab] = useState<"matrix" | "vel" | "basket">("matrix");
+  // Rythme de vente : un seul graphique, vu par jour ou par heure
+  const [velView, setVelView] = useState<"jour" | "heure">("jour");
 
   // ── RECHERCHE produit commune à tous les onglets ──
   const [allNames, setAllNames] = useState<string[]>([]);
@@ -2144,12 +2325,10 @@ export default function ProduitsPage() {
   }, []);
   // Périodes affichées sous les titres : l'onglet Matrice / Présence suit les boutons d'année, les autres couvrent tout l'historique
   const scopeAllYears = years.length > 1 ? tr(`${Math.min(...years)} et ${Math.max(...years)}`, `${Math.min(...years)} and ${Math.max(...years)}`) : years.length ? String(years[0]) : tr("toute la période", "whole period");
-  const periodLabel = years.length ? (years.length > 1 ? `${Math.min(...years)} – ${Math.max(...years)}` : String(years[0])) : "—";
 
   // ── MATRICE states ──
   const [matrixData, setMatrixData] = useState<any>(null);
   const [matrixQuad, setMatrixQuad] = useState<string>("Tous");
-  const [loading, setLoading] = useState(false);
 
   // ── PEN states ──
   const [penData, setPenData] = useState<any>(null);
@@ -2177,54 +2356,28 @@ export default function ProduitsPage() {
   const [assocSort, setAssocSort] = useState("Lift ↓");
   const [assocTopN, setAssocTopN] = useState(25);
 
-  useEffect(() => {
+  // Chargement des données de l'onglet ouvert (chaque onglet réunit deux analyses)
+  const load = (on: boolean, fetcher: () => Promise<any>, setter: (x: any) => void) => {
+    if (!on) return;
     let cancelled = false;
-    setLoading(true);
-    const setData = (setter: any, res: any) => {
-      if (!cancelled) {
-        setter(res);
-        setLoading(false);
-      }
-    };
-    const handleErr = (setter: any, err: any) => {
-      console.error("Fetch error:", err);
-      if (!cancelled) {
-        setter({ error: String(err?.message || err), items: [] });
-        setLoading(false);
-      }
-    };
-    if (tab === "matrix") {
-      fetchMatrix(yearPen)
-        .then((res) => setData(setMatrixData, res))
-        .catch((err) => handleErr(setMatrixData, err));
-    } else if (tab === "pen") {
-      fetchPenetration({
-        search: searchPen,
-        categories: penCats.length ? penCats : undefined,
-        statuts: penStatuts.length ? penStatuts : undefined,
-        year: yearPen,
-      })
-        .then((res) => setData(setPenData, res))
-        .catch((err) => handleErr(setPenData, err));
-    } else if (tab === "vel") {
-      fetchVelocity()
-        .then((res) => setData(setVelData, res))
-        .catch((err) => handleErr(setVelData, err));
-    } else if (tab === "ticket") {
-      fetchTicketContribution()
-        .then((res) => setData(setTicketData, res))
-        .catch((err) => handleErr(setTicketData, err));
-    } else if (tab === "freq") {
-      fetchFrequency()
-        .then((res) => setData(setFreqData, res))
-        .catch((err) => handleErr(setFreqData, err));
-    } else if (tab === "assoc") {
-      fetchAssociations(assocSort, assocTopN)
-        .then((res) => setData(setAssocData, res))
-        .catch((err) => handleErr(setAssocData, err));
-    }
+    fetcher()
+      .then((res) => { if (!cancelled) setter(res); })
+      .catch((err) => { console.error("Fetch error:", err); if (!cancelled) setter({ error: String(err?.message || err), items: [] }); });
     return () => { cancelled = true; };
-  }, [tab, searchPen, penCats, penStatuts, yearPen, assocSort, assocTopN]);
+  };
+  useEffect(() => load(tab === "matrix", () => fetchMatrix(yearPen), setMatrixData), [tab, yearPen]);
+  useEffect(() => load(tab === "matrix", () => fetchPenetration({
+    search: searchPen,
+    categories: penCats.length ? penCats : undefined,
+    statuts: penStatuts.length ? penStatuts : undefined,
+    year: yearPen,
+  }), setPenData), [tab, searchPen, penCats, penStatuts, yearPen]);
+  useEffect(() => load(tab === "vel" && !velData, () => fetchVelocity(), setVelData), [tab]);
+  useEffect(() => load(tab === "vel" && !freqData, () => fetchFrequency(), setFreqData), [tab]);
+  useEffect(() => load(tab === "basket" && !ticketData, () => fetchTicketContribution(), setTicketData), [tab]);
+  useEffect(() => load(tab === "basket", () => fetchAssociations(assocSort, assocTopN), setAssocData), [tab, assocSort, assocTopN]);
+  // « Analyse en cours » tant que l'analyse principale de l'onglet n'est pas arrivée
+  const loading = tab === "matrix" ? !matrixData : tab === "vel" ? !velData : !ticketData;
 
   // Listes filtrées par la recherche (onglets calculés côté navigateur ; « Présence » filtre côté serveur)
   const q = searchPen.trim().toLowerCase();
@@ -2241,12 +2394,9 @@ export default function ProduitsPage() {
      TABS BAR
      ───────────────────────────────────────────── */
   const TABS = [
-    { id: "matrix", label: tr("Que faire de chaque produit", "What to do with each product"), sub: tr("matrice de décision", "decision matrix"), Icon: IconScatter, color: ORANGE },
-    { id: "pen", label: tr("Présence dans les tickets", "Presence in transactions"), sub: tr("Part des tickets avec le produit", "Share of transactions with the product"), Icon: IconTarget, color: ORANGE },
-    { id: "vel", label: tr("Rythme de vente", "Sales pace"), sub: tr("par jour et par heure (vitesse)", "per day and hour (velocity)"), Icon: IconBolt, color: "var(--dk-accent-deep, #43309E)" },
-    { id: "ticket", label: tr("Poids dans le panier", "Weight in the basket"), sub: tr("Rôle dans les paniers", "Role in baskets"), Icon: IconTicketPerc, color: PEACH },
-    { id: "freq", label: tr("Régularité de vente", "Sales regularity"), sub: tr("Semaines avec vente", "Weeks with sales"), Icon: IconRepeat, color: "var(--dk-accent-deep, #43309E)" },
-    { id: "assoc", label: tr("Achetés ensemble", "Bought together"), sub: tr("associations de produits", "product associations"), Icon: IconLink2, color: "var(--dk-accent-deep, #43309E)" },
+    { id: "matrix", label: tr("Que faire de chaque produit", "What to do with each product"), sub: tr("4 groupes, une action chacun", "4 groups, one action each"), Icon: IconScatter },
+    { id: "vel", label: tr("Rythme de vente", "Sales pace"), sub: tr("par jour et par heure (vitesse)", "per day and hour (velocity)"), Icon: IconBolt },
+    { id: "basket", label: tr("Le panier", "The basket"), sub: tr("ce qu'on vient chercher, ce qu'on prend avec", "what people come for, what they add"), Icon: IconTicketPerc },
   ] as const;
 
   return (
@@ -2268,69 +2418,39 @@ export default function ProduitsPage() {
       </div>
 
 
-      {/* ── MINI KPIs + FILTRE ANNEE ── */}
-      {/* Indicateurs de l'onglet (même style compact que les autres pages) + période en boutons */}
-      <div className="sw">
-        {/* Barre de période (les chiffres clés sont dans le bandeau et dans chaque onglet) */}
-        <div className="cc" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "7px 14px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: ".75rem", fontWeight: 700, color: INK, textTransform: "uppercase", letterSpacing: ".05em" }}>
-            <IconCalendarDays size={16} color={ORANGE} />
-            {tr("Période analysée", "Period analysed")}
+      {/* ── ONGLETS (même barre que la page Performance) + recherche produit à droite ── */}
+      <div className="sw tabs-sticky" style={{ marginTop: 4 }}>
+        <div className="perf-tabbar">
+          <div className="prod-tabs perf-tabs">
+            {TABS.map((t) => {
+              const Ic = t.Icon as any;
+              const on = tab === t.id;
+              return (
+                <button key={t.id} type="button" onClick={() => setTab(t.id)} className={`prod-tab${on ? " on" : ""}`} aria-pressed={on}>
+                  <div style={{ width: 32, height: 32, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    background: on ? "rgba(255,255,255,.2)" : "var(--dk-page, #F1EEF9)" }}>
+                    <Ic size={16} color={on ? "#fff" : MUTED} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
+                    <span style={{ fontSize: ".86rem", fontWeight: 800, color: on ? "#fff" : "var(--dk-ink2, #3A3655)", lineHeight: 1.2 }}>{t.label}</span>
+                    <span style={{ fontSize: ".66rem", color: on ? "rgba(255,255,255,.8)" : MUTED, lineHeight: 1.3, marginTop: 2 }}>{t.sub}</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-          <span className="scope-chip strong">{tab === "matrix" || tab === "pen" ? (yearPen === "Toutes" ? periodLabel : yearPen) : periodLabel}</span>
-          <span style={{ fontSize: ".7rem", color: MUTED }}>
-            {tab === "matrix" || tab === "pen"
-              ? tr("Changez l'année en haut à droite (« Période ») : les chiffres de cet onglet se mettent à jour.", "Change the year top right (\"Period\"): this tab's figures update.")
-              : tr("Cet onglet couvre toute la période des données.", "This tab covers the whole data period.")}
-          </span>
+          {/* Recherche produit (tous les onglets) : à côté des onglets, comme les filtres de Performance */}
+          <div className="tab-filters pt-search" role="search">
+            <ProductSearch
+              value={searchInputPen}
+              onChange={setSearchInputPen}
+              onSubmit={(v) => setSearchPen(v.trim())}
+              names={allNames}
+              active={searchPen}
+              onPick={openProduct}
+            />
+          </div>
         </div>
-      </div>
-
-      {/* ── TABS Selector ── */}
-      <div className="tabs-sticky" style={{ margin: "18px 28px 16px" }}>
-        <div className="prod-tabs">
-          {TABS.map((t) => {
-            const Icon = t.Icon;
-            const active = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id as any)}
-                className={`prod-tab${active ? " on" : ""}`}
-                aria-pressed={active}
-              >
-                <div
-                  style={{
-                    width: 32, height: 32, borderRadius: 9,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: active ? "rgba(255,255,255,.2)" : "var(--dk-page, #F1EEF9)",
-                    flexShrink: 0,
-                  }}
-                >
-                  <Icon size={16} color={active ? "#fff" : MUTED} />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
-                  <span style={{ fontSize: ".82rem", fontWeight: 800, color: active ? "#fff" : "var(--dk-ink2, #3A3655)", lineHeight: 1.2, overflowWrap: "anywhere" }}>
-                    {t.label}
-                  </span>
-                  <span style={{ fontSize: ".64rem", color: active ? "rgba(255,255,255,.8)" : MUTED, lineHeight: 1.3, marginTop: 2 }}>{t.sub}</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ── RECHERCHE PRODUIT (tous les onglets) ── */}
-      <div style={{ margin: "0 28px 16px", display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-        <ProductSearch
-          value={searchInputPen}
-          onChange={setSearchInputPen}
-          onSubmit={(v) => setSearchPen(v.trim())}
-          names={allNames}
-          active={searchPen}
-          onPick={openProduct}
-        />
       </div>
 
       {loading && (
@@ -2340,1082 +2460,435 @@ export default function ProduitsPage() {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════
-          TAB 0: MATRICE DE DÉCISION (cahier des charges)
-          ══════════════════════════════════════════════ */}
-      {tab === "matrix" && matrixData?.items && !loading && (() => {
+      {/* ══════════════════════════════════════════════════════════════════════
+          LES 3 ONGLETS — même grammaire partout (maquette validée) :
+          1. trois réponses en phrases  2. une rangée « carte principale (⅔) + carte de côté (⅓) »
+          3. « À retenir » (les constats des graphiques + que faire)  4. le détail, replié
+          ══════════════════════════════════════════════════════════════════════ */}
+
+      {/* ───────── 1. QUE FAIRE DE CHAQUE PRODUIT ───────── */}
+      {tab === "matrix" && matrixData?.items && (() => {
         const q = matrixData.quadrants || {};
-        const QUAD = [
-          { key: "Star", color: Q1 },
-          { key: "Niche", color: Q2 },
-          { key: "Trafic", color: Q3 },
-          { key: "Dormant", color: Q4 },
-        ];
+        const seuils = matrixData.seuils || {};
+        const qd = (k: string) => q[k] || {};
         const QUAD_EN: Record<string, { label: string; action: string }> = {
           Star: { label: "Star (essential)", action: "Critical priority: no stock-outs, hourly alert" },
           Niche: { label: "Niche (profitable)", action: "Stock for loyal customers (large volumes)" },
           Trafic: { label: "Traffic builder", action: "Place in the window or at the till to attract, moderate stock" },
           Dormant: { label: "Dormant stock", action: "Reduce production, consider discontinuing" },
         };
-        const colorOf = (k: string) => (QUAD.find((x) => x.key === k) || QUAD[3]).color;
-        const seuils = matrixData.seuils || {};
-        const stars = matrixItems.filter((i: any) => i.quadrant === "Star");
-        const rows = matrixItems.filter((i: any) => matrixQuad === "Tous" || i.quadrant === matrixQuad);
+        const stars = matrixItems.filter((i: any) => i.quadrant === "Star").sort((a: any, b: any) => (b.ca_total || 0) - (a.ca_total || 0));
+        const hourly = stars.filter((x: any) => x.alerte_horaire);
+        const hourOf = (x: any) => String(x.alerte_horaire).replace(/[^0-9:h]/g, "");
+        const pen: any[] = (penData && !penData.error ? penData.items : []) || [];
+        const oneIn = (p: number) => fmt(Math.max(1, Math.round(100 / Math.max(p, 0.01))));
         return (
-          <>
-            <div className="sw">
-              <div>
-                <div className="cc hero-card">
-                  <ChartAssistantButton chartType="product_decision_matrix" chartData={{
-                    nb_produits: (matrixData.items || []).length,
-                    quadrants: matrixData.quadrants, seuils: matrixData.seuils,
-                    // Résumé par case : les 10 premiers produits de chaque case (par chiffre d'affaires), pour que l'assistant voie toute la matrice
-                    produits_par_case: Object.fromEntries(["Star", "Niche", "Trafic", "Dormant"].map((k) => [k,
-                      (matrixData.items || []).filter((i: any) => i.quadrant === k).sort((a: any, b: any) => (b.ca_total || 0) - (a.ca_total || 0)).slice(0, 10)
-                        .map((i: any) => ({ article: i.article, categorie: i.category, presence_pct: i.penetration_rate, articles_par_jour: i.daily_velocity, ca: i.ca_total }))])),
-                    filtre_case: matrixQuad }} chartName="MatrixGrid"
-                    userQuestion="Explique cette matrice de décision des produits" position="top-right" onOpenChat={openChat} />
-                  <CardHeader
-                    title={tr("Matrice de décision", "Decision matrix")}
-                    scope={{ period: scopeSelYears, calc: tr("Produits classés selon la moyenne de la boutique ; CA = total de la période", "Products sorted vs the shop average; revenue = period total"), unit: tr("produits · €", "products · €") }}
-                    sub={tr("Les produits répartis en 4 groupes selon leur présence dans les tickets et ce qu'ils vendent par jour, avec l'action pour chaque groupe.", "Products split into 4 groups by presence in transactions and daily sales, with the action for each group.")}
-                    icon={<IconGrid size={16} color={ORANGE} />}
-                  />
-                  <MatrixGrid
-                    items={matrixItems}
-                    quadrants={q}
-                    seuils={seuils}
-                    active={matrixQuad}
-                    onSelect={(k: string) => setMatrixQuad(matrixQuad === k ? "Tous" : k)}
-                    colors={{ Star: Q1, Niche: Q2, Trafic: Q3, Dormant: Q4 }}
-                    labelsEn={QUAD_EN}
-                  />
-                </div>
-              </div>
-            </div>
+          <div className="sw pa">
+            <Answers items={[
+              { tone: "a", icon: <IconStar size={17} color="#fff" />, lbl: tr("À ne jamais manquer", "Never run out"),
+                val: tr(`${fmt(qd("Star").nb || 0)} produits`, `${fmt(qd("Star").nb || 0)} products`), chip: tr(`${fmt(qd("Star").part_ca || 0, 0)} % du CA`, `${fmt(qd("Star").part_ca || 0, 0)}% of revenue`),
+                note: stars.slice(0, 3).map((x: any) => trData(x.article)).join(" · ") },
+              hourly.length
+                ? { tone: "r", icon: <IconClock size={17} color="#fff" />, lbl: tr(`Remplir avant ${hourOf(hourly[0])}`, `Restock by ${hourOf(hourly[0])}`),
+                    val: trData(hourly[0].article), note: tr("Une grosse part de ses ventes tombe sur une seule heure.", "A big share of its sales falls in a single hour.") }
+                : { tone: "b", icon: <IconBasket size={17} color="#fff" />, lbl: tr("Attirent les clients", "Bring customers in"),
+                    val: tr(`${fmt(qd("Trafic").nb || 0)} produits`, `${fmt(qd("Trafic").nb || 0)} products`), chip: tr(`${fmt(qd("Trafic").part_ca || 0, 0)} % du CA`, `${fmt(qd("Trafic").part_ca || 0, 0)}% of revenue`) },
+              { tone: "c", icon: <IconBox size={17} color="#fff" />, lbl: tr("À revoir", "To review"),
+                val: tr(`${fmt(qd("Dormant").nb || 0)} produits`, `${fmt(qd("Dormant").nb || 0)} products`), chip: tr(`${fmt(qd("Dormant").part_ca || 0, 0)} % du CA`, `${fmt(qd("Dormant").part_ca || 0, 0)}% of revenue`),
+                note: tr("Se vendent peu et rarement.", "Sell little and rarely.") },
+            ]} />
 
-            <div className="sw">
-            <Details key={matrixQuad} defaultOpen={matrixQuad !== "Tous"} label={matrixQuad === "Tous" ? tr(`Voir le détail : les ${fmt(matrixItems.length)} produits, leur catégorie et leur action`, `See details: all ${fmt(matrixItems.length)} products, their category and action`) : tr(`Produits de la case « ${matrixQuad} »`, `Products in the "${matrixQuad}" box`)}>
-            <div className="sec-title" style={{ padding: "6px 4px 10px" }}>
-              {tr("Fiche par produit", "Product sheet")}
-              {matrixQuad !== "Tous" && (
-                <button onClick={() => setMatrixQuad("Tous")} style={{ marginLeft: 10, fontSize: ".7rem", fontWeight: 700, border: "1px solid var(--dk-line, #E3E4DD)", borderRadius: 8, padding: "2px 8px", background: "var(--dk-surface, #fff)", color: INK, cursor: "pointer" }}>
-                  {tr("Voir tous les produits", "Show all products")}
-                </button>
-              )}
-            </div>
-            <div>
+            <div className="pa-row">
               <div className="cc">
-                <ChartAssistantButton chartType="matrix_stars_hourly" chartData={{ stars: stars.filter((x: any) => x.alerte_horaire) }} chartName="MatrixStarsHourly"
-                  userQuestion="Explique les Stars concentrées sur une heure" position="top-right" onOpenChat={openChat} />
-                <div className="cs" style={{ marginBottom: 8 }}>
-                  {tr(
-                    `${stars.filter((s: any) => s.alerte_horaire).length} Star(s) concentrent leurs ventes sur une heure (≥ ${fmt(seuils.pic_horaire_pct || 40)} % des ventes du produit) : remplir le rayon avant l'heure indiquée.`,
-                    `${stars.filter((s: any) => s.alerte_horaire).length} Star(s) concentrate their sales in one hour (≥ ${fmt(seuils.pic_horaire_pct || 40)}% of the product's sales): restock before the hour shown.`
-                  )}
-                </div>
-                <div style={{ maxHeight: 420, overflow: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: ".72rem" }}>
-                    <thead style={{ position: "sticky", top: 0, background: "var(--dk-surface, white)" }}>
-                      <tr style={{ borderBottom: "1px solid var(--dk-line, #ECEDE7)", color: MUTED, textAlign: "right" }}>
-                        <th style={{ textAlign: "left", padding: "8px 6px" }}>{tr("Produit", "Product")}</th>
-                        <th style={{ textAlign: "left", padding: "8px 6px" }}>{tr("Famille", "Family")}</th>
-                        <th style={{ padding: "8px 6px" }}>{tr("Présence (% tickets)", "Presence (% transactions)")}</th>
-                        <th style={{ padding: "8px 6px" }}>{tr("Ventes / jour de vente", "Sales / selling day")}</th>
-                        <th style={{ padding: "8px 6px" }}>{tr("Chiffre d'affaires", "Revenue")}</th>
-                        <th style={{ textAlign: "left", padding: "8px 6px" }}>{tr("Catégorie stratégique", "Strategic category")}</th>
-                        <th style={{ textAlign: "left", padding: "8px 6px" }}>{tr("Action", "Action")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((r: any, i: number) => (
-                        <tr key={i} style={{ borderBottom: "1px solid var(--dk-surface, #FFFFFF)" }}>
-                          <td style={{ padding: "7px 6px", fontWeight: 700, color: INK }}><ProdName name={r.article} /></td>
-                          <td style={{ padding: "7px 6px", color: MUTED }}>{trData(r.category)}</td>
-                          <td style={{ padding: "7px 6px", textAlign: "right", color: INK }}>{fmt(r.penetration_rate, 1)} %</td>
-                          <td style={{ padding: "7px 6px", textAlign: "right", color: INK }}>{fmt(r.daily_velocity, 1)}</td>
-                          <td style={{ padding: "7px 6px", textAlign: "right", color: INK }}>{fmt(r.ca_total)} €</td>
-                          <td style={{ padding: "7px 6px" }}>
-                            <span style={{ fontSize: ".65rem", fontWeight: 800, padding: "2px 8px", borderRadius: 99, background: `color-mix(in srgb, ${colorOf(r.quadrant)} 12%, transparent)`, color: colorOf(r.quadrant) }}>
-                              {tr(r.categorie_strategique, QUAD_EN[r.quadrant]?.label || r.categorie_strategique)}
-                            </span>
-                          </td>
-                          <td style={{ padding: "7px 6px", color: "var(--dk-ink2, #3A3655)" }}>
-                            {tr(r.action, QUAD_EN[r.quadrant]?.action || r.action)}
-                            {r.alerte_horaire && (
-                              <span style={{ marginLeft: 6, fontWeight: 800, color: ALERT }}>· {tr(r.alerte_horaire, r.alerte_horaire.replace("Remplir avant", "Restock before"))}</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="cs" style={{ marginTop: 8 }}>
-                  {(() => {
-                    // Produits « de saison » : classés Niche et vendus sur peu de jours (moins d'un quart des jours du produit le plus régulier)
-                    const maxJ = Math.max(...(matrixData.items || []).map((i: any) => i.jours_actifs || 0), 1);
-                    const seas = (matrixData.items || [])
-                      .filter((i: any) => i.quadrant === "Niche" && (i.jours_actifs || 0) < maxJ / 4)
-                      .sort((a: any, b: any) => b.daily_velocity - a.daily_velocity)
-                      .slice(0, 2).map((i: any) => i.article);
-                    return seas.length
-                      ? tr(`Les produits vendus seulement quelques jours dans l'année (ex. ${seas.join(", ")}) ont une vitesse élevée sur leurs jours de vente : ils ressortent en « Niche ». Les frontières suivent la règle du cahier des charges (moyennes de la boutique).`,
-                           `Products sold only on a few days a year (e.g. ${seas.join(", ")}) sell fast on their selling days, so they appear as “Niche”. Boundaries follow the specification rule (shop averages).`)
-                      : tr("Les frontières suivent la règle du cahier des charges (moyennes de la boutique).", "Boundaries follow the specification rule (shop averages).");
-                  })()}
-                </div>
-                <ExpertNote>
-                  Matrice de décision pénétration × vélocité (cahier des charges, composante 2 §4). penetration_rate = COUNT(DISTINCT (date_id, ticket_number)) avec le produit / tickets × 100 ; daily_velocity = Σ quantity / jours actifs du produit (SPPD) ; frontières = moyennes (pénétration {fmt(seuils.penetration_moyenne || 0, 2)} %, vélocité {fmt(seuils.vitesse_moyenne || 0, 2)}) ; alerte horaire si ratio_pic_percent ≥ {fmt(seuils.pic_horaire_pct || 40)} %. Critère phase 5 (pénétration &lt; 1 % et vélocité &lt; 1) : {fmt(matrixData.nb_dormant_strict || 0)} produit(s). API : /api/products/matrix.
-                </ExpertNote>
-              </div>
-            </div>
-            </Details>
-            </div>
-          </>
-        );
-      })()}
-
-      {/* ══════════════════════════════════════════════
-          TAB 1: PÉNÉTRATION
-          ══════════════════════════════════════════════ */}
-      {tab === "pen" && penData && !loading && (
-        <>
-          {/* Filters bar */}
-          <div className="cc" style={{ margin: "0 28px 14px", padding: "16px 20px", borderRadius:"14px",
-          background: "var(--dk-soft, #F4F1FC)",
-          border:"1px solid var(--dk-line, rgba(140,160,140,.25))",
-          boxShadow:"0 4px 16px rgba(0,0,0,0.15)" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <IconFilter size={16} color={ORANGE} />
-                <span style={{ fontSize: ".78rem", fontWeight: 800, color: INK }}>{tr("Filtres", "Filters")}</span>
-              </div>
-              {/* Search */}
-              {/* La recherche produit est désormais en haut de la page, commune à tous les onglets */}
-              {/* Category chips */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", flex: "1 1 300px" }}>
-                <span style={{ fontSize: ".68rem", fontWeight: 700, color: MUTED }}>{tr("Catégorie :", "Category:")}</span>
-                <Chip
-                  active={penCats.length === 0}
-                  onClick={() => setPenCats([])}
-                  label={tr("Toutes", "All")}
+                <ChartAssistantButton chartType="product_decision_matrix" chartData={{
+                  periode_du_graphique: yearPen === "Toutes" ? "toutes les années" : `année ${yearPen} (le mois choisi ne s'applique pas ici)`,
+                  nb_produits: (matrixData.items || []).length, quadrants: matrixData.quadrants, seuils: matrixData.seuils,
+                  produits_par_case: Object.fromEntries(["Star", "Niche", "Trafic", "Dormant"].map((k) => [k,
+                    (matrixData.items || []).filter((i: any) => i.quadrant === k).sort((a: any, b: any) => (b.ca_total || 0) - (a.ca_total || 0)).slice(0, 10)
+                      .map((i: any) => ({ article: i.article, categorie: i.category, presence_pct: i.penetration_rate, articles_par_jour: i.daily_velocity, ca: i.ca_total }))])),
+                  filtre_case: matrixQuad }} chartName="MatrixGrid"
+                  userQuestion="Explique cette matrice de décision des produits" position="top-right" onOpenChat={openChat} />
+                <CardHeader
+                  title={tr("Les 4 groupes de produits", "The 4 product groups")}
+                  sub={tr("Chaque groupe dit quoi faire. Cliquez un groupe pour voir tous ses produits.", "Each group says what to do. Click a group to see all its products.")}
+                  scope={{ period: scopeSelYears, calc: tr("Comparé à la moyenne de la boutique", "Compared with the shop average"), unit: tr("% des paniers · % du CA", "% of baskets · % of revenue") }}
+                  icon={<IconGrid size={16} color={ORANGE} />}
                 />
-                {(penData.available_categories || []).filter((c: string) => c !== "Toutes").slice(0, 8).map((c: string) => (
-                  <Chip
-                    key={c}
-                    active={penCats.includes(c)}
-                    onClick={() => setPenCats((prev) => prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c])}
-                    label={tr(c, trData(c))}
-                  />
-                ))}
+                <MatrixGrid items={matrixItems} quadrants={q} seuils={seuils} active={matrixQuad}
+                  onSelect={(k: string) => setMatrixQuad(matrixQuad === k ? "Tous" : k)}
+                  colors={{ Star: Q1, Niche: Q2, Trafic: Q3, Dormant: Q4 }} labelsEn={QUAD_EN} />
+                <Takeaway>
+                  {tr(`${fmt(qd("Star").nb || 0)} produits font ${fmt(qd("Star").part_ca || 0, 0)} % du chiffre d'affaires, et ${fmt(qd("Dormant").nb || 0)} produits seulement ${fmt(qd("Dormant").part_ca || 0, 0)} % à eux tous.`,
+                      `${fmt(qd("Star").nb || 0)} products make ${fmt(qd("Star").part_ca || 0, 0)}% of revenue, while ${fmt(qd("Dormant").nb || 0)} products make only ${fmt(qd("Dormant").part_ca || 0, 0)}% between them.`)}
+                </Takeaway>
               </div>
-              {/* Statut chips */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                <span style={{ fontSize: ".68rem", fontWeight: 700, color: MUTED }}>{tr("Statut :", "Status:")}</span>
-                <Chip
-                  active={penStatuts.length === 0}
-                  onClick={() => setPenStatuts([])}
-                  label={tr("Tous", "All")}
-                />
-                {(penData.available_statuts || []).filter((s: string) => s !== "Toutes" && s !== "Tous").map((s: string) => (
-                  <Chip
-                    key={s}
-                    active={penStatuts.includes(s)}
-                    onClick={() => setPenStatuts((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s])}
-                    label={`${tr(s.replace(/ *\([^)]*\) */g, ""), trData(s.replace(/ *\([^)]*\) */g, "")))} (${fmt(penData.kpis?.status_counts_all?.[s] ?? 0)})`}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
 
-          {(penData.items || []).length === 0 && (
-            <div className="cc" style={{ margin: "0 28px 14px", padding: "18px 20px", color: INK, fontSize: ".86rem" }}>
-              {penStatuts.includes("Leader (Indispensable)") && penStatuts.length === 1
-                ? tr("Aucun produit n'est présent dans au moins 50 % des tickets (statut « Leader »). Le produit le plus présent est classé « Cœur ».", "No product is in at least 50% of transactions (\"Leader\" status). The most present product is classed \"Core\".")
-                : tr("Aucun produit ne correspond à ces filtres.", "No product matches these filters.")}
-            </div>
-          )}
-          {(penData.items || []).length > 0 && (<>
-          {/* Présence : une seule liste claire « combien de clients prennent ce produit ? »
-              (les 4 tuiles et le nuage de points présence × CA ont été retirés : trop lourds, et la matrice le montre déjà). */}
-          {(() => {
-            const it: any[] = penData.items || [];
-            const med = Number(penData.kpis?.pen_median || 0);
-            const over5 = it.filter((x: any) => Number(x.penetration_rate) >= 5).length;
-            return (
-              <div className="sw">
-                <div className="cc">
-                  <ChartAssistantButton chartType="penetration_ranking" chartData={{ items: it.slice(0, 30), filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationRanking"
-                    userQuestion="Explique quels produits les clients prennent le plus souvent" position="top-right" onOpenChat={openChat} />
-                  <CardHeader
-                    title={tr("Combien de clients prennent chaque produit ?", "How many customers take each product?")}
-                    scope={{ period: scopeSelYears, calc: tr("Sur tous les tickets : combien de clients prennent le produit", "Across all transactions: how many customers take the product"), unit: tr("clients", "customers") }}
-                    sub={(it.length > 1 && it[0].penetration_rate >= 2 * it[1].penetration_rate)
-                      ? tr(`Un seul produit attire vraiment les clients ; ensuite, chaque produit n'est pris que par une petite partie d'entre eux (la moitié des produits : moins de ${fmt(med, 1)} % des tickets).`,
-                           `One product really draws customers; after it, each product is taken by only a small share of them (half of the products: under ${fmt(med, 1)}% of transactions).`)
-                      : tr(`Les produits que le plus de clients prennent ; la moitié des produits sont dans moins de ${fmt(med, 1)} % des tickets.`,
-                           `The products most customers take; half of the products are in under ${fmt(med, 1)}% of transactions.`)}
-                    icon={<IconTarget size={16} color={ORANGE} />}
-                  />
-                  {/* Compact : les 6 produits qui attirent le plus de clients, en pastilles « 1 sur N » sur une ligne.
-                      La liste complète reste repliée sous « Voir le détail ». */}
-                  {(() => {
-                    const oneIn = (p: number) => fmt(Math.max(1, Math.round(100 / Math.max(p, 0.01))));
-                    return (
-                      <>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-                          {it.slice(0, 5).map((r: any, i: number) => (
-                            <button key={r.article} type="button" onClick={() => openProduct(r.article)}
-                              title={tr(`${fmt(r.penetration_rate, 1)} % des tickets · ${fmt(r.ca_total)} € de CA`, `${fmt(r.penetration_rate, 1)}% of transactions · €${fmt(r.ca_total)} revenue`)}
-                              style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", borderRadius: 99, padding: "5px 6px 5px 12px",
-                                border: "1px solid var(--dk-line)", background: "var(--dk-surface)", fontSize: ".78rem", fontWeight: 700, color: INK }}>
-                              {trData(r.article)}
-                              <span className="num" style={{ fontSize: ".72rem", fontWeight: 800, borderRadius: 99, padding: "2px 8px",
-                                background: i === 0 ? "var(--dk-accent)" : "var(--dk-soft)", color: i === 0 ? "#fff" : "var(--dk-ink2)" }}>
-                                {tr(`1 sur ${oneIn(Number(r.penetration_rate) || 0)}`, `1 in ${oneIn(Number(r.penetration_rate) || 0)}`)}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                        <Details label={tr(`Voir le détail : les ${fmt(Math.min(it.length, 30))} produits les plus pris`, `See details: the ${fmt(Math.min(it.length, 30))} most taken products`)}>
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", columnGap: 24 }}>
-                            {it.slice(0, 30).map((r: any, i: number) => (
-                              <div key={r.article} onClick={() => openProduct(r.article)}
-                                style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: "1px solid var(--dk-line)", cursor: "pointer", fontSize: ".78rem" }}>
-                                <span className="num" style={{ width: 20, color: MUTED, fontWeight: 700 }}>{i + 1}</span>
-                                <span style={{ flex: 1, minWidth: 0, fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{trData(r.article)}</span>
-                                <span className="num" style={{ color: "var(--dk-ink2)", whiteSpace: "nowrap" }}>{tr(`1 sur ${oneIn(Number(r.penetration_rate) || 0)}`, `1 in ${oneIn(Number(r.penetration_rate) || 0)}`)}</span>
-                              </div>
+              <div className="pa-side">
+              <div className="cc pp-card">
+                <ChartAssistantButton chartType="penetration_ranking" chartData={{ periode_du_graphique: yearPen === "Toutes" ? "toutes les années" : `année ${yearPen} (le mois choisi ne s'applique pas ici)`, items: pen.slice(0, 30), filters: { year: yearPen } }} chartName="PenetrationRanking"
+                  userQuestion="Explique quels produits les clients prennent le plus souvent" position="top-right" onOpenChat={openChat} />
+                <CardHeader
+                  title={tr("Sur 10 clients, combien le prennent ?", "Out of 10 customers, how many take it?")}
+                  sub={tr("Taux de pénétration : la part des tickets qui contiennent le produit. Une silhouette = 1 client sur 10.", "Penetration rate: the share of tickets containing the product. One figure = 1 customer in 10.")}
+                  scope={{ period: scopeSelYears, calc: tr("Taux de pénétration = tickets avec le produit ÷ tous les tickets", "Penetration rate = tickets with the product ÷ all tickets"), unit: tr("% des tickets", "% of tickets") }}
+                  icon={<IconTarget size={16} color={ORANGE} />}
+                />
+                {!penData ? <div className="cs" style={{ padding: 12 }}>{tr("Chargement…", "Loading…")}</div> : (
+                  <div className="pp-list">
+                    {pen.slice(0, 5).map((r: any) => {
+                      const pct = Number(r.penetration_rate) || 0;
+                      return (
+                        <button key={r.article} type="button" className="pp-row" onClick={() => openProduct(r.article)}
+                          title={tr(`${fmt(pct, 1)} % des tickets`, `${fmt(pct, 1)}% of transactions`)}>
+                          <span className="pp-name">{trData(r.article)}</span>
+                          <span className="pp-v"><b className="num">{tr(`1 sur ${oneIn(pct)}`, `1 in ${oneIn(pct)}`)}</b><small className="num">{fmt(pct, 1)} %</small></span>
+                          <span className="pp-men" aria-hidden="true">
+                            {Array.from({ length: 10 }, (_, k) => (
+                              <span key={k} className="pp-man"><b style={{ width: `${Math.max(0, Math.min(1, pct / 10 - k)) * 100}%` }} /></span>
                             ))}
-                          </div>
-                        </Details>
-                      </>
-                    );
-                  })()}
-                  {it.length > 1 && (
-                    <Takeaway>
-                      {tr(
-                        `${it[0].article} est dans ${fmt(it[0].penetration_rate, 1)} % des tickets (environ 1 client sur ${fmt(100 / Math.max(it[0].penetration_rate, 0.01), 0)}), ${it[0].penetration_rate >= 2 * it[1].penetration_rate ? "loin devant" : "devant"} ${it[1].article} (${fmt(it[1].penetration_rate, 1)} %).${it[0].penetration_rate >= 30 ? " Une rupture sur ce produit toucherait une grande partie des clients." : ""}`,
-                        `${it[0].article} is in ${fmt(it[0].penetration_rate, 1)}% of transactions (about 1 customer in ${fmt(100 / Math.max(it[0].penetration_rate, 0.01), 0)}), ${it[0].penetration_rate >= 2 * it[1].penetration_rate ? "far ahead of" : "ahead of"} ${it[1].article} (${fmt(it[1].penetration_rate, 1)}%).${it[0].penetration_rate >= 30 ? " A stock-out on it would affect a large share of customers." : ""}`
-                      )}
-                    </Takeaway>
-                  )}
-                  <ExpertNote>
-                    Taux de pénétration (penetration_rate) = tickets contenant le produit / tickets uniques × 100, ticket = (date_id, ticket_number), dédoublonnage intra-ticket. Statuts (config.py, cahier) : ≥ 50 % Leader, ≥ 30 % Cœur, ≥ 10 % Régulier, sinon Niche. indice_categorie = taux / moyenne des taux de la catégorie (normalisation par catégorie, §7). API : /api/products/penetration.
-                  </ExpertNote>
-                </div>
-              </div>
-            );
-          })()}
-          <div className="sw"><RetainCard max={4} style={{ marginBottom: 16 }} /></div>
-
-          {/* Row 2: Répartition statuts + Évolution hebdomadaire (équilibré) — Cachés si recherche/catégorie trop restrictive */}
-          {(() => {
-            const isSearchActive = searchPen.trim().length > 0;
-            const isFiltered = isSearchActive || penCats.length > 0 || penStatuts.length > 0;
-            const nbItems = (penData.items || []).length;
-            const isScarse = isFiltered && nbItems <= 30;
-            const showGlobalStats = !isScarse || (penCats.length === 0 && penStatuts.length === 0 && !isSearchActive);
-            return (
-              <>
-                {showGlobalStats && (
-                  <>
-                    <div className="sw">
-                      <Details label={tr("Voir le détail : comment la présence évolue dans le temps", "See details: how presence changes over time")}>
-                      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 0.55fr) minmax(0, 1.45fr)", gap: 12, marginBottom: 14 }}>
-                        {!isSearchActive && penStatuts.length === 0 && (
-                          <div className="cc">
-                            <ChartAssistantButton chartType="penetration_status_distribution" chartData={{ status_counts: penData.kpis?.status_counts, filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationStatusDistribution"
-                              userQuestion="Explique la répartition des produits par statut" position="top-right" onOpenChat={openChat} />
-                            <CardHeader
-                              title={tr("Part des produits par statut", "Share of products by status")}
-                              sub={tr("Classement des produits selon leur présence dans les tickets", "Products classified by their presence in transactions")}
-                              icon={<IconDonutPie size={16} color={ORANGE} />}
-                            />
-                            <CategoryBars
-                              cats={(() => {
-                                const sc: Record<string, number> = penData.kpis?.status_counts || {};
-                                const tot = Object.values(sc).reduce((a, b) => a + Number(b), 0) || 1;
-                                return Object.entries(sc).map(([k, v]) => ({ category: k, taux_moyen: (Number(v) / tot) * 100, nb_articles: Number(v) }));
-                              })()}
-                              height={250}
-                            />
-                            {(() => {
-                              const sc: Record<string, number> = penData.kpis?.status_counts || {};
-                              const tot = Object.values(sc).reduce((a, b) => a + Number(b), 0) || 1;
-                              const niche = Number(sc["Niche / À surveiller"] || 0);
-                              return (
-                                <Takeaway>
-                                  {tr(
-                                    `${fmt(niche)} produits sur ${fmt(tot)} sont dans moins de 10 % des tickets (seuil « Niche » du cahier des charges).${!penData.kpis?.status_counts_all?.["Leader (Indispensable)"] ? " Aucun produit n'atteint 50 % des tickets (« Leader »)." : ""}`,
-                                    `${fmt(niche)} of ${fmt(tot)} products appear in under 10% of transactions ("Niche" threshold of the specification).${!penData.kpis?.status_counts_all?.["Leader (Indispensable)"] ? " No product reaches 50% of transactions (\"Leader\")." : ""}`
-                                  )}
-                                </Takeaway>
-                              );
-                            })()}
-                          </div>
-                        )}
-                        <div className="cc" style={{ gridColumn: isSearchActive || penStatuts.length > 0 ? "1 / -1" : undefined }}>
-                          <ChartAssistantButton chartType="penetration_weekly_trend" chartData={{ weekly_trend: penData.weekly_trend, filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationWeeklyTrend"
-                            userQuestion="Explique l'évolution hebdomadaire du taux de pénétration" position="top-right" onOpenChat={openChat} />
-                          <CardHeader
-                            title={tr("Présence dans les tickets, semaine par semaine", "Presence in transactions, week by week")}
-                            sub={isFiltered ? tr("Les 5 produits les plus présents de toute la boutique (filtres non appliqués). Survolez un point pour la valeur exacte.", "The shop's 5 most present products (filters not applied). Hover a point for the exact value.") : tr("Les 5 produits les plus présents. Survolez un point pour voir la date et la valeur exacte.", "The 5 most present products. Hover over a point to see the date and exact value.")}
-                            icon={<IconSparkline size={16} color={ORANGE} />}
-                          />
-                          <MultiLineChart series={penData.weekly_trend || []} height={310} />
-                          {(() => {
-                            const w = (penData.weekly_trend || [])[0];
-                            if (!w?.series?.length) return null;
-                            const ser = w.series;
-                            const avg = (arr: any[]) => arr.reduce((a: number, x: any) => a + x.rate, 0) / Math.max(arr.length, 1);
-                            const first = avg(ser.slice(0, 8)), last = avg(ser.slice(-8, -1).length ? ser.slice(-8, -1) : ser.slice(-8));
-                            return (
-                              <Takeaway>
-                                {tr(
-                                  `${w.article} : ${fmt(first, 0)} % des tickets au début de la période, ${fmt(last, 0)} % sur les dernières semaines.${last < first * 0.7 ? " Baisse marquée : vérifier avec la boutique si les dernières données sont complètes." : last > first * 1.3 ? " Nette progression sur la période." : " Présence stable sur la période."}`,
-                                  `${w.article}: ${fmt(first, 0)}% of transactions at the start of the period, ${fmt(last, 0)}% over the last weeks.${last < first * 0.7 ? " Sharp drop: check with the shop that the latest data is complete." : last > first * 1.3 ? " Clear increase over the period." : " Stable presence over the period."}`
-                                )}
-                              </Takeaway>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                      </Details>
-                    </div>
-                  </>
-                )}
-
-                {/* Row 3: Catégories pénétration moyenne + Part CA par catégorie — seulement si > 2 catégories disponibles */}
-                {!isSearchActive && (penData.category_summary || []).length >= 2 && (
-                  <div className="sw">
-                    <Details label={tr("Voir le détail : présence et chiffre d'affaires par famille", "See details: presence and revenue by family")}>
-                    <div>
-                      <div className="g2">
-                        <div className="cc">
-                          <ChartAssistantButton chartType="penetration_category_avg" chartData={{ category_summary: penData.category_summary, filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationCategoryAvg"
-                            userQuestion="Explique le taux de pénétration moyen par catégorie" position="top-right" onOpenChat={openChat} />
-                          <CardHeader
-                            title={tr("Présence de chaque famille dans les tickets", "Presence of each family in transactions")}
-                            sub={(penCats.length || penStatuts.length) ? tr("Toute la boutique (filtres non appliqués) : part des tickets avec au moins un produit de la famille", "Whole shop (filters not applied): share of transactions with at least one product of the family") : tr("Part des tickets contenant au moins un produit de la famille", "Share of transactions with at least one product of the family")}
-                            icon={<IconBox size={16} color={ORANGE} />}
-                          />
-                          <CategoryBars cats={(penData.category_summary || []).map((c: any) => ({ category: c.category, taux_moyen: c.taux_categorie ?? c.taux_moyen, nb_articles: c.nb_articles }))} height={260} />
-                          {(penData.category_summary || [])[0] && (
-                            <Takeaway>
-                              {tr(
-                                `${penData.category_summary[0].category} est la famille la plus présente : ${fmt(penData.category_summary[0].taux_categorie, 0)} % des tickets, soit ${penData.category_summary[0].taux_categorie >= 50 ? "plus d'un client sur deux" : `environ 1 client sur ${fmt(100 / Math.max(penData.category_summary[0].taux_categorie, 0.01), 0)}`}.`,
-                                `${trData(penData.category_summary[0].category)} is the most present family: ${fmt(penData.category_summary[0].taux_categorie, 0)}% of transactions, i.e. ${penData.category_summary[0].taux_categorie >= 50 ? "more than one customer in two" : `about 1 customer in ${fmt(100 / Math.max(penData.category_summary[0].taux_categorie, 0.01), 0)}`}.`
-                              )}
-                            </Takeaway>
-                          )}
-                        </div>
-                        <div className="cc">
-                          <ChartAssistantButton chartType="category_revenue_share" chartData={{ category_summary: penData.category_summary }} chartName="CategoryRevenueShare"
-                            userQuestion="Explique la part du chiffre d'affaires par catégorie" position="top-right" onOpenChat={openChat} />
-                          <CardHeader
-                            title={tr("Part du chiffre d'affaires par catégorie", "Share of revenue by category")}
-                            sub={(penCats.length || penStatuts.length) ? tr("Toute la boutique (filtres non appliqués)", "Whole shop (filters not applied)") : tr("Pourcentage du chiffre d'affaires total", "Percentage of total revenue")}
-                            icon={<IconBox size={16} color={ORANGE} />}
-                          />
-                          <CategoryBars cats={(() => {
-                            const rows = penData.category_summary || [];
-                            const tot = rows.reduce((a: number, c: any) => a + Number(c.ca_total || 0), 0) || 1;
-                            return rows
-                              .map((c: any) => ({ category: c.category, taux_moyen: (Number(c.ca_total || 0) / tot) * 100, nb_articles: c.nb_articles }))
-                              .sort((a: any, b: any) => b.taux_moyen - a.taux_moyen);
-                          })()} height={260} />
-                          {(() => {
-                            const rows = [...(penData.category_summary || [])].sort((a: any, b: any) => b.ca_total - a.ca_total);
-                            const tot = rows.reduce((a: number, c: any) => a + Number(c.ca_total || 0), 0) || 1;
-                            if (rows.length < 2) return null;
-                            return (
-                              <Takeaway>
-                                {tr(
-                                  `${rows[0].category} fait ${fmt((rows[0].ca_total / tot) * 100, 0)} % du chiffre d'affaires ; ${rows[1].category} en fait ${fmt((rows[1].ca_total / tot) * 100, 0)} % avec beaucoup moins de tickets.`,
-                                  `${trData(rows[0].category)} makes ${fmt((rows[0].ca_total / tot) * 100, 0)}% of revenue; ${trData(rows[1].category)} makes ${fmt((rows[1].ca_total / tot) * 100, 0)}% with far fewer transactions.`
-                                )}
-                              </Takeaway>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    </div>
-                    </Details>
-                  </div>
-                )}
-              </>
-            );
-          })()}
-
-          {/* Row 4: Zoom produit sélectionné + Recommandations (replié) */}
-          <div className="sw">
-            <Details label={tr("Voir le détail : évolution d'un produit et que faire selon la présence", "See details: one product's trend and what to do by presence")}>
-            <div className="g2">
-              <div className="cc">
-                <ChartAssistantButton chartType="penetration_product_trend" chartData={{ items: penData.items, selected: penSelected, weekly_trend: (penData.weekly_trend || []).filter((w: any) => w.article === penSelected) }} chartName="PenetrationProductTrend"
-                  userQuestion="Explique l'évolution de pénétration du produit sélectionné" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Évolution de la présence — produit sélectionné", "Presence trend — selected product")}
-                  sub={tr("Choisissez un produit ci-dessous pour voir son évolution", "Pick a product below to see its trend")}
-                  icon={<IconSparkline size={16} color={ORANGE} />}
-                />
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, margin: "10px 0 14px" }}>
-                  {(penData.items || []).slice(0, 10).map((p: any, i: number) => (
-                    <button
-                      key={i}
-                      onClick={() => setPenSelected(p.article)}
-                      style={{
-                        padding: "5px 10px",
-                        borderRadius: 99,
-                        border: "1px solid",
-                        borderColor: penSelected === p.article ? ORANGE : "var(--dk-line, #E2E5DD)",
-                        background: penSelected === p.article ? `color-mix(in srgb, ${ORANGE} 8%, transparent)` : "var(--dk-surface, white)",
-                        color: penSelected === p.article ? ORANGE : INK,
-                        fontSize: ".68rem",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {p.article.slice(0, 18)}
-                    </button>
-                  ))}
-                </div>
-                {penSelected && (
-                  <div style={{ padding: 14, borderRadius: 12, background: "var(--dk-soft, #F4F1FC)" }}>
-                    {(() => {
-                      const trend = (penData.weekly_trend || []).find((w: any) => w.article === penSelected);
-                      const p = (penData.items || []).find((x: any) => x.article === penSelected);
-                      return (
-                        <>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                            <div style={{ fontSize: ".95rem", fontWeight: 800, color: INK }}>{penSelected}</div>
-                            <span style={{ fontSize: ".65rem", fontWeight: 700, padding: "3px 8px", borderRadius: 99, background: statutColor(p?.statut || ""), color: INK }}>
-                              {trData(p?.statut) || "—"}
-                            </span>
-                          </div>
-                          {trend ? (
-                            <MultiLineChart series={[trend]} height={140} />
-                          ) : (
-                            <div className="cs" style={{ padding: "10px 0" }}>
-                              {tr("La tendance hebdomadaire est calculée pour les 5 produits les plus présents.", "The weekly trend is computed for the 5 most present products.")}
-                            </div>
-                          )}
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--dk-line, #F1F1EC)" }}>
-                            <div><div className="cs">{tr("Présence", "Presence")}</div><div style={{ fontWeight: 800, color: ORANGE }}>{Number(p?.penetration_rate || 0).toFixed(1)}%</div></div>
-                            <div><div className="cs">{tr("Tickets", "Transactions")}</div><div style={{ fontWeight: 800, color: INK }}>{fmt(p?.tickets_count)}</div></div>
-                            <div><div className="cs">{tr("CA total", "Total revenue")}</div><div style={{ fontWeight: 800, color: INK }}>{fmt(p?.ca_total)} €</div></div>
-                            <div title={tr("Taux du produit / taux moyen de sa catégorie", "Product rate / category average rate")}><div className="cs">{tr("Indice famille", "Family index")}</div><div style={{ fontWeight: 800, color: INK }}>{Number(p?.indice_categorie || 0).toFixed(1)}×</div></div>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-              <div className="cc">
-                <ChartAssistantButton chartType="penetration_recommendations" chartData={{ kpis: penData.kpis, status_counts: penData.kpis?.status_counts, filters: { search: searchPen, categories: penCats, statuts: penStatuts, year: yearPen } }} chartName="PenetrationRecommendations"
-                  userQuestion="Explique les recommandations basées sur la pénétration" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Que faire selon la présence dans les tickets", "What to do based on presence in transactions")}
-                  sub={tr("Actions opérationnelles suggérées", "Suggested operational actions")}
-                  icon={<IconSparkles size={16} color={ORANGE} />}
-                />
-                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
-                  {[
-                    { title: tr("Protéger les leaders et produits cœur", "Protect the leaders and core products"), desc: tr(`${fmt((penData.kpis?.status_counts?.["Leader (Indispensable)"] || 0) + (penData.kpis?.status_counts?.["Produit Cœur (Core)"] || 0))} référence(s) dans au moins 30 % des tickets — stock de sécurité renforcé, zéro rupture, pas de remise sans raison`, `${fmt((penData.kpis?.status_counts?.["Leader (Indispensable)"] || 0) + (penData.kpis?.status_counts?.["Produit Cœur (Core)"] || 0))} product(s) in at least 30% of transactions — higher safety stock, no stock-outs, no discounts without reason`), color: ORANGE, Icon: IconStar },
-                    { title: tr("Rendre visibles les produits réguliers", "Make the regular products visible"), desc: tr(`${fmt(penData.kpis?.status_counts?.["Produit Régulier"] || 0)} référence(s) entre 10 et 30 % des tickets — emplacement visible en caisse ou en vitrine`, `${fmt(penData.kpis?.status_counts?.["Produit Régulier"] || 0)} product(s) in 10–30% of transactions — visible spot at the till or in the window`), color: PEACH, Icon: IconTrendUp },
-                    { title: tr("Évaluer les produits de niche", "Review the niche products"), desc: tr(`${fmt(penData.kpis?.status_counts?.["Niche / À surveiller"] || 0)} référence(s) sous 10 % des tickets — à croiser avec la vitesse de vente avant toute décision`, `${fmt(penData.kpis?.status_counts?.["Niche / À surveiller"] || 0)} product(s) below 10% of transactions — check sales velocity before any decision`), color: LIGHT, Icon: IconSearchCircle },
-                    { title: tr("Comparer dans chaque famille", "Compare within each family"), desc: tr("L'indice famille compare chaque produit à la moyenne de sa catégorie (cahier des charges, normalisation par catégorie)", "The family index compares each product with its category average (specification, category normalisation)"), color: MUTED, Icon: IconAlert },
-                  ].map((r, i) => {
-                    const RIcon = r.Icon;
-                    return (
-                      <div key={i} style={{ display: "flex", gap: 10, padding: 10, borderRadius: 10, background: `color-mix(in srgb, ${r.color} 8%, transparent)`, borderLeft: `3px solid ${r.color}` }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, flexShrink: 0, marginTop: 1 }}>
-                          <RIcon size={16} color={r.color} />
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: ".78rem", fontWeight: 800, color: INK, marginBottom: 2 }}>{r.title}</div>
-                          <div style={{ fontSize: ".68rem", color: "var(--dk-ink2, #3A3655)", lineHeight: 1.35 }}>{r.desc}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-            </Details>
-          </div>
-          </>)}
-        </>
-      )}
-
-      {/* ══════════════════════════════════════════════
-          TAB 2: VITESSE DE VENTE
-          ══════════════════════════════════════════════ */}
-      {tab === "vel" && velData && !loading && (
-        <>
-          <div className="sec-title">
-            <IconBolt size={14} color={ORANGE} /> {tr("Quand les produits partent", "When products sell")}
-          </div>
-          <div className="sw">
-            <div className="grid-2 stretch">
-              <div className="cc hero-card">
-                <ChartAssistantButton chartType="velocity_dow" chartData={{ dow_velocity: velData.dow_velocity }} chartName="VelocityDOW"
-                  userQuestion="Explique la vitesse de vente par jour de la semaine" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Articles vendus selon le jour de la semaine", "Items sold by day of the week")}
-                  scope={{ period: scopeAllYears, calc: tr("Moyenne d'un jour ouvert (ex. : un lundi habituel), tous produits", "Average of one open day (e.g. a typical Monday), all products"), unit: tr("articles par jour", "items per day") }}
-                  icon={<IconCalendarDays size={16} color={ORANGE} />}
-                />
-                <DowGroupedBars rows={velData.dow_velocity || []} />
-                {(() => {
-                  const d = velData.dow_velocity || [];
-                  if (!d.length) return null;
-                  const best = d.reduce((m: any, x: any) => (x.all > m.all ? x : m), d[0]);
-                  const ratio = best.touristic ? best.touristic / best.all : null;
-                  return (
-                    <Takeaway>
-                      {tr(
-                        `${best.day} est le jour le plus chargé (${fmt(best.all)} articles en moyenne)${ratio ? ` ; en saison touristique, il monte à ${fmt(best.touristic)} articles (× ${fmt(ratio, 1)})` : ""}. Adapter les fournées au jour et à la saison.`,
-                        `${trData(best.day)} is the busiest day (${fmt(best.all)} items on average)${ratio ? `; in the tourist season it rises to ${fmt(best.touristic)} items (× ${fmt(ratio, 1)})` : ""}. Adjust batches to the day and the season.`
-                      )}
-                    </Takeaway>
-                  );
-                })()}
-                <ExpertNote>
-                  Macro-vélocité (dow_velocity) = moyenne des Σ quantity par jour d'ouverture, par day_of_week ; touristic = jours dim_dates.is_touristic ; event = jours avec dim_events.is_event. Micro-vélocité : pic horaire par produit, ratio_pic_percent = quantité à l'heure de pointe / quantité totale ; alerte si ≥ 40 % (PIC_HORAIRE_SEUIL_PCT). stock_securite et ratios saison/événement par produit : table product_velocity_stats (notebook).
-                </ExpertNote>
-                <div className="cs" style={{ marginTop: 6 }}>{tr("Articles vendus en moyenne par jour d'ouverture.", "Average items sold per opening day.")}</div>
-              </div>
-              <div className="cc">
-                <ChartAssistantButton chartType="velocity_hourly_distribution" chartData={{ hourly_distribution: velData.hourly_distribution }} chartName="VelocityHourlyDistribution"
-                  userQuestion="Explique la distribution horaire de la vitesse" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Articles vendus à chaque heure", "Items sold at each hour")}
-                  scope={{ period: scopeAllYears, calc: tr("Total de chaque heure sur la période (pas une moyenne)", "Total of each hour over the period (not an average)"), unit: tr("articles", "items") }}
-                  icon={<IconBar size={16} color={ORANGE} />}
-                />
-                <SimpleBar rows={velData.hourly_distribution || []} labelKey="heure_label" valueKey="global_qte_per_hour" unit={tr("u.", "u.")} color={PEACH} height={200} />
-                {(() => {
-                  const h = velData.hourly_distribution || [];
-                  if (!h.length) return null;
-                  const pk = h.reduce((m: any, x: any) => (x.global_qte_per_hour > m.global_qte_per_hour ? x : m), h[0]);
-                  return (
-                    <Takeaway>
-                      {tr(`Le plus d'articles partent à ${pk.heure_label} : les rayons doivent être pleins avant cette heure.`, `Most items sell at ${pk.heure_label}: shelves must be full before then.`)}
-                    </Takeaway>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-
-          <div className="sw">
-            <Details label={tr("Voir le détail : remplissage des rayons", "See details: shelf restocking")}>
-            <div className="grid-main">
-              <div className="cc">
-                <ChartAssistantButton chartType="velocity_hourly_concentration" chartData={{ macro_items: velItems, seuil_pic_horaire_pct: velData.seuil_pic_horaire_pct }} chartName="VelocityHourlyConcentration"
-                  userQuestion="Explique les produits concentrés sur une plage horaire" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Produits fortement concentrés sur une plage horaire", "Products heavily concentrated in one time slot")}
-                  sub={tr(`Heure de pointe ≥ ${velData.seuil_pic_horaire_pct ?? 40} % des ventes du produit (cahier des charges)`, `Peak hour ≥ ${velData.seuil_pic_horaire_pct ?? 40}% of the product's sales (specification)`)}
-                  icon={<IconAlert size={16} color={ALERT} />}
-                />
-                {(() => {
-                  const conc = velItems
-                    .filter((p: any) => p.alerte_replissage_avant)
-                    .sort((a: any, b: any) => (b.ratio_pic_percent || 0) - (a.ratio_pic_percent || 0))
-                    .slice(0, 6);
-                  if (!conc.length) {
-                    return <div className="cs" style={{ marginTop: 10 }}>{tr("Aucun produit ne concentre autant ses ventes sur une seule heure.", "No product concentrates its sales this much in a single hour.")}</div>;
-                  }
-                  return (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginTop: 8 }}>
-                      {conc.map((p: any, i: number) => (
-                        <div key={i} style={{ padding: 10, borderRadius: 10, background: `rgba(192,80,44,0.08)`, border: "1px solid rgba(192,80,44,0.25)" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                            <div className="pdot" style={{ background: ALERT }} />
-                            <span style={{ fontSize: ".74rem", fontWeight: 800, color: INK }}><ProdName name={p.article} /></span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".68rem", color: MUTED }}>
-                            <span>{tr("Pic", "Peak")} {String(p.peak_hour).padStart(2, "0")}h · {fmt(p.ratio_pic_percent)} %</span>
-                            <span style={{ fontWeight: 700, color: ALERT }}>{tr("remplir avant", "restock before")} {p.alerte_replissage_avant}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </div>
-              <div className="side-col"><RetainCard max={3} /></div>
-            </div>
-            <Details label={tr("Voir le détail : vitesse et heure de pointe de chaque produit", "See details: velocity and peak hour of each product")}>
-              <div className="cc">
-                <ChartAssistantButton chartType="velocity_hourly_monitoring" chartData={{ macro_items: velItems }} chartName="VelocityHourlyMonitoring"
-                  userQuestion="Explique le tableau de surveillance horaire" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Vitesse et heure de pointe par produit", "Velocity and peak hour by product")}
-                  scope={{ period: scopeAllYears, calc: tr("Vitesse = moyenne par jour où le produit a été vendu", "Velocity = average per day the product sold"), unit: tr("articles par jour", "items per day") }}
-                  sub={tr("Les 12 produits les plus vendus par jour", "The 12 best-selling products per day")}
-                  icon={<IconScale size={16} color={ORANGE} />}
-                />
-                <div style={{ marginTop: 8, overflow: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: ".72rem" }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid var(--dk-line, #ECEDE7)", color: MUTED, textAlign: "right" }}>
-                        <th style={{ textAlign: "left", padding: "8px 4px", fontSize: ".65rem" }}>{tr("Produit", "Product")}</th>
-                        <th style={{ padding: "8px 4px", fontSize: ".65rem" }}>{tr("Ventes / jour", "Sales / day")}</th>
-                        <th style={{ padding: "8px 4px", fontSize: ".65rem" }}>{tr("Stock de sécurité", "Safety stock")}</th>
-                        <th style={{ padding: "8px 4px", fontSize: ".65rem" }}>{tr("Heure de pointe", "Peak hour")}</th>
-                        <th style={{ padding: "8px 4px", fontSize: ".65rem" }}>{tr("Part du pic", "Peak share")}</th>
-                        <th style={{ padding: "8px 4px", fontSize: ".65rem" }}>{tr("Action", "Action")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {velItems.slice(0, 12).map((p: any, i: number) => {
-                        const alerte = !!p.alerte_replissage_avant;
-                        return (
-                          <tr key={i} style={{ borderBottom: "1px solid var(--dk-surface, #FFFFFF)" }}>
-                            <td style={{ padding: "8px 4px", fontWeight: 700, color: INK }}><ProdName name={p.article} /></td>
-                            <td style={{ padding: "8px 4px", textAlign: "right", fontWeight: 600, color: INK }}>{fmt(p.daily_velocity, 1)}</td>
-                            <td style={{ padding: "8px 4px", textAlign: "right", color: INK }}>{fmt(p.stock_securite, 0)}</td>
-                            <td style={{ padding: "8px 4px", textAlign: "right", color: INK }}>{p.peak_hour != null ? `${String(p.peak_hour).padStart(2, "0")}h` : "—"}</td>
-                            <td style={{ padding: "8px 4px", textAlign: "right", color: INK }}>{fmt(p.ratio_pic_percent)} %</td>
-                            <td style={{ padding: "8px 4px", textAlign: "right" }}>
-                              <span style={{ fontSize: ".62rem", fontWeight: 800, padding: "2px 7px", borderRadius: 99, background: `color-mix(in srgb, ${alerte ? ALERT : OK} 8%, transparent)`, color: alerte ? ALERT : OK }}>
-                                {alerte ? tr(`Remplir avant ${p.alerte_replissage_avant}`, `Restock before ${p.alerte_replissage_avant}`) : tr("Flux stable", "Steady flow")}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </Details>
-            </Details>
-          </div>
-        </>
-      )}
-
-      {/* ══════════════════════════════════════════════
-          TAB 3: CONTRIBUTION AU TICKET
-          ══════════════════════════════════════════════ */}
-      {tab === "ticket" && ticketData && !loading && (
-        <>
-          {/* Poids dans le panier : deux listes courtes (le rôle de chaque produit) au lieu d'un grand tableau à 3 barres.
-              Le tableau complet reste disponible, replié. */}
-          {(() => {
-            const st = ticketData.stats || {};
-            const dist = st.distribution_par_statut || {};
-            const caMulti = Number(st.ca_total_multi) || 1;
-            const items = ticketAll || [];
-            const gens = items.filter((r: any) => r.statut_contribution === "Générateur de chiffre")
-              .sort((a: any, b: any) => (Number(b.ca_total_multi) || 0) - (Number(a.ca_total_multi) || 0));
-            const accs = items.filter((r: any) => r.statut_contribution !== "Générateur de chiffre")
-              .sort((a: any, b: any) => (Number(b.nb_tickets_multi) || 0) - (Number(a.nb_tickets_multi) || 0));
-            const SHOW = 7;
-            const cols = [
-              {
-                key: "Générateur de chiffre", color: "var(--ch-1)", list: gens,
-                title: tr("Font le panier", "Make the basket"),
-                what: tr("Ils pèsent au moins la moitié du ticket : le client vient pour eux. À ne jamais manquer.", "They weigh at least half the basket: customers come for them. Never run out."),
-                sortNote: tr("classés par chiffre d'affaires", "ranked by revenue"),
-                val: (r: any) => tr(`${fmt(r.contribution_med, 0)} % du ticket`, `${fmt(r.contribution_med, 0)}% of basket`),
-                sub: (r: any) => `${fmt(r.ca_total_multi)} €`,
-              },
-              {
-                key: "Accessoire", color: "var(--ch-3)", list: accs,
-                title: tr("Accompagnent un achat", "Go with a purchase"),
-                what: tr("Pris en plus d'un autre produit : ils complètent le panier. À garder bien visibles, près des produits qui font le panier.", "Taken on top of another product: they complete the basket. Keep them visible, near the products that make the basket."),
-                sortNote: tr("classés par nombre de tickets", "ranked by number of transactions"),
-                val: (r: any) => tr(`${fmt(r.nb_tickets_multi)} tickets`, `${fmt(r.nb_tickets_multi)} transactions`),
-                sub: (r: any) => tr(`${fmt(r.contribution_med, 0)} % du ticket`, `${fmt(r.contribution_med, 0)}% of basket`),
-              },
-            ];
-            return (
-              <div className="sw">
-                <div className="cc">
-                  <ChartAssistantButton chartType="ticket_role_distribution" chartData={{ distribution: dist, stats: st, generateurs: gens.slice(0, 10), accessoires: accs.slice(0, 10) }} chartName="TicketRoles"
-                    userQuestion="Explique le rôle des produits dans le panier et quoi en faire" position="top-right" onOpenChat={openChat} />
-                  <CardHeader
-                    title={tr("Quel rôle joue chaque produit dans le panier ?", "What role does each product play in the basket?")}
-                    scope={{ period: scopeAllYears, calc: tr("Tickets à plusieurs produits seulement · part du ticket = valeur habituelle (médiane)", "Multi-product transactions only · basket share = typical value (median)"), unit: tr("% du ticket · tickets · €", "% of basket · transactions · €") }}
-                    sub={tr(`${fmt(st.pct_multi || 0, 0)} % des tickets contiennent plusieurs produits (${fmt(st.nb_multi || 0)} tickets). Dans ces paniers, un produit joue l'un de ces deux rôles.`,
-                            `${fmt(st.pct_multi || 0, 0)}% of transactions hold several products (${fmt(st.nb_multi || 0)}). In these baskets, a product plays one of two roles.`)}
-                    icon={<IconTicketPerc size={16} color={ORANGE} />}
-                  />
-                  <div className="g2" style={{ marginTop: 8 }}>
-                    {cols.map((c) => {
-                      const d = dist[c.key] || {};
-                      return (
-                        <div key={c.key} style={{ borderRadius: 14, border: "1px solid var(--dk-line)", padding: "14px 16px", background: `color-mix(in srgb, ${c.color} 5%, var(--dk-surface))` }}>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-                            <span className="num" style={{ fontSize: "1.6rem", fontWeight: 800, color: INK, lineHeight: 1 }}>{fmt(d.nb || c.list.length)}</span>
-                            <span style={{ fontSize: ".95rem", fontWeight: 800, color: INK }}>{c.title}</span>
-                            <span className="num" style={{ marginLeft: "auto", fontSize: ".78rem", fontWeight: 700, color: "var(--dk-ink2)" }}>
-                              {tr(`${fmt(((Number(d.ca) || 0) / caMulti) * 100, 0)} % du CA de ces paniers`, `${fmt(((Number(d.ca) || 0) / caMulti) * 100, 0)}% of these baskets' revenue`)}
-                            </span>
-                          </div>
-                          <div style={{ fontSize: ".76rem", color: "var(--dk-ink2)", margin: "6px 0 10px", lineHeight: 1.4 }}>{c.what}</div>
-                          <div style={{ fontSize: ".64rem", fontWeight: 800, color: MUTED, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 2 }}>{c.sortNote}</div>
-                          {c.list.slice(0, SHOW).map((r: any, i: number) => (
-                            <div key={r.article} onClick={() => openProduct(r.article)}
-                              style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--dk-line)", cursor: "pointer" }}>
-                              <span className="num" style={{ width: 18, fontSize: ".7rem", fontWeight: 800, color: MUTED }}>{i + 1}</span>
-                              <span style={{ flex: 1, minWidth: 0, fontSize: ".8rem", fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{trData(r.article)}</span>
-                              <span style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                                <span className="num" style={{ fontSize: ".78rem", fontWeight: 800, color: INK }}>{c.val(r)}</span>
-                                <span className="num" style={{ fontSize: ".68rem", color: MUTED, marginLeft: 8 }}>{c.sub(r)}</span>
-                              </span>
-                            </div>
-                          ))}
-                        </div>
+                          </span>
+                        </button>
                       );
                     })}
                   </div>
-                  {gens[0] && (
+                )}
+                {pen.length > 1 && (
+                  <Takeaway>
+                    {tr(`${trData(pen[0].article)} est dans le panier d'environ 1 client sur ${oneIn(Number(pen[0].penetration_rate) || 0)}${Number(pen[0].penetration_rate) >= 2 * Number(pen[1].penetration_rate) ? ", loin devant tous les autres : une rupture toucherait beaucoup de clients" : ""}.`,
+                        `${trData(pen[0].article)} is in the basket of about 1 customer in ${oneIn(Number(pen[0].penetration_rate) || 0)}${Number(pen[0].penetration_rate) >= 2 * Number(pen[1].penetration_rate) ? ", far ahead of all others: running out would affect many customers" : ""}.`)}
+                  </Takeaway>
+                )}
+              </div>
+                <RetainCard max={4} variant="strip" style={{ margin: 0 }}
+              tip={tr(`ne jamais laisser manquer ${stars.slice(0, 2).map((x: any) => trData(x.article)).join(" et ")}${hourly.length ? `, remplir ${trData(hourly[0].article)} avant ${hourOf(hourly[0])}` : ""}, et regarder les ${fmt(qd("Dormant").nb || 0)} produits « à revoir » avant la prochaine commande.`,
+                       `never run out of ${stars.slice(0, 2).map((x: any) => trData(x.article)).join(" and ")}${hourly.length ? `, restock ${trData(hourly[0].article)} before ${hourOf(hourly[0])}` : ""}, and look at the ${fmt(qd("Dormant").nb || 0)} products "to review" before the next order.`)} />
+              </div>
+            </div>
+
+            <Details key={matrixQuad} defaultOpen={matrixQuad !== "Tous"} label={tr("Voir tous les produits, groupe par groupe", "See every product, group by group")}>
+              <GroupList items={matrixItems} start={matrixQuad === "Tous" ? "Star" : matrixQuad} colors={{ Star: Q1, Niche: Q2, Trafic: Q3, Dormant: Q4 }} />
+            </Details>
+            {penData && !penData.error && (penData.weekly_trend || []).length > 0 && (
+              <Details label={tr("Voir l'évolution semaine par semaine", "See the week-by-week trend")}>
+                <div className="cc">
+                  <ChartAssistantButton chartType="penetration_weekly_trend" chartData={{ periode_du_graphique: yearPen === "Toutes" ? "toutes les années" : `année ${yearPen} (le mois choisi ne s'applique pas ici)`, weekly_trend: penData.weekly_trend, filters: { year: yearPen } }} chartName="PenetrationWeeklyTrend"
+                    userQuestion="Explique l'évolution hebdomadaire du taux de pénétration" position="top-right" onOpenChat={openChat} />
+                  <CardHeader
+                    title={tr("Les 5 produits les plus pris, semaine par semaine", "The 5 most taken products, week by week")}
+                    scope={{ period: scopeSelYears, calc: tr("Part des tickets avec le produit, chaque semaine", "Share of tickets with the product, each week"), unit: tr("% des paniers", "% of baskets") }}
+                    icon={<IconSparkline size={16} color={ORANGE} />}
+                  />
+                  <MultiLineChart series={penData.weekly_trend || []} height={300} />
+                </div>
+              </Details>
+            )}
+            <ExpertNote>
+              Matrice de décision pénétration × vélocité (cahier des charges, composante 2 §4) : frontières = moyennes (pénétration {fmt(seuils.penetration_moyenne || 0, 2)} %, vélocité {fmt(seuils.vitesse_moyenne || 0, 2)}) ; alerte horaire si ratio_pic_percent ≥ {fmt(seuils.pic_horaire_pct || 40)} %. Taux de pénétration = tickets contenant le produit / tickets uniques × 100. API : /api/products/matrix, /api/products/penetration.
+            </ExpertNote>
+          </div>
+        );
+      })()}
+
+      {/* ───────── 2. RYTHME DE VENTE ───────── */}
+      {tab === "vel" && velData && (() => {
+        const dow: any[] = velData.dow_velocity || [];
+        const best = dow.length ? dow.reduce((m: any, x: any) => (x.all > m.all ? x : m), dow[0]) : null;
+        const low = dow.length ? dow.reduce((m: any, x: any) => (x.all < m.all ? x : m), dow[0]) : null;
+        const hrs: any[] = velData.hourly_distribution || [];
+        const totH = hrs.reduce((t: number, x: any) => t + (Number(x.global_qte_per_hour) || 0), 0) || 1;
+        const pk = hrs.length ? hrs.reduce((m: any, x: any) => (x.global_qte_per_hour > m.global_qte_per_hour ? x : m), hrs[0]) : null;
+        // la plus forte fenêtre de 4 heures d'affilée
+        let rush: { h: number; part: number } | null = null;
+        for (const x of hrs) {
+          const s4 = hrs.filter((y: any) => y.hour >= x.hour && y.hour < x.hour + 4).reduce((t: number, y: any) => t + (Number(y.global_qte_per_hour) || 0), 0);
+          if (!rush || s4 / totH * 100 > rush.part) rush = { h: Number(x.hour), part: s4 / totH * 100 };
+        }
+        const after13 = hrs.filter((x: any) => Number(x.hour) >= 13).reduce((t: number, y: any) => t + (Number(y.global_qte_per_hour) || 0), 0) / totH * 100;
+        const hot = velItems.filter((p: any) => p.alerte_replissage_avant).sort((a: any, b: any) => (b.ratio_pic_percent || 0) - (a.ratio_pic_percent || 0)).slice(0, 3);
+        // agenda
+        const rows = velItems.slice(0, 12).filter((p: any) => Number.isFinite(Number(p.peak_hour)));
+        const hours = Array.from(new Set(rows.map((p: any) => Number(p.peak_hour)))).sort((a: any, b: any) => a - b) as number[];
+        const maxV = Math.max(...rows.map((p: any) => Number(p.daily_velocity) || 0), 1);
+        // régularité
+        const fItems: any[] = freqData && !freqData.error ? freqItems : [];
+        const every = fItems.filter((r: any) => Number(r.repurchase_freq_pct) >= 100);
+        const notEvery = fItems.filter((r: any) => Number(r.repurchase_freq_pct) < 100).sort((a: any, b: any) => (Number(b.ca_total) || 0) - (Number(a.ca_total) || 0)).slice(0, 5);
+        const seasonal = notEvery.filter((r: any) => Number(r.repurchase_freq_pct) < 20);
+        return (
+          <div className="sw pa">
+            <Answers items={[
+              best ? { tone: "a", icon: <IconCalendarDays size={17} color="#fff" />, lbl: tr("Jour le plus chargé", "Busiest day"),
+                val: trData(best.day), chip: tr(`${fmt(best.all)} art. / jour`, `${fmt(best.all)} items / day`),
+                note: low && low.all > 0 ? tr(`${fmt(best.all / low.all, 1)} fois le ${trData(low.day).toLowerCase()}`, `${fmt(best.all / low.all, 1)}× ${trData(low.day)}`) : undefined } : null,
+              rush ? { tone: "b", icon: <IconClock size={17} color="#fff" />, lbl: tr("Le coup de feu", "The rush"),
+                val: tr(`${rush.h}h – ${rush.h + 4}h`, `${rush.h}:00 – ${rush.h + 4}:00`), chip: tr(`${fmt(rush.part, 0)} % des articles`, `${fmt(rush.part, 0)}% of items`),
+                note: tr(`Après 13h : ${fmt(after13, 0)} % seulement.`, `After 1 pm: only ${fmt(after13, 0)}%.`) } : null,
+              hot.length ? { tone: "r", icon: <IconClock size={17} color="#fff" />, lbl: tr(`Remplir avant ${hot[0].alerte_replissage_avant}`, `Restock by ${hot[0].alerte_replissage_avant}`),
+                val: hot.map((p: any) => trData(p.article)).join(", "), note: tr(`Part${hot.length > 1 ? "ent" : ""} d'un coup à ${String(hot[0].peak_hour).padStart(2, "0")}h.`, `Sell${hot.length > 1 ? "" : "s"} out in one go at ${String(hot[0].peak_hour).padStart(2, "0")}:00.`) }
+                : pk ? { tone: "c", icon: <IconClock size={17} color="#fff" />, lbl: tr("Heure de pointe", "Peak hour"), val: pk.heure_label, note: tr("Rayons pleins avant cette heure.", "Shelves full before then.") } : null,
+            ].filter(Boolean) as Kpi[]} />
+
+            {/* 1re rangée : un seul graphique « quand on vend » (Par jour | Par heure) + « Toutes les semaines » à côté */}
+            <div className="pa-row">
+              <div className="cc vv-card">
+                <div className="seg vv-seg" role="tablist" aria-label={tr("Vue", "View")}>
+                  <button type="button" role="tab" aria-selected={velView === "jour"} className={velView === "jour" ? "on" : ""} onClick={() => setVelView("jour")}>{tr("Par jour", "By day")}</button>
+                  <button type="button" role="tab" aria-selected={velView === "heure"} className={velView === "heure" ? "on" : ""} onClick={() => setVelView("heure")}>{tr("Par heure", "By hour")}</button>
+                </div>
+                {velView === "jour" ? (<>
+                <ChartAssistantButton chartType="velocity_dow" chartData={{ periode_du_graphique: "tout l'historique (ce graphique ne suit pas la période choisie)", dow_velocity: velData.dow_velocity }} chartName="VelocityDOW"
+                  userQuestion="Explique la vitesse de vente par jour de la semaine" position="top-right" onOpenChat={openChat} />
+                <CardHeader
+                  title={tr("Articles vendus selon le jour", "Items sold by day")}
+                  scope={{ period: scopeAllYears, calc: tr("Un jour d'ouverture habituel, tous produits", "A typical opening day, all products"), unit: tr("articles par jour", "items per day") }}
+                  icon={<IconCalendarDays size={16} color={ORANGE} />}
+                />
+                <DowGroupedBars rows={dow} />
+                {best && (
+                  <Takeaway>
+                    {tr(`${trData(best.day)} est le jour le plus chargé (${fmt(best.all)} articles en moyenne)${best.touristic ? ` ; en saison touristique, il monte à ${fmt(best.touristic)} articles (× ${fmt(best.touristic / best.all, 1)})` : ""}. Adapter les fournées au jour et à la saison.`,
+                        `${trData(best.day)} is the busiest day (${fmt(best.all)} items on average)${best.touristic ? `; in the tourist season it rises to ${fmt(best.touristic)} items (× ${fmt(best.touristic / best.all, 1)})` : ""}. Adjust batches to the day and the season.`)}
+                  </Takeaway>
+                )}
+                </>) : (<>
+                <ChartAssistantButton chartType="velocity_hourly_distribution" chartData={{ periode_du_graphique: "tout l'historique (ce graphique ne suit pas la période choisie)", hourly_distribution: velData.hourly_distribution }} chartName="VelocityHourlyDistribution"
+                  userQuestion="Explique la distribution horaire de la vitesse" position="top-right" onOpenChat={openChat} />
+                <CardHeader
+                  title={tr("Articles vendus à chaque heure", "Items sold at each hour")}
+                  scope={{ period: scopeAllYears, calc: tr("Total de chaque heure sur la période", "Total of each hour over the period"), unit: tr("articles", "items") }}
+                  icon={<IconBar size={16} color={ORANGE} />}
+                />
+                <SimpleBar rows={hrs} labelKey="heure_label" valueKey="global_qte_per_hour" unit={tr("u.", "u.")} color={PEACH} height={300} />
+                {pk && (
+                  <Takeaway>
+                    {tr(`Le plus d'articles partent à ${pk.heure_label} : les rayons doivent être pleins avant cette heure.`, `Most items sell at ${pk.heure_label}: shelves must be full before then.`)}
+                  </Takeaway>
+                )}
+                </>)}
+              </div>
+              <div className="cc rg-card">
+                {freqData && !freqData.error && <ChartAssistantButton chartType="frequency_top20" chartData={{ periode_du_graphique: "tout l'historique (ce graphique ne suit pas la période choisie)", items: fItems.slice(0, 20), total_sem: freqData.total_sem }} chartName="FrequencyTop20"
+                  userQuestion="Explique les produits vendus le plus régulièrement" position="top-right" onOpenChat={openChat} />}
+                <CardHeader
+                  title={tr("Toutes les semaines, ou à certaines périodes ?", "Every week, or only at certain times?")}
+                  sub={freqData ? tr(`Semaines avec au moins une vente, sur ${fmt(freqData.total_sem || 0)}`, `Weeks with at least one sale, out of ${fmt(freqData.total_sem || 0)}`) : undefined}
+                  icon={<IconRepeat size={16} color={ORANGE} />}
+                />
+                {!freqData ? <div className="cs" style={{ padding: 12 }}>{tr("Chargement…", "Loading…")}</div> : (<>
+                  <div className="rg-big"><b className="num">{fmt(every.length)}</b>
+                    <span>{tr("produits vendus chaque semaine", "products sold every week")}<small>{tr(`${fmt(freqData.part_ca_quotidiens || 0, 0)} % du chiffre d'affaires : la base de la boutique`, `${fmt(freqData.part_ca_quotidiens || 0, 0)}% of revenue: the shop's base`)}</small></span>
+                  </div>
+                  <div className="rg-list">
+                    <div className="rg-k">{tr("Gros vendeurs, pas toutes les semaines", "Big sellers, not every week")}</div>
+                    {notEvery.map((r: any) => (
+                      <button key={r.article} type="button" className="rg-line" onClick={() => openProduct(r.article)}>
+                        <span>{trData(r.article)}</span><em className="num">{tr(`${fmt(r.repurchase_freq_pct, 0)} % des semaines`, `${fmt(r.repurchase_freq_pct, 0)}% of weeks`)}</em>
+                      </button>
+                    ))}
+                  </div>
+                  {seasonal.length > 0 && (
                     <Takeaway>
-                      {tr(
-                        `Quand il est acheté avec d'autres produits, ${gens[0].article} représente habituellement ${fmt(gens[0].contribution_med, 0)} % du ticket : c'est un produit qui fait le panier.`,
-                        `When bought with other products, ${gens[0].article} usually makes ${fmt(gens[0].contribution_med, 0)}% of the basket: it drives the basket value.`
-                      )}
+                      {tr(`${seasonal.slice(0, 3).map((r: any) => trData(r.article)).join(", ")} ne se vendent que quelques semaines par an, mais rapportent gros : les préparer seulement pour leur période, en quantité.`,
+                          `${seasonal.slice(0, 3).map((r: any) => trData(r.article)).join(", ")} sell only a few weeks a year but bring in a lot: make them only for their season, in volume.`)}
                     </Takeaway>
                   )}
-                  {accs[0] && (
-                    <Takeaway>
-                      {tr(
-                        `${accs[0].article} est le produit le plus présent dans les paniers à plusieurs produits (${fmt(accs[0].nb_tickets_multi)} tickets) : il accompagne presque tous les achats.`,
-                        `${accs[0].article} is the product most present in multi-product baskets (${fmt(accs[0].nb_tickets_multi)} transactions): it goes with almost every purchase.`
-                      )}
-                    </Takeaway>
-                  )}
-                  <ExpertNote>
-                    Ticket contribution = total_revenue de la ligne / total du ticket × 100, sur les tickets à ≥ 2 produits distincts (clé date_id + ticket_number) ; contribution_med = PERCENTILE_CONT(0.5) ; produits avec ≥ 10 tickets. Rôle : « Générateur de chiffre » si médiane ≥ 50 % (CONTRIBUTION_GENERATEUR_SEUIL_PCT), sinon « Accessoire ». ca_total_multi = CA du produit dans les tickets multi-produits.
-                  </ExpertNote>
+                </>)}
+              </div>
+            </div>
+
+            {/* 2e rangée : ce qui doit être prêt, heure par heure (toute la largeur) */}
+            {/* 2e rangée : ce qui doit être prêt (⅔) + « À retenir » à droite (⅓) */}
+            <div className="pa-row ag-row-wrap">
+            <div className="cc ag-card">
+                <ChartAssistantButton chartType="velocity_hourly_monitoring" chartData={{ periode_du_graphique: "tout l'historique (ce graphique ne suit pas la période choisie)", macro_items: velItems }} chartName="VelocityHourlyMonitoring"
+                  userQuestion="Explique le tableau de surveillance horaire" position="top-right" onOpenChat={openChat} />
+                <CardHeader
+                  title={tr("Ce qui doit être prêt, heure par heure", "What must be ready, hour by hour")}
+                  sub={tr("Les 12 produits les plus vendus, rangés selon l'heure où ils partent le plus. Le chiffre = articles par jour.", "The 12 best sellers, by the hour they sell most. The number = items per day.")}
+                  scope={{ period: scopeAllYears, calc: tr("Moyenne par jour où le produit a été vendu", "Average per day the product sold"), unit: tr("articles par jour", "items per day") }}
+                  icon={<IconClock size={16} color={ORANGE} />}
+                />
+                <ol className="ag">
+                  {hours.map((h) => {
+                    const list = rows.filter((p: any) => Number(p.peak_hour) === h).sort((a: any, b: any) => (b.daily_velocity || 0) - (a.daily_velocity || 0));
+                    const isHot = list.some((p: any) => p.alerte_replissage_avant);
+                    return (
+                      <li key={h} className={`ag-row${isHot ? " hot" : ""}`}>
+                        <div className="ag-time"><b className="num">{String(h).padStart(2, "0")}:00</b></div>
+                        <span className="ag-dot" aria-hidden="true" />
+                        <div className="ag-body">
+                          <div className="ag-chips">
+                            {list.map((p: any) => {
+                              const v = Number(p.daily_velocity) || 0;
+                              return (
+                                <button key={p.article} type="button" className={`ag-chip${v >= maxV * 0.2 ? " big" : ""}${p.alerte_replissage_avant ? " hot" : ""}`} onClick={() => openProduct(p.article)}
+                                  title={tr(`${fmt(p.ratio_pic_percent)} % de ses ventes à ${String(h).padStart(2, "0")}h`, `${fmt(p.ratio_pic_percent)}% of its sales at ${String(h).padStart(2, "0")}:00`)}>
+                                  {trData(p.article)}
+                                  <span className="num">{fmt(v, v < 10 ? 1 : 0)}</span>
+                                  {p.alerte_replissage_avant && <em className="num">{tr(`remplir avant ${p.alerte_replissage_avant}`, `restock by ${p.alerte_replissage_avant}`)}</em>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+              <RetainCard max={4} variant="strip" style={{ margin: 0 }}
+              tip={tr(`avoir les viennoiseries prêtes avant ${hours[0] != null ? `${hours[0]}h` : "l'ouverture"}${hot.length ? `, remplir ${hot.map((p: any) => trData(p.article)).join(" et ")} avant ${hot[0].alerte_replissage_avant}` : ""}${best ? `, et renforcer les fournées le ${trData(best.day).toLowerCase()}` : ""}.`,
+                       `have the pastries ready before ${hours[0] != null ? `${hours[0]}:00` : "opening"}${hot.length ? `, restock ${hot.map((p: any) => trData(p.article)).join(" and ")} by ${hot[0].alerte_replissage_avant}` : ""}${best ? `, and bake more on ${trData(best.day)}` : ""}.`)} />
+            </div>
+
+            <Details label={tr("Voir la vitesse et l'heure de pointe de chaque produit", "See each product's speed and peak hour")}>
+              <div className="cc">
+                <div className="vl">
+                  <div className="vl-h"><span>{tr("Produit", "Product")}</span><span>{tr("Par jour de vente", "Per selling day")}</span><span>{tr("Heure de pointe", "Peak hour")}</span><span>{tr("Part à cette heure", "Share at that hour")}</span></div>
+                  {velItems.slice(0, 40).map((p: any) => (
+                    <button key={p.article} type="button" className={`vl-r${p.alerte_replissage_avant ? " hot" : ""}`} onClick={() => openProduct(p.article)}>
+                      <span>{trData(p.article)}</span>
+                      <span className="num">{fmt(p.daily_velocity, p.daily_velocity < 10 ? 1 : 0)}</span>
+                      <span className="num">{p.peak_hour != null ? `${String(p.peak_hour).padStart(2, "0")}h` : "—"}</span>
+                      <span className="num">{fmt(p.ratio_pic_percent)} %{p.alerte_replissage_avant ? tr(` · remplir avant ${p.alerte_replissage_avant}`, ` · restock by ${p.alerte_replissage_avant}`) : ""}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
-            );
-          })()}
+            </Details>
+            <ExpertNote>
+              Macro-vélocité (dow_velocity) = moyenne des Σ quantity par jour d'ouverture, par day_of_week ; touristic = jours is_touristic ; event = jours avec événement. Micro-vélocité : ratio_pic_percent = quantité à l'heure de pointe / quantité totale ; alerte si ≥ {velData.seuil_pic_horaire_pct ?? 40} %. Régularité = semaines avec vente / semaines de la période × 100.
+            </ExpertNote>
+          </div>
+        );
+      })()}
 
-          <div className="sw"><RetainCard max={4} style={{ marginBottom: 16 }} /></div>
+      {/* ───────── 3. LE PANIER ───────── */}
+      {tab === "basket" && ticketData && (() => {
+        const st = ticketData.stats || {};
+        const dist = st.distribution_par_statut || {};
+        const items = ticketAll || [];
+        const gens = items.filter((r: any) => r.statut_contribution === "Générateur de chiffre")
+          .sort((a: any, b: any) => (Number(b.nb_tickets_multi) || 0) - (Number(a.nb_tickets_multi) || 0));
+        const accs = items.filter((r: any) => r.statut_contribution !== "Générateur de chiffre")
+          .sort((a: any, b: any) => (Number(b.nb_tickets_multi) || 0) - (Number(a.nb_tickets_multi) || 0));
+        const pts = assocRules.filter((r: any) => Number(r.support) > 0 && Number(r.confidence) > 0);
+        const qq = (arr: number[], p: number) => { const a = [...arr].sort((x, y) => x - y); return a[Math.min(a.length - 1, Math.floor(p * a.length))] ?? 0; };
+        const sT = qq(pts.map((r: any) => Number(r.support)), 0.7);
+        const cT = qq(pts.map((r: any) => Number(r.confidence)), 0.7);
+        const actionOf = (r: any) => {
+          const hiS = Number(r.support) >= sT, hiC = Number(r.confidence) >= cT;
+          if (hiS && hiC) return { t: tr("Offre groupée", "Bundle deal"), k: "a" };
+          if (hiC) return { t: tr("Proposer en caisse", "Suggest at the till"), k: "b" };
+          if (hiS) return { t: tr("Placer côte à côte", "Place side by side"), k: "c" };
+          return { t: tr("À tester", "Worth a try"), k: "d" };
+        };
+        const names = (x: string) => String(x || "").split(/\s*,\s*/).map((n) => trData(n));
+        const pairs = [...pts].sort((a: any, b: any) => (Number(b.confidence) * Number(b.support)) - (Number(a.confidence) * Number(a.support))).slice(0, 6);
+        const best = pairs[0];
+        const g0 = gens[0], a0 = accs[0];
+        const multi = Number(st.pct_multi) || 0;
+        return (
+          <div className="sw pa">
+            <Answers items={[
+              { tone: "a", icon: <IconBasket size={17} color="#fff" />, lbl: tr("Achètent plusieurs produits", "Buy several products"),
+                val: tr(`${fmt(Math.round(multi / 10))} clients sur 10`, `${fmt(Math.round(multi / 10))} customers in 10`), chip: tr(`${fmt(multi, 0)} % des tickets`, `${fmt(multi, 0)}% of tickets`),
+                note: tr("Les autres repartent avec un seul produit : de la place pour proposer.", "The others leave with one product: room to suggest more.") },
+              g0 ? { tone: "b", icon: <IconStar size={17} color="#fff" />, lbl: tr("Ce qui fait venir", "What brings people in"),
+                val: trData(g0.article), chip: tr(`${fmt(g0.contribution_med, 0)} % du panier`, `${fmt(g0.contribution_med, 0)}% of basket`),
+                note: tr(`Dans ${fmt(g0.nb_tickets_multi)} paniers.`, `In ${fmt(g0.nb_tickets_multi)} baskets.`) } : null,
+              best ? { tone: "c", icon: <IconLink2 size={17} color="#fff" />, lbl: tr("La paire à proposer", "The pair to suggest"),
+                val: `${names(best.antecedent).join(" + ")} → ${names(best.consequent).join(" + ")}`, chip: `${fmt(best.confidence, 0)} %`,
+                note: tr("des clients le prennent déjà ensemble.", "of customers already take both.") } : null,
+            ].filter(Boolean) as Kpi[]} />
 
-          <div className="sw">
-            <Details label={tr(`Voir le détail : les ${fmt(ticketAll.length)} produits (part du ticket, tickets, CA)`, `See details: all ${fmt(ticketAll.length)} products (basket share, transactions, revenue)`)}>
+            <div className="pa-row">
               <div className="cc">
-                <ChartAssistantButton chartType="ticket_contribution_top20" chartData={{ top20: ticketTop, stats: ticketData.stats }} chartName="TicketContributionTop20"
+                {assocData && !assocData.error && <ChartAssistantButton chartType="association_top12" chartData={{ periode_du_graphique: "tout l'historique (ce graphique ne suit pas la période choisie)", rules: pairs }} chartName="AssociationTop12"
+                  userQuestion="Explique les produits achetés ensemble et quoi en faire" position="top-right" onOpenChat={openChat} />}
+                <CardHeader
+                  title={tr("Les produits achetés ensemble", "Products bought together")}
+                  sub={tr("Les paires les plus utiles : fréquentes, et souvent prises ensemble.", "The most useful pairs: frequent, and often taken together.")}
+                  scope={{ period: scopeAllYears, calc: tr("Tous les tickets de la période", "All tickets in the period"), unit: tr("% des clients", "% of customers") }}
+                  icon={<IconLink2 size={16} color={ORANGE} />}
+                />
+                {!assocData ? <div className="cs" style={{ padding: 12 }}>{tr("Chargement…", "Loading…")}</div>
+                  : pairs.length === 0 ? <div className="cs" style={{ padding: 12 }}>{tr("Aucune paire marquante.", "No notable pair.")}</div>
+                  : (
+                  <div className="bk-pairs">
+                    {pairs.map((r: any, i: number) => {
+                      const act = actionOf(r);
+                      return (
+                        <button key={i} type="button" className="bk-pair" onClick={() => openProduct(String(r.antecedent).split(",")[0].trim())}
+                          title={tr(`Achetés ensemble ${fmt(r.lift, 1)} fois plus souvent que par hasard · dans ${fmt(r.support, 1)} % des tickets`, `Bought together ${fmt(r.lift, 1)}× more often than by chance · in ${fmt(r.support, 1)}% of tickets`)}>
+                          <span className="bk-pn"><span>{names(r.antecedent).join(" + ")}</span><em aria-hidden="true">→</em><span>{names(r.consequent).join(" + ")}</span></span>
+                          <span className="bk-pc"><b className="num">{fmt(r.confidence, 0)} %</b><small>{tr("le prennent aussi", "also take it")}</small></span>
+                          <span className={`bk-act a-${act.k}`}>{act.t}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                {best && (
+                  <Takeaway>
+                    {tr(`${fmt(best.confidence, 0)} % des clients qui prennent ${names(best.antecedent).join(" et ")} prennent aussi ${names(best.consequent).join(" et ")} : c'est la paire qui revient le plus (${fmt(best.support, 1)} % des tickets).`,
+                        `${fmt(best.confidence, 0)}% of customers who take ${names(best.antecedent).join(" and ")} also take ${names(best.consequent).join(" and ")}: the pair that comes back most (${fmt(best.support, 1)}% of tickets).`)}
+                  </Takeaway>
+                )}
+              </div>
+
+              <div className="cc">
+                <ChartAssistantButton chartType="ticket_role_distribution" chartData={{ periode_du_graphique: "tout l'historique (ce graphique ne suit pas la période choisie)", distribution: dist, stats: st, generateurs: gens.slice(0, 10), accessoires: accs.slice(0, 10) }} chartName="TicketRoles"
+                  userQuestion="Explique le rôle des produits dans le panier et quoi en faire" position="top-right" onOpenChat={openChat} />
+                <CardHeader
+                  title={tr("Ce qui fait le panier", "What makes the basket")}
+                  sub={tr("Part du montant du panier quand le produit est acheté", "Share of the basket amount when the product is bought")}
+                  icon={<IconTicketPerc size={16} color={ORANGE} />}
+                />
+                <div className="sp2">
+                  {gens.slice(0, 5).map((r: any) => (
+                    <button key={r.article} type="button" className="sp2-r" onClick={() => openProduct(r.article)}>
+                      <span className="sp2-l"><b>{trData(r.article)}</b><em className="num">{fmt(r.contribution_med, 0)} %</em></span>
+                      <span className="sp2-b"><i style={{ width: `${Math.max(0, Math.min(100, Number(r.contribution_med) || 0))}%` }} /></span>
+                    </button>
+                  ))}
+                </div>
+                {accs.length > 0 && (
+                  <div className="sp-add">
+                    <div className="bk-rk">{tr("Ce qu'on y ajoute le plus souvent", "What gets added most often")}</div>
+                    <div className="sp-chips">
+                      {accs.slice(0, 4).map((r: any) => (
+                        <button key={r.article} type="button" onClick={() => openProduct(r.article)}>{trData(r.article)} <span className="num">{fmt(r.nb_tickets_multi)}</span></button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {a0 && (
+                  <Takeaway>
+                    {tr(`${trData(a0.article)} est ajouté dans ${fmt(a0.nb_tickets_multi)} paniers : il accompagne presque tous les achats, à garder toujours en vue.`,
+                        `${trData(a0.article)} is added to ${fmt(a0.nb_tickets_multi)} baskets: it goes with almost every purchase, keep it in view.`)}
+                  </Takeaway>
+                )}
+              </div>
+            </div>
+
+            <RetainCard max={4} variant="strip"
+              tip={tr(`${best ? `proposer ${names(best.consequent).join(" et ")} à chaque ${names(best.antecedent).join(" et ").toLowerCase()} vendu` : "proposer un produit de plus en caisse"}${g0 ? `, ne jamais manquer de ${trData(g0.article)}` : ""}${a0 ? `, et garder ${trData(a0.article)} près de la caisse` : ""}.`,
+                       `${best ? `suggest ${names(best.consequent).join(" and ")} with every ${names(best.antecedent).join(" and ")} sold` : "suggest one more product at the till"}${g0 ? `, never run out of ${trData(g0.article)}` : ""}${a0 ? `, and keep ${trData(a0.article)} near the till` : ""}.`)} />
+
+            <Details label={tr(`Voir les ${fmt(ticketAll.length)} produits (part du panier, paniers, chiffre d'affaires)`, `See all ${fmt(ticketAll.length)} products (basket share, baskets, revenue)`)}>
+              <div className="cc">
+                <ChartAssistantButton chartType="ticket_contribution_top20" chartData={{ periode_du_graphique: "tout l'historique (ce graphique ne suit pas la période choisie)", top20: ticketTop, stats: ticketData.stats }} chartName="TicketContributionTop20"
                   userQuestion="Explique les produits qui contribuent le plus au ticket" position="top-right" onOpenChat={openChat} />
                 <ContributionRows rows={ticketAll} />
               </div>
             </Details>
+            <ExpertNote>
+              Ticket contribution = total_revenue de la ligne / total du ticket × 100, sur les tickets à ≥ 2 produits distincts ; contribution_med = médiane ; « Générateur de chiffre » si médiane ≥ 50 %. Associations : Apriori, support = P(A ∩ B), confidence = P(B | A), lift = P(A ∩ B) / (P(A) × P(B)) ; action = fréquence et probabilité comparées au 70e centile des paires.
+            </ExpertNote>
           </div>
-
-          {/* Sections « Stratégie & Synthèse » (donut des rôles, tuiles) et « Matrice de décision » (nuage illisible, doublon du précédent) retirées. */}
-
-        </>
-      )}
-
-      {/* ══════════════════════════════════════════════
-          TAB 4: FRÉQUENCE D'ACHAT
-          ══════════════════════════════════════════════ */}
-      {SHOW_FREQ_TAB && tab === "freq" && freqData && !loading && (
-        <>
-          <div className="sec-title">
-            <IconRepeat size={14} color={ORANGE} /> {tr("Vendus chaque semaine ou de temps en temps ?", "Sold every week or now and then?")}
-          </div>
-          <div className="sw">
-            <div className="grid-main">
-              <div className="cc">
-                <ChartAssistantButton chartType="frequency_top20" chartData={{ items: freqItems.slice(0, 20), total_sem: freqData.total_sem }} chartName="FrequencyTop20"
-                  userQuestion="Explique les produits vendus le plus régulièrement" position="top-right" onOpenChat={openChat} />
-                {(() => {
-                  // Deux listes utiles au lieu d'un classement où tout le monde est à 100 % :
-                  // 1) les produits vendus toutes les semaines (noms seulement) ;
-                  // 2) les gros vendeurs qui ne se vendent PAS toutes les semaines (saisonniers, événements).
-                  const byCa = (a: any, b: any) => (Number(b.ca_total) || 0) - (Number(a.ca_total) || 0);
-                  const every = freqItems.filter((r: any) => Number(r.repurchase_freq_pct) >= 100).sort(byCa);
-                  const notEvery = freqItems.filter((r: any) => Number(r.repurchase_freq_pct) < 100).sort(byCa).slice(0, 6);
-                  const SHOW = 12;
-                  return (
-                    <>
-                      <CardHeader
-                        title={tr("Qui se vend toutes les semaines ?", "What sells every week?")}
-                        scope={{ period: scopeAllYears, calc: tr("% des semaines avec au moins une vente du produit", "% of weeks with at least one sale"), unit: tr("% des semaines", "% of weeks") }}
-                        sub={tr(`Sur ${fmt(freqData.total_sem || 0)} semaines de ventes · classés par chiffre d'affaires`, `Over ${fmt(freqData.total_sem || 0)} weeks of sales · ranked by revenue`)}
-                        icon={<IconTrophy size={16} color={ORANGE} />}
-                      />
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 8, margin: "4px 0 8px" }}>
-                        <span className="num" style={{ fontSize: "1.5rem", fontWeight: 800, color: INK }}>{fmt(every.length)}</span>
-                        <span style={{ fontSize: ".8rem", color: "var(--dk-ink2)", fontWeight: 600 }}>
-                          {tr(`produits vendus chaque semaine, sans exception · ${fmt(freqData.part_ca_quotidiens || 0, 0)} % du CA`, `products sold every single week · ${fmt(freqData.part_ca_quotidiens || 0, 0)}% of revenue`)}
-                        </span>
-                      </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {every.slice(0, SHOW).map((r: any) => (
-                          <button key={r.article} type="button" onClick={() => openProduct(r.article)}
-                            style={{ fontSize: ".72rem", fontWeight: 700, color: INK, background: "var(--dk-soft)", border: "1px solid var(--dk-line)", borderRadius: 99, padding: "4px 10px", cursor: "pointer" }}>
-                            {trData(r.article)}
-                          </button>
-                        ))}
-                        {every.length > SHOW && (
-                          <span style={{ fontSize: ".72rem", fontWeight: 700, color: MUTED, padding: "4px 6px" }}>
-                            {tr(`et ${every.length - SHOW} autres`, `and ${every.length - SHOW} more`)}
-                          </span>
-                        )}
-                      </div>
-
-                      {notEvery.length > 0 && (
-                        <>
-                          <div style={{ fontSize: ".7rem", fontWeight: 800, color: MUTED, textTransform: "uppercase", letterSpacing: ".06em", margin: "18px 0 6px" }}>
-                            {tr("Gros vendeurs qui ne se vendent pas toutes les semaines", "Big sellers that don't sell every week")}
-                          </div>
-                          {notEvery.map((r: any) => {
-                            const pct = Number(r.repurchase_freq_pct) || 0;
-                            return (
-                              <div key={r.article} onClick={() => openProduct(r.article)} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 70px", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--dk-line)", cursor: "pointer" }}>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontSize: ".8rem", fontWeight: 700, color: INK, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{trData(r.article)}</div>
-                                  <div style={{ fontSize: ".68rem", color: MUTED }}>{fmt(r.ca_total)} € · {trData(r.category)}</div>
-                                </div>
-                                <div style={{ height: 6, borderRadius: 99, background: "var(--dk-soft)", overflow: "hidden" }}>
-                                  <div style={{ width: `${Math.min(100, pct)}%`, height: "100%", borderRadius: 99, background: statutColor(r.statut_frequence) }} />
-                                </div>
-                                <div className="num" style={{ fontSize: ".76rem", fontWeight: 800, color: INK, textAlign: "right" }}>
-                                  {fmt(pct, 0)} %<span style={{ fontWeight: 600, color: MUTED, fontSize: ".64rem" }}> {tr("sem.", "wks")}</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </>
-                      )}
-                    </>
-                  );
-                })()}
-                <ExpertNote>
-                  Repurchase frequency (repurchase_freq_pct) = semaines ISO avec vente (week_iso, année incluse) / semaines de la période des ventes × 100 ({fmt(freqData.total_sem || 0)} semaines). Classes : 100 % Quotidien, ≥ 75 % Régulier, ≥ 50 % Cyclique, sinon Sporadique. Fidélité du marché envers le produit, sans identifiant client.
-                </ExpertNote>
-              </div>
-              <div className="cc">
-                <ChartAssistantButton chartType="frequency_distribution" chartData={{ status_distribution: freqData.status_distribution, nb_produits: freqData.nb_produits }} chartName="FrequencyDistribution"
-                  userQuestion="Explique la répartition des produits selon leur régularité" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Produits par régularité de vente", "Products by sales regularity")}
-                  scope={{ period: scopeAllYears, calc: tr("Part des produits dans chaque classe", "Share of products in each class"), unit: tr("% des produits", "% of products") }}
-                  sub={tr("Classes de régularité", "Regularity classes")}
-                  icon={<IconDonutPie size={16} color={ORANGE} />}
-                />
-                <CategoryBars
-                  cats={(() => {
-                    const sc: Record<string, number> = freqData.status_distribution || {};
-                    const tot = Object.values(sc).reduce((x, y) => x + Number(y), 0) || 1;
-                    return ["Quotidien", "Regulier", "Cyclique", "Sporadique"]
-                      .filter((k) => sc[k] != null)
-                      .map((k) => ({ category: k, taux_moyen: (Number(sc[k]) / tot) * 100, nb_articles: Number(sc[k]) }));
-                  })()}
-                  height={120}
-                  scaleMax={100}
-                />
-                <div style={{ display: "grid", gap: 6, marginTop: 14, fontSize: ".72rem", color: "var(--dk-ink2)", lineHeight: 1.35 }}>
-                  <div><b>{tr("Quotidien", "Daily")}</b> : {tr("vendu toutes les semaines", "sold every week")}</div>
-                  <div><b>{tr("Régulier", "Regular")}</b> : {tr("au moins 3 semaines sur 4", "at least 3 weeks out of 4")}</div>
-                  <div><b>{tr("Cyclique", "Cyclical")}</b> : {tr("au moins 1 semaine sur 2", "at least 1 week out of 2")}</div>
-                  <div><b>{tr("Sporadique", "Sporadic")}</b> : {tr("moins d'une semaine sur 2 (saison, fêtes)", "under 1 week out of 2 (season, holidays)")}</div>
-                </div>
-                {(() => {
-                  const sc: Record<string, number> = freqData.status_distribution || {};
-                  const tot = Object.values(sc).reduce((a, b) => a + Number(b), 0) || 1;
-                  return (
-                    <Takeaway>
-                      {tr(
-                        `${fmt((Number(sc["Sporadique"] || 0) / tot) * 100, 0)} % des produits sont vendus moins d'une semaine sur deux : produits saisonniers ou d'événement.`,
-                        `${fmt((Number(sc["Sporadique"] || 0) / tot) * 100, 0)}% of products sell in fewer than half of the weeks: seasonal or event products.`
-                      )}
-                    </Takeaway>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-
-          <div className="sw"><RetainCard max={6} style={{ marginBottom: 16 }} /></div>
-
-          <div className="sw">
-            <Details label={tr("Voir le détail : par famille de produits", "See details: by product family")}>
-            <div>
-              <div className="cc">
-                <ChartAssistantButton chartType="frequency_by_category" chartData={{ items: freqItems }} chartName="FrequencyByCategory"
-                  userQuestion="Explique la régularité de vente moyenne par catégorie" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Régularité de vente moyenne par catégorie", "Average sales regularity by category")}
-                  sub={tr("Comparatif des familles", "Family comparison")}
-                  icon={<IconBox size={16} color={ORANGE} />}
-                />
-                <CategoryBars
-                  cats={Object.entries(
-                    freqItems.reduce((acc: any, p: any) => {
-                      acc[p.category] = acc[p.category] || { total: 0, count: 0 };
-                      acc[p.category].total += Number(p.repurchase_freq_pct) || 0;
-                      acc[p.category].count += 1;
-                      return acc;
-                    }, {})
-                  ).map(([category, v]: any) => ({
-                    category,
-                    taux_moyen: v.total / Math.max(v.count, 1),
-                    nb_articles: v.count,
-                  })).sort((a, b) => b.taux_moyen - a.taux_moyen)}
-                  color={PEACH}
-                  height={260}
-                  scaleMax={100}
-                />
-                {(() => {
-                  const acc: Record<string, { t: number; c: number }> = {};
-                  freqItems.forEach((p: any) => { acc[p.category] = acc[p.category] || { t: 0, c: 0 }; acc[p.category].t += Number(p.repurchase_freq_pct) || 0; acc[p.category].c += 1; });
-                  const best = Object.entries(acc).map(([k, v]) => ({ k, v: v.t / Math.max(v.c, 1) })).sort((a, b) => b.v - a.v)[0];
-                  if (!best) return null;
-                  return (
-                    <Takeaway>
-                      {tr(`${best.k} est la famille la plus régulière : ses produits se vendent en moyenne ${fmt(best.v, 0)} % des semaines.`, `${trData(best.k)} is the most regular family: its products sell in ${fmt(best.v, 0)}% of weeks on average.`)}
-                    </Takeaway>
-                  );
-                })()}
-              </div>
-
-            </div>
-            </Details>
-          </div>
-
-          {/* Graphique « Top 8 produits quotidiens » retiré : ses courbes étaient dessinées
-              avec une formule (sinus), pas calculées à partir des ventes. */}
-        </>
-      )}
-
-      {/* ══════════════════════════════════════════════
-          TAB 5: ASSOCIATIONS
-          ══════════════════════════════════════════════ */}
-      {tab === "assoc" && assocData && !loading && (
-        <>
-          {/* Achetés ensemble : une liste de paires en phrases simples, chacune avec son action.
-              (Le nuage de bulles, les réglages de tri et les 4 tuiles chiffrées ont été retirés : trop lourds pour 7 paires.) */}
-          {(() => {
-            const pts = assocRules.filter((r: any) => Number(r.support) > 0 && Number(r.confidence) > 0);
-            const q = (arr: number[], p: number) => { const a = [...arr].sort((x, y) => x - y); return a[Math.min(a.length - 1, Math.floor(p * a.length))] ?? 0; };
-            const sT = q(pts.map((r: any) => Number(r.support)), 0.7);
-            const cT = q(pts.map((r: any) => Number(r.confidence)), 0.7);
-            const actionOf = (r: any) => {
-              const hiS = Number(r.support) >= sT, hiC = Number(r.confidence) >= cT;
-              if (hiS && hiC) return { t: tr("Offre groupée", "Bundle deal"), c: Q1 };
-              if (hiC) return { t: tr("Suggérer en caisse", "Suggest at the till"), c: Q2 };
-              if (hiS) return { t: tr("Placer côte à côte", "Place side by side"), c: Q3 };
-              return { t: tr("À tester", "Worth a try"), c: Q4 };
-            };
-            const names = (s: string) => String(s || "").split(/\s*,\s*/).map((x) => trData(x));
-            const sorted = [...pts].sort((a: any, b: any) => (Number(b.lift) || 0) - (Number(a.lift) || 0));
-            return (
-              <div className="sw">
-                <div className="cc">
-                  <ChartAssistantButton chartType="association_top12" chartData={{ rules: sorted.slice(0, 10) }} chartName="AssociationTop12"
-                    userQuestion="Explique les produits achetés ensemble et quoi en faire" position="top-right" onOpenChat={openChat} />
-                  <CardHeader
-                    title={tr("Quoi vendre ensemble ?", "What to sell together?")}
-                    scope={{ period: scopeAllYears, calc: tr("Tous les tickets de la période", "All transactions in the period"), unit: tr("% des clients · % des tickets", "% of customers · % of transactions") }}
-                    sub={assocData.pct_tickets_mono
-                      ? tr(`${fmt(assocData.pct_tickets_mono)} % des tickets ne contiennent qu'un seul produit : ces paires disent quoi proposer en plus. Classées de la plus forte à la plus faible.`,
-                           `${fmt(assocData.pct_tickets_mono)}% of transactions hold a single product: these pairs show what to suggest. Strongest first.`)
-                      : tr("Classées de la plus forte à la plus faible.", "Strongest first.")}
-                    icon={<IconLink2 size={16} color={ORANGE} />}
-                  />
-                  {sorted.length === 0 && <div className="cs" style={{ padding: 20 }}>{tr("Aucune paire à afficher.", "No pair to show.")}</div>}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 10, marginTop: 6 }}>
-                    {sorted.map((r: any, i: number) => {
-                      const a = names(r.antecedent), b = names(r.consequent);
-                      const act = actionOf(r);
-                      return (
-                        <div key={i} onClick={() => openProduct(r.antecedent.split(",")[0].trim())}
-                          style={{ border: "1px solid var(--dk-line)", borderRadius: 12, padding: "12px 14px", cursor: "pointer", background: "var(--dk-surface)", display: "flex", flexDirection: "column", gap: 6 }}>
-                          <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                            <div style={{ fontSize: ".84rem", fontWeight: 800, color: INK, lineHeight: 1.3, flex: 1 }}>
-                              {[...a, ...b].join(" + ")}
-                            </div>
-                            <span className="num" style={{ fontSize: ".78rem", fontWeight: 800, color: INK, whiteSpace: "nowrap" }}>×{fmt(r.lift, 1)}</span>
-                          </div>
-                          <div style={{ fontSize: ".76rem", color: "var(--dk-ink2)", lineHeight: 1.4 }}>
-                            {tr(
-                              `${fmt(r.confidence, 0)} % des clients qui prennent ${a.join(" et ")} prennent aussi ${b.join(" et ")}.`,
-                              `${fmt(r.confidence, 0)}% of customers who buy ${a.join(" and ")} also take ${b.join(" and ")}.`
-                            )}
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
-                            <span style={{ fontSize: ".68rem", fontWeight: 800, color: INK, background: `color-mix(in srgb, ${act.c} 16%, var(--dk-surface))`, border: `1px solid color-mix(in srgb, ${act.c} 40%, transparent)`, borderRadius: 99, padding: "2px 9px" }}>
-                              {act.t}
-                            </span>
-                            <span style={{ fontSize: ".68rem", color: MUTED }}>
-                              {tr(`dans ${fmt(r.support, 1)} % des tickets`, `in ${fmt(r.support, 1)}% of transactions`)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div style={{ fontSize: ".7rem", color: MUTED, marginTop: 10, lineHeight: 1.45 }}>
-                    {tr("×2,5 = achetés ensemble 2,5 fois plus souvent que par hasard. Offre groupée : paire fréquente et très probable · Suggérer en caisse : rare mais très probable · Placer côte à côte : fréquente mais moins probable. Cliquez sur une paire pour la fiche du produit.",
-                        "×2.5 = bought together 2.5 times more often than by chance. Bundle deal: frequent and very likely · Suggest at the till: rare but very likely · Place side by side: frequent but less likely. Click a pair for the product sheet.")}
-                  </div>
-                  <ExpertNote>
-                    Apriori (mlxtend, notebook). support = P(A ∩ B) ; confidence = P(B | A) ; lift = P(A ∩ B) / (P(A) × P(B)). Seuils : support ≥ 1 %, confiance ≥ 30 %, lift ≥ 1,2. Règles A → B et B → A regroupées (un groupe de produits = une ligne) : {fmt(assocData.nb_total_regles || 0)} groupes pour {fmt(assocData.nb_regles_brutes || 0)} règles. Action : fréquence et probabilité comparées au 70e centile des paires.
-                  </ExpertNote>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* Histogramme et matrice du Lift retirés : difficiles à lire, ils répétaient la liste ci-dessus. */}
-
-          {/* Tableau complet des associations retiré : il répétait le classement ci-dessus. */}
-
-          <div className="sw"><RetainCard max={6} style={{ marginBottom: 16 }} /></div>
-
-          <div className="sw">
-            <Details label={tr("Voir le détail : synthèse et plan d'action", "See details: summary and action plan")}>
-            <div>
-              <div className="cc">
-                <ChartAssistantButton chartType="associations_table" chartData={{ rules: assocRules, nb_total_regles: assocData.nb_total_regles }} chartName="AssociationsRecommendations"
-                  userQuestion="Explique quoi faire de ces associations" position="top-right" onOpenChat={openChat} />
-                <CardHeader
-                  title={tr("Que faire de ces associations ?", "What to do with these associations?")}
-                  sub={tr("Suggestions basées sur les associations détectées", "Suggestions based on the detected associations")}
-                  icon={<IconSparkles size={16} color={ORANGE} />}
-                />
-                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
-                  {[
-                    { title: tr("Offre groupée : les liens les plus forts", "Bundle offer: the strongest links"), desc: tr(`${assocRules.filter((r: any) => r.lift >= 3).length} paires achetées au moins 3 fois plus souvent que par hasard — proposer un prix pour le lot`, `${assocRules.filter((r: any) => r.lift >= 3).length} pairs bought at least 3 times more often than by chance — offer a bundle price`), color: ORANGE, Icon: IconTarget },
-                    { title: tr("Placement côte à côte", "Side-by-side placement"), desc: tr(`${assocRules.filter((r: any) => r.confidence >= 60).length} paires où plus de 60 % des clients du premier produit prennent le second — les rapprocher en boutique`, `${assocRules.filter((r: any) => r.confidence >= 60).length} pairs where over 60% of customers of the first product also take the second — place them closer in the shop`), color: PEACH, Icon: IconMapPin },
-                    { title: tr("Suggestion en caisse", "Checkout suggestion"), desc: `${assocRules.slice(0, 5).map((r: any) => r.consequent).filter((x: string, i: number, arr: string[]) => arr.indexOf(x) === i).slice(0, 3).join(" · ")}${tr(" : à proposer au moment de payer", ": suggest at payment")}`, color: WARN, Icon: IconCart },
-                    { title: tr("Signalétique", "Signage"), desc: tr("Pour les paires les plus fréquentes : une étiquette « souvent acheté avec… » près du produit", "For the most frequent pairs: a “often bought with…” label next to the product"), color: OK, Icon: IconLink2 },
-                  ].map((r, i) => {
-                    const RIcon = r.Icon;
-                    return (
-                      <div key={i} style={{ display: "flex", gap: 10, padding: 10, borderRadius: 10, background: `color-mix(in srgb, ${r.color} 8%, transparent)`, borderLeft: `3px solid ${r.color}` }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, flexShrink: 0, marginTop: 1 }}>
-                          <RIcon size={16} color={r.color} />
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: ".78rem", fontWeight: 800, color: INK, marginBottom: 2 }}>{r.title}</div>
-                          <div style={{ fontSize: ".68rem", color: "var(--dk-ink2, #3A3655)", lineHeight: 1.4 }}>{r.desc}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-            </Details>
-          </div>
-        </>
-      )}
+        );
+      })()}
       {panelName && (
         <ProductPanel name={panelName} base={allItems} extra={panelExtra} onClose={() => setPanelName(null)} />
       )}

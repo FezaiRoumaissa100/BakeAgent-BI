@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Cache le bouton « N » de Next.js en développement : il recouvrait le bouton « Saisir le stock » de la barre latérale.
+  devIndicators: false,
 };
 
 export default nextConfig;

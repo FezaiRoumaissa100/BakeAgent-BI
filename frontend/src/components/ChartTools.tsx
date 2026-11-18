@@ -59,6 +59,18 @@ function inlineStyles(src: Element, dst: Element) {
   for (const p of PROPS) { const v = cs.getPropertyValue(p); if (v) txt += `${p}:${v};`; }
   // pas d'animation ni de transition dans l'image
   txt += "animation:none;transition:none;";
+  // Un texte écrit sur une seule ligne à l'écran reste sur une seule ligne dans l'image : dans l'image, le texte peut être
+  // un peu plus large, et ces petites étiquettes (« 2024 et 2025 », légendes, pastilles) passaient sur deux lignes.
+  try {
+    const hasText = Array.from(src.childNodes).some((n) => n.nodeType === 3 && /\S/.test(n.nodeValue || ""));
+    if (hasText && cs.whiteSpace !== "nowrap" && cs.whiteSpace !== "pre") {
+      const h = (src as HTMLElement).getBoundingClientRect().height;
+      const fs = parseFloat(cs.fontSize) || 14;
+      const lh = parseFloat(cs.lineHeight) || fs * 1.3;
+      const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+      if (h > 0 && h - padY < lh * 1.5) txt += "white-space:nowrap;";
+    }
+  } catch { /* mesure impossible : on garde le style d'origine */ }
   (dst as HTMLElement).setAttribute("style", txt);
   // Première lettre en majuscule faite en CSS (::first-letter) : on l'écrit dans le texte de la copie
   try {
@@ -293,6 +305,53 @@ function Viewer({ card, startZoom, onClose, snap }: { card: HTMLElement; startZo
 }
 
 // ── La barre de boutons, au survol des cartes ──
+// Place de la barre ⤢ 🔍 ⤓ : en haut à droite de la carte, à gauche du bouton ✦ — sauf si elle y cacherait
+// un bouton du graphique (ex. « Produits / Familles », « Chiffre d'affaires / Quantité / Tickets », « 5 10 15 20 »).
+// Dans ce cas, elle se met à cheval sur le bord du haut de la carte, et y RESTE pour cette carte
+// (elle ne bouge plus quand on change d'onglet ou de bouton dans le graphique).
+const BAR_W = 3 * 26 + 2 * 4, BAR_H = 26;
+const onEdge = new WeakSet<HTMLElement>();
+function barSpot(c: HTMLElement): { top: number; right: number } {
+  const r = c.getBoundingClientRect();
+  const ask = Array.from(c.querySelectorAll<HTMLElement>(".chart-ask")).find((a) => {
+    const ar = a.getBoundingClientRect();
+    return ar.top - r.top < 30 && r.right - ar.right < 30;     // bouton ✦ en haut à droite
+  });
+  const askGap = ask ? 42 : 10;
+  const ctrls = Array.from(c.querySelectorAll<HTMLElement>("button, a, input, select, label, summary, [role='tab'], [role='button']"))
+    .filter((el) => !el.classList.contains("chart-ask") && el.getClientRects().length > 0)
+    .map((el) => el.getBoundingClientRect())
+    .filter((q) => q.width > 0 && q.height > 0);
+  // …et le texte (titre, sous-titre, étiquettes) : la barre ne doit jamais cacher un mot. On mesure le texte lui-même
+  // (pas la boîte qui le contient), seulement dans le haut de la carte, là où la barre se pose.
+  try {
+    const walker = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+    const range = document.createRange();
+    let n: Node | null, count = 0;
+    while ((n = walker.nextNode()) && count < 400) {
+      count++;
+      if (!/\S/.test(n.nodeValue || "")) continue;
+      const pe = n.parentElement;
+      if (!pe || pe.closest(".chart-ask, svg")) continue;
+      range.selectNodeContents(n);
+      for (const q of Array.from(range.getClientRects())) {
+        if (q.top - r.top > 90) continue;
+        if (q.width > 0 && q.height > 0) ctrls.push(q);
+      }
+    }
+  } catch { /* mesure impossible : on garde les boutons seulement */ }
+  const free = (top: number, right: number) => {
+    const L = window.innerWidth - right - BAR_W, R = L + BAR_W, T = top, B = top + BAR_H;
+    return !ctrls.some((q) => q.left < R + 4 && q.right > L - 4 && q.top < B + 4 && q.bottom > T - 4);
+  };
+  const usual = { top: r.top + 10, right: window.innerWidth - r.right + askGap };   // en haut à droite, à gauche du ✦
+  const edge = { top: r.top - BAR_H / 2, right: window.innerWidth - r.right + askGap }; // sur le bord du haut
+  if (onEdge.has(c)) return edge;
+  if (free(usual.top, usual.right)) return usual;
+  onEdge.add(c);
+  return edge;
+}
+
 export function ChartTools() {
   const [card, setCard] = useState<HTMLElement | null>(null);
   const [box, setBox] = useState<{ top: number; right: number } | null>(null);
@@ -314,12 +373,8 @@ export function ChartTools() {
 
   const place = useCallback((c: HTMLElement | null) => {
     if (!c || !c.isConnected) { setBox(null); return; }
-    const r = c.getBoundingClientRect();
-    const ask = Array.from(c.querySelectorAll<HTMLElement>(".chart-ask")).find((a) => {
-      const ar = a.getBoundingClientRect();
-      return ar.top - r.top < 30 && r.right - ar.right < 30;     // bouton ✦ en haut à droite
-    });
-    setBox({ top: r.top + 10, right: window.innerWidth - r.right + (ask ? 42 : 10) });
+    const b = barSpot(c);
+    setBox((prev) => (prev && prev.top === b.top && prev.right === b.right ? prev : b));
   }, []);
 
   useEffect(() => {
@@ -333,7 +388,8 @@ export function ChartTools() {
       for (let el: HTMLElement | null = c; el; el = (el.parentElement?.closest(CARD) as HTMLElement | null)) if (isChartCard(el)) target = el;
       if (target) {
         window.clearTimeout(hideT.current);
-        setCard((prev) => { if (prev !== target) { setMenu(false); place(target); } return target; });
+        // replacé à chaque mouvement : la carte peut changer de taille (ex. « Produits » → « Familles »)
+        setCard((prev) => { if (prev !== target) setMenu(false); place(target); return target; });
       } else {
         window.clearTimeout(hideT.current);
         hideT.current = window.setTimeout(() => { setCard(null); setMenu(false); }, 250);
@@ -378,9 +434,8 @@ export function ChartTools() {
     const f = () => {
       raf = 0;
       if (!pinned.card.isConnected) { unpin(); return; }
-      const r = pinned.card.getBoundingClientRect();
-      const ask = pinned.card.querySelector(".chart-ask");
-      setPinBox({ top: r.top + 10, right: window.innerWidth - r.right + (ask ? 42 : 10) + 3 * 30 + 4 });
+      const sp = barSpot(pinned.card);
+      setPinBox({ top: sp.top, right: sp.right + BAR_W + 8 });
     };
     const on = () => { if (!raf) raf = requestAnimationFrame(f); };
     f();
